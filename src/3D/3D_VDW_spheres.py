@@ -16,35 +16,10 @@ bsize = sig1 * 300
 ep1 = 3.0
 dt = 0.0005
 
-#BEADS = ([4.,5.], [7.,3.], [10.,13.])
 BEADS_HIS = np.zeros((N,nsteps+1,3))
-P_BEADS = np.zeros((N,3))
+POS_BEADS, VEL_BEADS, FRC_BEADS = ut.setup(N, L, sig1)
 
-for i in xrange(N):
-	for c in xrange(3):
-		P_BEADS[i][c] = np.random.random() * L
-		BEADS_HIS[i][0][c] = P_BEADS[i][c]
-	for j in xrange(i):
-		dx = (P_BEADS[i][0] - P_BEADS[j][0])
-		dx -= L * int(2*dx/L)
-		dy = (P_BEADS[i][1] - P_BEADS[j][1])
-		dy -= L * int(2*dy/L)
-		dz = (P_BEADS[i][2] - P_BEADS[j][2])
-		dz -= L * int(2*dz/L)
-		while (dx**2 + dy**2 + dz**2) < (2.5*sig1)**2:
-			for c in xrange(3):
-				P_BEADS[i][c] = np.random.random() * L
-				BEADS_HIS[i][0][c] = P_BEADS[i][c]
-
-			dx = (P_BEADS[i][0] - P_BEADS[j][0])
-			dx -= L * int(2*dx/L)
-			dy = (P_BEADS[i][1] - P_BEADS[j][1])
-			dy -= L * int(2*dy/L)
-			dz = (P_BEADS[i][2] - P_BEADS[j][2])
-			dz -= L * int(2*dz/L)
-
-V_BEADS = (np.random.random((N,3)) - 0.5) * 2
-F_BEADS = np.zeros((N,3))
+print POS_BEADS, VEL_BEADS, FRC_BEADS 
 
 """
 potential = map (lambda x: POT(x, sig1, ep1), np.linspace(0,10,50))

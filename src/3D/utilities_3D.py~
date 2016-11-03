@@ -6,32 +6,34 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import cnames
 from matplotlib import animation
 
-def setup(N, L):
+def unit_vector(vector):
+
+	sum_ = np.sum([i**2 for i in vector])
+	norm = 1./sum_
+	u_vector = [np.sqrt(i**2 * norm) * np.sign(i) for i in vector]
+
+	return u_vector
+
+
+def rand_vector(n): return np.array(unit_vector(np.random.random((n)) * 2 - 1)) 
+
+
+def setup(N, L, sig1):
 
 	POS_BEADS = np.zeros((N, 3))
-
-	for i in xrange(N):
-		for c in xrange(3):
-			P_BEADS[i][c] = np.random.random() * L
-			BEADS_HIS[i][0][c] = P_BEADS[i][c]
+	POS_BEADS[0] += np.random.random((3)) * L 
+	for i in xrange(N-1):
+		next_bead = POS_BEADS[i] + rand_vector(3) * sig1
+		for n in xrange(3): next bead[n] += L * int(2 * next_bead[n] / L)
 		for j in xrange(i):
-			dx = (P_BEADS[i][0] - P_BEADS[j][0])
+			if P
+			dx = (POS_BEADS[i][0] - POS_BEADS[j][0])
 			dx -= L * int(2*dx/L)
-			dy = (P_BEADS[i][1] - P_BEADS[j][1])
+			dy = (POS_BEADS[i][1] - POS_BEADS[j][1])
 			dy -= L * int(2*dy/L)
-			dz = (P_BEADS[i][2] - P_BEADS[j][2])
+			dz = (POS_BEADS[i][2] - POS_BEADS[j][2])
 			dz -= L * int(2*dz/L)
-			while (dx**2 + dy**2 + dz**2) < (2.5*sig1)**2:
-				for c in xrange(3):
-					P_BEADS[i][c] = np.random.random() * L
-					BEADS_HIS[i][0][c] = P_BEADS[i][c]
-
-				dx = (P_BEADS[i][0] - P_BEADS[j][0])
-				dx -= L * int(2*dx/L)
-				dy = (P_BEADS[i][1] - P_BEADS[j][1])
-				dy -= L * int(2*dy/L)
-				dz = (P_BEADS[i][2] - P_BEADS[j][2])
-				dz -= L * int(2*dz/L)
+		POS_BEADS[i+1] = POS_BEADS[i] + rand_vector(3) * L
 
 	VEL_BEADS = (np.random.random((N,3)) - 0.5) * 2
 	FRC_BEADS = np.zeros((N,3))
