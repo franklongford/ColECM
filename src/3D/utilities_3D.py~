@@ -6,96 +6,155 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import cnames
 from matplotlib import animation
 
+
 def unit_vector(vector):
 
 	sum_ = np.sum([i**2 for i in vector])
 	norm = 1./sum_
-	u_vector = [np.sqrt(i**2 * norm) * np.sign(i) for i in vector]
-
-	return u_vector
+	return [np.sqrt(i**2 * norm) * np.sign(i) for i in vector]
 
 
 def rand_vector(n): return np.array(unit_vector(np.random.random((n)) * 2 - 1)) 
 
 
-def setup(N, L, sig1):
+def grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, bond, boxl, max_energy):
 
-	POS_BEADS = np.zeros((N, 3))
-	POS_BEADS[0] += np.random.random((3)) * L 
-	for i in xrange(N-1):
-		next_bead = POS_BEADS[i] + rand_vector(3) * sig1
-		for n in xrange(3): next bead[n] += L * int(2 * next_bead[n] / L)
-		for j in xrange(i):
-			if P
-			dx = (POS_BEADS[i][0] - POS_BEADS[j][0])
-			dx -= L * int(2*dx/L)
-			dy = (POS_BEADS[i][1] - POS_BEADS[j][1])
-			dy -= L * int(2*dy/L)
-			dz = (POS_BEADS[i][2] - POS_BEADS[j][2])
-			dz -= L * int(2*dz/L)
-		POS_BEADS[i+1] = POS_BEADS[i] + rand_vector(3) * L
-
-	VEL_BEADS = (np.random.random((N,3)) - 0.5) * 2
-	FRC_BEADS = np.zeros((N,3))
-
-	return POS_BEADS, VEL_BEADS, FRC_BEADS
+	if bead == 0:
+		pos[i] = np.random.random((3)) * boxl  
+		return  pos, 0, 0
+	else:
+		energy = max_energy +1
+		while  energy > max_energy:
+			pos[i] = pos[i-1] + rand_vector(3) * sig1
+			energy = tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB)
+			
+		for n in xrange(3): pos[i][n] += boxl * (1 - int((pos[i][n] + boxl) / boxl))
+		return pos, 1, 1
 
 
-def calc_forces(N, P_BEADS, sig1, ep1):
+def setup(boxl, nchain, lchain, sig1, ep1, r0, kB):
+
+	N = nchain*lchain
+	pos = np.zeros((N, 3))
+	bond = np.zeros((N, N))
+
+	for chain in xrange(nchain):
+		for bead in xrange(lchain):
+			i = chain * nchain + bead
+			pos, bond[i][i-1], bond[i-1][i] = grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, bond, boxl, 1E6)
+
+	vel = (np.random.random((N,3)) - 0.5) * 2
+	frc = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB)
+
+	return pos, vel, frc, bond
+
+
+def calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB):
 
 	f_beads = np.zeros((N, 3))
 
 	for i in xrange(N):
 		for j in xrange(i):
-			x = (P_BEADS[i][0] - P_BEADS[j][0])
-			x -= L * int(2*x/L)
-			y = (P_BEADS[i][1] - P_BEADS[j][1])
-			y -= L * int(2*y/L)
-			z = (P_BEADS[i][2] - P_BEADS[j][2])
-			z -= L * int(2*z/L)
+			dx = (pos[i][0] - pos[j][0])
+			dx -= boxl * int(2*dx/boxl)
+			dy = (pos[i][1] - pos[j][1])
+			dy -= boxl * int(2*dy/boxl)
+			dz = (pos[i][2] - pos[j][2])
+			dz -= boxl * int(2*dz/boxl)
+			r2 = dx**2 + dy**2 + dz**2
 
-			"""
-			r = np.sqrt(x**2 + y**2)
-			f_beads[i][0] += x / r * FORCE(r, sig1, ep1)
-			f_beads[i][1] += y / r * FORCE(r, sig1, ep1)
-			"""
+			if bond[i][j] == 1:
+				r = np.sqrt(r2)
+				Fr = force_bond(r, r0, kB)
+				f_beads[i][0] += dx / r * Fr
+				f_beads[i][1] += dy / r * Fr
+				f_beads[i][2] += dz / r * Fr
 
-			r2 = x**2 + y**2 + z**2
-			Fr = FORCE2(r2, sig1, ep1)
-			f_beads[i][0] += x / r2 * Fr
-			f_beads[i][1] += y / r2 * Fr
-			f_beads[i][2] += z / r2 * Fr
+				f_beads[j][0] -= dx / r2 * Fr
+				f_beads[j][1] -= dy / r2 * Fr
+				f_beads[j][2] -= dz / r2 * Fr
 
-			f_beads[j][0] -= x / r2 * Fr
-			f_beads[j][1] -= y / r2 * Fr
-			f_beads[j][2] += z / r2 * Fr
+			else:
+				Fr = force_vdw(r2, sig1, ep1)
+				f_beads[i][0] += dx / r2 * Fr
+				f_beads[i][1] += dy / r2 * Fr
+				f_beads[i][2] += dz / r2 * Fr
+
+				f_beads[j][0] -= dx / r2 * Fr
+				f_beads[j][1] -= dy / r2 * Fr
+				f_beads[j][2] -= dz / r2 * Fr
 
 			#print "{} {} {}".format(x, y, r)
 
 	return f_beads
 
 
-def FORCE(r, sig1, ep1):
-
-	return 24 * ep1 * (2 * (sig1/r)**12 - (sig1/r)**6) / r
+def force_bond(r, r0, kB): return 2 * kB * (r0 - r)
 
 
-def POT(r, sig1, ep1):
-
-	return 4 * ep1 * ((sig1/r)**12 - (sig1/r)**6)
-
-def POT2(r2, sig1, ep1):
-
-	return 4 * ep1 * ((sig1**12/r2**6) - (sig1**6/r2**3))
-
-def update_lines(num, dataLines, lines) :
-
-    for line, data in zip(lines, dataLines) :
-        # NOTE: there is no .set_data() for 3 dim data...
-        line.set_data(data[0:2, :num])
-        line.set_3d_properties(data[2,:num])
-    return lines
+def force_vdw(r2, sig1, ep1): return 24 * ep1 * (2 * (sig1/r2)**6 - (sig1/r2)**3)
 
 
+def pot_vdw(r2, sig1, ep1): return 4 * ep1 * ((sig1**12/r2**6) - (sig1**6/r2**3))
 
+
+def pot_bond(r, r0, kB): return kB * (r - r0)**2
+
+
+def tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB):
+
+	energy = 0	
+	for i in xrange(N):
+		for j in xrange(i):
+			if np.dot(pos[i], pos[j]) != 0:
+				dx = (pos[i][0] - pos[j][0])
+				dx -= boxl * int(2*dx/boxl)
+				dy = (pos[i][1] - pos[j][1])
+				dy -= boxl * int(2*dy/boxl)
+				dz = (pos[i][2] - pos[j][2])
+				dz -= boxl * int(2*dz/boxl)
+				r2 = dx**2 + dy**2 + dz**2
+
+				if bond[i][j] == 1:
+					r = np.sqrt(r2)
+					energy += pot_bond(r, r0, kB)
+
+				else: energy += pot_vdw(r2, sig1, ep1)
+	return energy 
+
+
+def plot_system(POS_BEADS, VEL_BEADS, FRC_BEADS, N, L, bsize):
+
+	width = 0.2
+	plt.ion()
+	positions = np.rot90(POS_BEADS)
+	fig = plt.figure(0, figsize=(15,15))
+	fig.clf()
+
+	ax = plt.subplot(2,1,1)
+	ax = fig.gca(projection='3d')
+	ax.scatter(positions[0], positions[1], positions[2], c=range(N), s=bsize)
+	ax.set_xlim3d(0, L)
+	ax.set_ylim3d(0, L)
+	ax.set_zlim3d(0, L)
+	fig.canvas.draw()
+
+	velocities = np.rot90(VEL_BEADS)
+	forces = np.rot90(FRC_BEADS)
+
+	fig = plt.figure(1, figsize=(15,15))
+	fig.clf()
+
+	ax = plt.subplot(2,1,1)
+	ax.set_ylim(-5,5)
+	vel_x = ax.bar(range(N), velocities[0], width, color='b')
+	vel_y = ax.bar(np.arange(N)+width, velocities[1], width, color='g')
+	vel_z = ax.bar(np.arange(N)+2*width, velocities[2], width, color='r')
+
+	ax = plt.subplot(2,1,2)
+	ax.set_ylim(-10,10)
+	vel_x = ax.bar(range(N), forces[0], width, color='b')
+	vel_y = ax.bar(np.arange(N)+width, forces[1], width, color='g')
+	vel_z = ax.bar(np.arange(N)+2*width, forces[2], width, color='r')
+	fig.canvas.draw()
 
