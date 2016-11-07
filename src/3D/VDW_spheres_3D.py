@@ -21,62 +21,44 @@ dt = 0.005
 r0 = 2. **(1./6.) * sig1
 kB = 50.
 
-POS_BEADS, VEL_BEADS, FRC_BEADS, BOND_LIST= ut.setup(boxl, nchain, lchain, sig1, ep1, r0, kB)
-
-ut.plot_system(POS_BEADS, VEL_BEADS, FRC_BEADS, N, boxl, bsize)
+pos, vel, frc, bond = ut.setup(boxl, nchain, lchain, sig1, ep1, r0, kB)
+ut.plot_system(pos, vel, frc, N, boxl, bsize)
 
 print "\n"
 print "POSITIONS"
-print POS_BEADS
+print pos
 print "\n"
 
 print "VELOCITIES"
-print VEL_BEADS
+print vel
 print "\n"
 
 print "FORCES"
-print FRC_BEADS
+print frc
 print "\n"
 
 print "\n"
 print "BOND LIST"
-print BOND_LIST
+print bond
 print "\n"
 
 for n in xrange(nsteps):
-	for i in xrange(N):
-		
-		vx = VEL_BEADS[i][0] + 0.5 * dt * FRC_BEADS[i][0]
-		vy = VEL_BEADS[i][1] + 0.5 * dt * FRC_BEADS[i][1]
-		vz = VEL_BEADS[i][2] + 0.5 * dt * FRC_BEADS[i][2]
-
-		POS_BEADS[i][0] += dt * vx
-		POS_BEADS[i][1] += dt * vy
-		POS_BEADS[i][2] += dt * vy
-
-		for j in xrange(3): POS_BEADS[i][j] += boxl * (1 - int((POS_BEADS[i][j] + boxl) / boxl))
-
-		FRC_BEADS = ut.calc_forces(N, boxl, POS_BEADS, BOND_LIST, sig1, ep1, r0, kB)
-
-		VEL_BEADS[i][0] = vx + 0.5 * dt * FRC_BEADS[i][0]
-		VEL_BEADS[i][1] = vy + 0.5 * dt * FRC_BEADS[i][1]
-		VEL_BEADS[i][2] = vy + 0.5 * dt * FRC_BEADS[i][2]
-
-	ut.plot_system(POS_BEADS, VEL_BEADS, FRC_BEADS, N, boxl, bsize)
+	pos, vel, frc = ut.VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB)
+	ut.plot_system(pos, vel, frc, N, boxl, bsize)
 	
 	print "STEP ", n
 
 	print "\n"
 	print "POSITIONS"
-	print POS_BEADS
+	print pos
 	print "\n"
 
 	print "VELOCITIES"
-	print VEL_BEADS
+	print vel
 	print "\n"
 
 	print "FORCES"
-	print FRC_BEADS
+	print frc
 	print "\n"
 
 plt.show()

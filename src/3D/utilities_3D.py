@@ -89,6 +89,76 @@ def calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB):
 	return f_beads
 
 
+def calc_forces_DPD(N, boxl, pos, vel, a, gamma, sigma):
+
+	f_beads = np.zeros((N, 3))
+
+	for i in xrange(N):
+		for j in xrange(i):
+			dx = (pos[i][0] - pos[j][0])
+			dx -= boxl * int(2*dx/boxl)
+			dy = (pos[i][1] - pos[j][1])
+			dy -= boxl * int(2*dy/boxl)
+			dz = (pos[i][2] - pos[j][2])
+			dz -= boxl * int(2*dz/boxl)
+			r2 = dx**2 + dy**2 + dz**2
+			r = np.sqrt(r2)
+
+			v_vector = [(vel[i][0] - vel[j][0]), (vel[i][1] - vel[j][1]), (vel[i][2] - vel[j][2])]
+
+			r_uvector(unit_vector([dx, dy, dz]))
+
+			Fr = DPD_force_C(r, a, r_uvector)
+			Fr += DPD_force_D(r, gamma, r_uvector, v_vector)		
+			Fr += DPD_force_R(r, sigma, theta, r_uvector)
+
+			f_beads[i][0] += dx / r * Fr
+			f_beads[i][1] += dy / r * Fr
+			f_beads[i][2] += dz / r * Fr
+
+			f_beads[j][0] -= dx / r2 * Fr
+			f_beads[j][1] -= dy / r2 * Fr
+			f_beads[j][2] -= dz / r2 * Fr
+
+			#print "{} {} {}".format(x, y, r)
+
+	return f_beads
+
+
+def VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB):
+
+	for i in xrange(N):
+		for j in xrange(3):  
+			vel[i][j] += 0.5 * dt * frc[i][j]
+			pos[i][j] += dt * vel[i][j]
+			pos[i][j] += boxl * (1 - int((pos[i][j] + boxl) / boxl))
+
+	frc = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB)
+
+	for i in xrange(N): 
+		for j in xrange(3): vel[i][j] += 0.5 * dt * frc[i][j]
+
+	return pos, vel, frc
+
+
+def VV_alg_DPD(pos, vel, frc, dt, N, boxl, a, gamma, sigma, lam):
+
+	new_vel = np.zeros((N, 3))
+
+	for i in xrange(N):
+		for j in xrange(3):
+			new_vel[i][j] += lam * dt * frc[i][j]
+			pos[i][j] += dt * vel[i][j] + 0.5 * dt**2 * frc[i][j]
+			pos[i][j] += boxl * (1 - int((pos[i][j] + boxl) / boxl))
+
+	new_frc = calc_forces_DPD(N, boxl, pos, vel, a, gamma, sigma)
+			
+	for i in xrange(N): 
+		for j in xrange(3): vel[i][j] += 0.5 * dt * (frc[i][j] + new_frc[i][j])
+
+	return pos, vel, frc
+
+
 def force_bond(r, r0, kB): return 2 * kB * (r0 - r)
 
 
@@ -123,11 +193,11 @@ def tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB):
 	return energy 
 
 
-def plot_system(POS_BEADS, VEL_BEADS, FRC_BEADS, N, L, bsize):
+def plot_system(pos, vel, frc, N, L, bsize):
 
 	width = 0.2
 	plt.ion()
-	positions = np.rot90(POS_BEADS)
+	positions = np.rot90(pos)
 	fig = plt.figure(0, figsize=(15,15))
 	fig.clf()
 
@@ -139,8 +209,8 @@ def plot_system(POS_BEADS, VEL_BEADS, FRC_BEADS, N, L, bsize):
 	ax.set_zlim3d(0, L)
 	fig.canvas.draw()
 
-	velocities = np.rot90(VEL_BEADS)
-	forces = np.rot90(FRC_BEADS)
+	velocities = np.rot90(vel)
+	forces = np.rot90(frc)
 
 	fig = plt.figure(1, figsize=(15,15))
 	fig.clf()
@@ -153,8 +223,24 @@ def plot_system(POS_BEADS, VEL_BEADS, FRC_BEADS, N, L, bsize):
 
 	ax = plt.subplot(2,1,2)
 	ax.set_ylim(-20,20)
-	vel_x = ax.bar(range(N), forces[0], width, color='b')
-	vel_y = ax.bar(np.arange(N)+width, forces[1], width, color='g')
-	vel_z = ax.bar(np.arange(N)+2*width, forces[2], width, color='r')
+	frc_x = ax.bar(range(N), forces[0], width, color='b')
+	frc_y = ax.bar(np.arange(N)+width, forces[1], width, color='g')
+	frc_z = ax.bar(np.arange(N)+2*width, forces[2], width, color='r')
 	fig.canvas.draw()
+
+
+def DPD_force_C(r, a, r_uvector):
+	if r < 1: return a * omegaR(r) * r_uvector
+	else: return 0
+
+
+def DPD_force_D(r, gamma, r_uvector, v_vector):
+	if r < 1: return - gamma * omegaR(r)**2 * r * np.dot(r_uvector, v_vector) * r_uvector
+	else: return 0
+
+def DPD_force_R(r, sigma, theta, r_uvector):
+	if r < 1: return sigma * omegaR(r) * r * theta * r_uvector
+	else: return 0
+
+def omegaR(r): return 1 - r
 
