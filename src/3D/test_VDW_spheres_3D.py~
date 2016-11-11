@@ -33,4 +33,4 @@ def test_save_system():
 	ut.save_system('/data/fl7g13/Collagen/test', np.ones((10, 20, 20)), np.ones((10, 20, 20)), np.ones((10, 20, 20)), 10, 5, 5, np.ones(10))
 	pos, vel, frc, N, boxl, bsize, TYPE = ut.load_system('/data/fl7g13/Collagen/test')
 
-	assert len(pos) == 10
+	assert len(pos) == 2
