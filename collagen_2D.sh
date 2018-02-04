@@ -1,1 +1,1 @@
-python scr/2D/2D_VDW_beads_lincs.py
+python3 src/2D/main_2D.py
