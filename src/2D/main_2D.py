@@ -23,16 +23,17 @@ def animate(n):
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 	
 
-nsteps = 15000
+nsteps = 5000
 nchain = 5
 lchain = 15
 N = nchain * lchain
-boxl = 60
 
 sig1 = 2.
+boxl = N * sig1
 bsize = sig1 * 300
 ep1 = 3.0
 dt = 0.005
+T = 10
 
 r0 = 2. **(1./6.) * sig1
 kB = 50.
@@ -42,7 +43,7 @@ tot_pos = np.zeros((nsteps, N, 2))
 tot_vel = np.zeros((nsteps, N, 2))
 tot_frc = np.zeros((nsteps, N, 2))
 
-pos, vel, frc, bond = ut.setup(boxl, nchain, lchain, sig1, ep1, r0, kB, rc)
+pos, vel, frc, bond = ut.setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc)
 
 energy_array = np.zeros(nsteps)
 
@@ -74,7 +75,7 @@ fig, ax = plt.subplots()
 sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
 plt.xlim(0, boxl)
 plt.ylim(0, boxl)
-ani = animation.FuncAnimation(fig, animate, frames=nsteps, interval=1, repeat=False)
+ani = animation.FuncAnimation(fig, animate, frames=nsteps, interval=10, repeat=False)
 plt.show()	
 
 

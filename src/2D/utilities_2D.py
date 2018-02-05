@@ -35,7 +35,7 @@ def remove_element(a, array): return np.array([x for x in array if x != a])
 
 """ Molecular Mechanics Verlocity Verlet Integration """
 
-def setup(boxl, nchain, lchain, sig1, ep1, r0, kB, rc):
+def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
 
 	N = nchain*lchain
 	pos = np.zeros((N, 2))
@@ -55,7 +55,7 @@ def setup(boxl, nchain, lchain, sig1, ep1, r0, kB, rc):
 			i = chain * lchain + bead
 			pos, bond = grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, lim_x, lim_y, 1E3)
 
-	vel = (np.random.random((N,2)) - 0.5) * 2
+	vel = (np.random.random((N,2)) - 0.5) * 2 * T
 	frc, _, _, _ = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc)
 
 	return pos, vel, frc, bond
@@ -125,16 +125,28 @@ def calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc):
 
 def VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB, rc):
 
+	"""
+	vel += 0.5 * dt * frc
+	pos += dt * vel
+	pos -= boxl * np.array(2 * pos / boxl, dtype=int)
+
+	"""
 	for i in range(N):
 		for j in range(2):  
 			vel[i][j] += 0.5 * dt * frc[i][j]
 			pos[i][j] += dt * vel[i][j]
 			pos[i][j] += boxl * (1 - int((pos[i][j] + boxl) / boxl))
+	#"""
 
 	frc, dx, dy, r2 = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc)
 
+	"""
 	for i in range(N): 
 		for j in range(2): vel[i][j] += 0.5 * dt * frc[i][j]
+	"""
+
+	vel += 0.5 * dt * frc
+
 
 	return pos, vel, frc
 
@@ -151,6 +163,9 @@ def pot_vdw(r2, sig1, ep1): return 4 * ep1 * ((sig1**12/r2**6) - (sig1**6/r2**3)
 def pot_bond(r, r0, kB): return kB * (r - r0)**2
 
 
+def kin_energy(vel): return np.mean(vel**2)
+
+
 def tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc):
 
 	cut_pot = pot_vdw(rc**2, sig1, ep1)
@@ -165,6 +180,9 @@ def tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc):
 
 	nonbond_pot = pot_vdw((r2 - bond * r2) * check_cutoff(r2, rc**2), sig1, ep1) - cut_pot
 	tot_energy += np.nansum(nonbond_pot) / 2
+	
+	#tot_energy += kin_energy(vel)
+	
 
 	return tot_energy 
 
