@@ -40,7 +40,8 @@ def setup(boxl, nchain, lchain, sig1, ep1, r0, kB, rc):
 	N = nchain*lchain
 	pos = np.zeros((N, 2))
 	bond = np.zeros((N, N))
-	n_section = np.sqrt(np.min([i for i in np.arange(nchain)**2 if i >= nchain]))
+	if nchain > 1: n_section = np.sqrt(np.min([i for i in np.arange(nchain)**2 if i >= nchain]))
+	else: n_section = 1
 	sections = np.arange(n_section**2)
 
 	for chain in range(nchain):
@@ -55,7 +56,7 @@ def setup(boxl, nchain, lchain, sig1, ep1, r0, kB, rc):
 			pos, bond = grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, lim_x, lim_y, 1E3)
 
 	vel = (np.random.random((N,2)) - 0.5) * 2
-	frc, _ = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc)
+	frc, _, _, _ = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc)
 
 	return pos, vel, frc, bond
 
@@ -91,6 +92,7 @@ def get_dx_dy(pos, N, boxl):
 	dy -= boxl * np.array(2 * dy / boxl, dtype=int)
 
 	return dx, dy
+	
 
 def calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc):
 
@@ -139,7 +141,7 @@ def VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB, rc):
 			pos[i][j] += dt * vel[i][j]
 			pos[i][j] += boxl * (1 - int((pos[i][j] + boxl) / boxl))
 
-	frc, r2 = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc)
+	frc, dx, dy, r2 = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc)
 
 	for i in range(N): 
 		for j in range(2): vel[i][j] += 0.5 * dt * frc[i][j]

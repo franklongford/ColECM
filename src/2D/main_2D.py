@@ -23,8 +23,8 @@ def animate(n):
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 	
 
-nsteps = 1000
-nchain = 1
+nsteps = 5000
+nchain = 10
 lchain = 4
 N = nchain * lchain
 boxl = 50
@@ -45,10 +45,13 @@ tot_frc = np.zeros((nsteps, N, 2))
 pos, vel, frc, bond = ut.setup(boxl, nchain, lchain, sig1, ep1, r0, kB, rc)
 
 for n in range(nsteps):
-	sys.stdout.write("STEP {}\r".format(n) )
-	sys.stdout.flush()
 
 	pos, vel, frc = ut.VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB, rc)
+
+	energy = ut.tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc)
+
+	sys.stdout.write("STEP {}  ENERGY = {}\r".format(n, energy))
+	sys.stdout.flush()
 
 	if np.sum(np.abs(vel)) >= 1000: 
 		print("velocity exceeded, step ={}".format(n))
@@ -64,7 +67,7 @@ fig, ax = plt.subplots()
 sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
 plt.xlim(0, boxl)
 plt.ylim(0, boxl)
-ani = animation.FuncAnimation(fig, animate, frames=nsteps, interval=10, repeat=False)
+ani = animation.FuncAnimation(fig, animate, frames=nsteps, interval=5, repeat=False)
 plt.show()	
 
 
