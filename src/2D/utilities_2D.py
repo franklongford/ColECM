@@ -92,43 +92,33 @@ def get_dx_dy(pos, N, boxl):
 	dy -= boxl * np.array(2 * dy / boxl, dtype=int)
 
 	return dx, dy
-	
+
+
+def check_cutoff(array, rc):
+
+	return (array <= rc).astype(float)
+
 
 def calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc):
 
-	f_beads = np.zeros((N, 2))
+	f_beads_x = np.zeros((N))
+	f_beads_y = np.zeros((N))
 	cut_frc = force_vdw(rc**2, sig1, ep1)
 	dx, dy = get_dx_dy(pos, N, boxl)
 	r2 = dx**2 + dy**2
 
-	for i in range(N):
-		for j in range(i):
-			k = i
-			#dx = (pos[i][0] - pos[j][0])
-			#dx -= boxl * int(2*dx/boxl)
-			#dy = (pos[i][1] - pos[j][1])
-			#dy -= boxl * int(2*dy/boxl)
-			#r2 = dx**2 + dy**2
+	if np.sum(bond) > 0:
+		r = np.sqrt(bond * r2)
+		bond_frc = force_bond(r, r0, kB) * bond
+		f_beads_x += np.nansum(bond_frc * dx / r, axis=0)
+		f_beads_y += np.nansum(bond_frc * dy / r, axis=0)
 
-			if bond[i][j] == 1:
-				r = np.sqrt(r2[i][j])
-				Fr = force_bond(r, r0, kB)
-				f_beads[i][0] -= dx[i][j] / r * Fr
-				f_beads[i][1] -= dy[i][j] / r * Fr
+	nonbond_frc = force_vdw((r2 - bond * r2) * check_cutoff(r2, rc**2), sig1, ep1) - cut_frc
 
-				f_beads[j][0] += dx[i][j] / r * Fr
-				f_beads[j][1] += dy[i][j] / r * Fr
+	f_beads_x += np.nansum(nonbond_frc * dx / r2, axis=0)
+	f_beads_y += np.nansum(nonbond_frc * dy / r2, axis=0)
 
-			else:
-				if r2[i][j] <= rc**2:
-					Fr = force_vdw(r2[i][j], sig1, ep1) - cut_frc
-					f_beads[i][0] -= dx[i][j] / r2[i][j] * Fr
-					f_beads[i][1] -= dy[i][j] / r2[i][j] * Fr
-
-					f_beads[j][0] += dx[i][j] / r2[i][j] * Fr
-					f_beads[j][1] += dy[i][j] / r2[i][j] * Fr
-
-			#print "{} {} {}".format(x, y, r)
+	f_beads = np.transpose(np.array([f_beads_x, f_beads_y]))
 
 	return f_beads, dx, dy, r2
 
@@ -163,24 +153,20 @@ def pot_bond(r, r0, kB): return kB * (r - r0)**2
 
 def tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc):
 
-	energy = 0
-	cut_energy = pot_vdw(rc**2, sig1, ep1)
-	for i in range(N):
-		for j in range(i):
-			if np.dot(pos[i], pos[j]) != 0:
-				dx = (pos[i][0] - pos[j][0])
-				dx -= boxl * int(2*dx/boxl)
-				dy = (pos[i][1] - pos[j][1])
-				dy -= boxl * int(2*dy/boxl)
+	cut_pot = pot_vdw(rc**2, sig1, ep1)
+	dx, dy = get_dx_dy(pos, N, boxl)
+	r2 = dx**2 + dy**2
+	tot_energy = 0
 
-				r2 = dx**2 + dy**2
+	if np.sum(bond) > 0:
+		r = np.sqrt(bond * r2)
+		bond_pot = pot_bond(r, r0, kB) * bond
+		tot_energy += np.nansum(bond_pot) / 2
 
-				if bond[i][j] == 1:
-					r = np.sqrt(r2)
-					energy += pot_bond(r, r0, kB)
+	nonbond_pot = pot_vdw((r2 - bond * r2) * check_cutoff(r2, rc**2), sig1, ep1) - cut_pot
+	tot_energy += np.nansum(nonbond_pot) / 2
 
-				elif r2 <= rc**2: energy += pot_vdw(r2, sig1, ep1) - cut_energy
-	return energy 
+	return tot_energy 
 
 
 def save_traj(pos, vel):

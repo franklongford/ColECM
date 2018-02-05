@@ -23,11 +23,11 @@ def animate(n):
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 	
 
-nsteps = 5000
-nchain = 10
-lchain = 4
+nsteps = 15000
+nchain = 5
+lchain = 15
 N = nchain * lchain
-boxl = 50
+boxl = 60
 
 sig1 = 2.
 bsize = sig1 * 300
@@ -44,13 +44,16 @@ tot_frc = np.zeros((nsteps, N, 2))
 
 pos, vel, frc, bond = ut.setup(boxl, nchain, lchain, sig1, ep1, r0, kB, rc)
 
+energy_array = np.zeros(nsteps)
+
 for n in range(nsteps):
 
 	pos, vel, frc = ut.VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB, rc)
 
 	energy = ut.tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc)
+	energy_array[n] += energy
 
-	sys.stdout.write("STEP {}  ENERGY = {}\r".format(n, energy))
+	sys.stdout.write("STEP {}\r".format(n))
 	sys.stdout.flush()
 
 	if np.sum(np.abs(vel)) >= 1000: 
@@ -61,13 +64,17 @@ for n in range(nsteps):
 	tot_vel[n] += vel
 	tot_frc[n] += frc
 
+
+#plt.plot(energy_array)
+#plt.show()
+
 tot_pos = np.moveaxis(tot_pos, 2, 1)
 
 fig, ax = plt.subplots()
 sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
 plt.xlim(0, boxl)
 plt.ylim(0, boxl)
-ani = animation.FuncAnimation(fig, animate, frames=nsteps, interval=5, repeat=False)
+ani = animation.FuncAnimation(fig, animate, frames=nsteps, interval=1, repeat=False)
 plt.show()	
 
 
