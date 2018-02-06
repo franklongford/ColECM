@@ -23,10 +23,13 @@ def animate(n):
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 	
 
-nsteps = 5000
-nchain = 5
-lchain = 15
+nsteps = 1#5000
+nchain = 2
+lchain = 10
 N = nchain * lchain
+
+if nchain > 1: n_section = np.sqrt(np.min([i for i in np.arange(nchain+1)**2 if i >= nchain]))
+else: n_section = 1
 
 sig1 = 2.
 boxl = N * sig1
@@ -51,8 +54,8 @@ for n in range(nsteps):
 
 	pos, vel, frc = ut.VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB, rc)
 
-	energy = ut.tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc)
-	energy_array[n] += energy
+	#energy = ut.tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc)
+	#energy_array[n] += energy
 
 	sys.stdout.write("STEP {}\r".format(n))
 	sys.stdout.flush()
@@ -72,10 +75,11 @@ for n in range(nsteps):
 tot_pos = np.moveaxis(tot_pos, 2, 1)
 
 fig, ax = plt.subplots()
+
 sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
 plt.xlim(0, boxl)
 plt.ylim(0, boxl)
-ani = animation.FuncAnimation(fig, animate, frames=nsteps, interval=10, repeat=False)
+ani = animation.FuncAnimation(fig, animate, frames=nsteps, interval=100, repeat=False)
 plt.show()	
 
 

@@ -40,7 +40,7 @@ def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
 	N = nchain*lchain
 	pos = np.zeros((N, 2))
 	bond = np.zeros((N, N))
-	if nchain > 1: n_section = np.sqrt(np.min([i for i in np.arange(nchain)**2 if i >= nchain]))
+	if nchain > 1: n_section = np.sqrt(np.min([i for i in np.arange(nchain+1)**2 if i >= nchain]))
 	else: n_section = 1
 	sections = np.arange(n_section**2)
 
@@ -71,7 +71,7 @@ def grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, li
 			pos[i] = pos[i-1] + rand_vector(2) * sig1
 			energy = tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc)
 			
-		for n in range(2): pos[i][n] += boxl * (1 - int((pos[i][n] + boxl) / boxl))
+		pos[i] += boxl * (1 - np.array((pos[i] + boxl) / boxl, dtype=int))
 		bond[i][i-1] = 1
 		bond[i-1][i] = 1
 
@@ -125,28 +125,13 @@ def calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc):
 
 def VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB, rc):
 
-	"""
 	vel += 0.5 * dt * frc
 	pos += dt * vel
-	pos -= boxl * np.array(2 * pos / boxl, dtype=int)
-
-	"""
-	for i in range(N):
-		for j in range(2):  
-			vel[i][j] += 0.5 * dt * frc[i][j]
-			pos[i][j] += dt * vel[i][j]
-			pos[i][j] += boxl * (1 - int((pos[i][j] + boxl) / boxl))
-	#"""
+	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
 
 	frc, dx, dy, r2 = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc)
 
-	"""
-	for i in range(N): 
-		for j in range(2): vel[i][j] += 0.5 * dt * frc[i][j]
-	"""
-
 	vel += 0.5 * dt * frc
-
 
 	return pos, vel, frc
 
