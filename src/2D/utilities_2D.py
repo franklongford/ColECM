@@ -40,8 +40,10 @@ def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
 	N = nchain*lchain
 	pos = np.zeros((N, 2))
 	bond = np.zeros((N, N))
+
 	if nchain > 1: n_section = np.sqrt(np.min([i for i in np.arange(nchain+1)**2 if i >= nchain]))
 	else: n_section = 1
+
 	sections = np.arange(n_section**2)
 
 	for chain in range(nchain):
@@ -56,7 +58,10 @@ def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
 			pos, bond = grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, lim_x, lim_y, 1E3)
 
 	vel = (np.random.random((N,2)) - 0.5) * 2 * T
-	frc, _, _, _ = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc)
+	dx, dy = get_dx_dy(pos, N, boxl)
+	r2 = dx**2 + dy**2
+	verlet_list = check_cutoff(r2, rc**2)
+	frc = calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, sig1, ep1, r0, kB, rc)
 
 	return pos, vel, frc, bond
 
@@ -69,9 +74,12 @@ def grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, li
 		energy = max_energy + 1
 		while  energy > max_energy:
 			pos[i] = pos[i-1] + rand_vector(2) * sig1
-			energy = tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc)
+			dx, dy = get_dx_dy(pos, N, boxl)
+			r2 = dx**2 + dy**2	
+			energy = pot_energy(dx, dy, r2, bond, boxl, sig1, ep1, r0, kB, rc)
 			
 		pos[i] += boxl * (1 - np.array((pos[i] + boxl) / boxl, dtype=int))
+
 		bond[i][i-1] = 1
 		bond[i-1][i] = 1
 
@@ -99,13 +107,11 @@ def check_cutoff(array, rc):
 	return (array <= rc).astype(float)
 
 
-def calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc):
+def calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, sig1, ep1, r0, kB, rc):
 
 	f_beads_x = np.zeros((N))
 	f_beads_y = np.zeros((N))
 	cut_frc = force_vdw(rc**2, sig1, ep1)
-	dx, dy = get_dx_dy(pos, N, boxl)
-	r2 = dx**2 + dy**2
 
 	if np.sum(bond) > 0:
 		r = np.sqrt(bond * r2)
@@ -113,30 +119,41 @@ def calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc):
 		f_beads_x += np.nansum(bond_frc * dx / r, axis=0)
 		f_beads_y += np.nansum(bond_frc * dy / r, axis=0)
 
-	nonbond_frc = force_vdw((r2 - bond * r2) * check_cutoff(r2, rc**2), sig1, ep1) - cut_frc
+	nonbond_frc = force_vdw((r2 - bond * r2) * verlet_list, sig1, ep1) - cut_frc
 
 	f_beads_x += np.nansum(nonbond_frc * dx / r2, axis=0)
 	f_beads_y += np.nansum(nonbond_frc * dy / r2, axis=0)
 
 	f_beads = np.transpose(np.array([f_beads_x, f_beads_y]))
 
-	return f_beads, dx, dy, r2
+	return f_beads
 
 
-def VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB, rc):
+def VV_alg(n, pos, vel, frc, bond, verlet_list, dt, N, boxl, sig1, ep1, r0, kB, rc):
 
 	vel += 0.5 * dt * frc
 	pos += dt * vel
 	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
 
-	frc, dx, dy, r2 = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB, rc)
+	dx, dy = get_dx_dy(pos, N, boxl)
+	r2 = dx**2 + dy**2
+
+	#if n % 5 == 0: verlet_list = check_cutoff(r2, rc**2)
+	verlet_list = check_cutoff(r2, rc**2)
+
+	frc = calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, sig1, ep1, r0, kB, rc)
 
 	vel += 0.5 * dt * frc
 
-	return pos, vel, frc
+	energy = tot_energy(N, dx, dy, r2, vel, bond, boxl, sig1, ep1, r0, kB, rc)
+
+	return pos, vel, frc, verlet_list, energy
 
 
 def force_bond(r, r0, kB): return 2 * kB * (r0 - r)
+
+
+def force_angle(theta, theta0, kA): return 2 * kA * (theta0 - theta)
 
 
 def force_vdw(r2, sig1, ep1): return 24 * ep1 * (2 * (sig1/r2)**6 - (sig1/r2)**3)
@@ -148,27 +165,35 @@ def pot_vdw(r2, sig1, ep1): return 4 * ep1 * ((sig1**12/r2**6) - (sig1**6/r2**3)
 def pot_bond(r, r0, kB): return kB * (r - r0)**2
 
 
+def pot_angle(theta, theta0, kA): return kA * (theta - theta0)**2
+
+
 def kin_energy(vel): return np.mean(vel**2)
 
 
-def tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB, rc):
+def pot_energy(dx, dy, r2, bond, boxl, sig1, ep1, r0, kB, rc):
 
 	cut_pot = pot_vdw(rc**2, sig1, ep1)
-	dx, dy = get_dx_dy(pos, N, boxl)
-	r2 = dx**2 + dy**2
-	tot_energy = 0
+	pot_energy = 0
 
 	if np.sum(bond) > 0:
 		r = np.sqrt(bond * r2)
 		bond_pot = pot_bond(r, r0, kB) * bond
-		tot_energy += np.nansum(bond_pot) / 2
+		pot_energy += np.nansum(bond_pot) / 2
 
 	nonbond_pot = pot_vdw((r2 - bond * r2) * check_cutoff(r2, rc**2), sig1, ep1) - cut_pot
-	tot_energy += np.nansum(nonbond_pot) / 2
-	
-	#tot_energy += kin_energy(vel)
-	
+	pot_energy += np.nansum(nonbond_pot) / 2
 
+	return pot_energy
+
+
+def tot_energy(N, dx, dy, r2, vel, bond, boxl, sig1, ep1, r0, kB, rc):
+
+	tot_energy = 0
+
+	tot_energy += pot_energy(dx, dy, r2, bond, boxl, sig1, ep1, r0, kB, rc)
+	tot_energy += kin_energy(vel)
+	
 	return tot_energy 
 
 
