@@ -20,6 +20,7 @@ import os
 import utilities_2D as ut
 
 def animate(n):
+	plt.title('Frame {}'.format(n * speed))
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 
 def cum_mov_average(array):
@@ -33,7 +34,7 @@ def cum_mov_average(array):
 	
 	return average
 
-nsteps = 20000
+nsteps = 200000
 nchain = 2
 lchain = 10
 N = nchain * lchain
@@ -41,15 +42,15 @@ N = nchain * lchain
 if nchain > 1: n_section = np.sqrt(np.min([i for i in np.arange(nchain+1)**2 if i >= nchain]))
 else: n_section = 1
 
-sig1 = 2.
+sig1 = 1.
 boxl = nchain * sig1 * lchain**2 * 0.1
 bsize = sig1 * 300
-ep1 = 3.0
-dt = 0.005
-T = 10
+ep1 = 2.0
+dt = 0.002
+T = 10.
 
 r0 = 2. **(1./6.) * sig1
-kB = 50.
+kB = 40.
 rc = 4 * sig1
 
 tot_pos = np.zeros((nsteps, N, 2))
@@ -81,11 +82,11 @@ for n in range(nsteps):
 	tot_vel[n] += vel
 	tot_frc[n] += frc
 
-CMA = cum_mov_average(energy_array)
+CMA = cum_mov_average(energy_array) / N
 plt.plot(CMA)
 plt.show()
 
-speed = 10
+speed = 500
 
 tot_pos = np.array([tot_pos[i] for i in range(nsteps) if i % 5 == 0])
 

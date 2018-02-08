@@ -46,12 +46,16 @@ def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
 
 	sections = np.arange(n_section**2)
 
+	start_x = 0
+	start_y = 0
+
 	for chain in range(nchain):
 		section = random.choice(sections)
 		sections = remove_element(section, sections)
 
 		lim_x = boxl / n_section * (section % n_section)
 		lim_y = boxl / n_section * int(section / n_section)
+
 
 		for bead in range(lchain):
 			i = chain * lchain + bead
