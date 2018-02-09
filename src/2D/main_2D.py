@@ -36,12 +36,12 @@ def cum_mov_average(array):
 	return average
 
 nsteps = 10000
-nchain = 10
-lchain = 10
+nchain = 1
+lchain = 5
 N = nchain * lchain
 
 sig1 = 1.
-boxl = nchain * sig1 * lchain**2 * 0.1
+boxl = nchain * sig1 * lchain**2 * 0.5
 print(boxl)
 bsize = sig1 * 300
 ep1 = 5.0
@@ -52,11 +52,14 @@ r0 = 2. **(1./6.) * sig1
 kB = 100.
 rc = 4 * sig1
 
+m = 1.
+Sdiag = np.sqrt(m / 2.)
+
 tot_pos = np.zeros((nsteps, N, 2))
 tot_vel = np.zeros((nsteps, N, 2))
 tot_frc = np.zeros((nsteps, N, 2))
 
-pos, vel, frc, bond, boxl = ut.setup_3(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc)
+pos, vel, frc, bond, boxl, con_index, con_coeff, atom1, atom2, ncc = ut.setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc, Sdiag)
 print(boxl)
 
 dx, dy = ut.get_dx_dy(pos, N, boxl)
@@ -69,7 +72,10 @@ print('\n')
 
 for n in range(nsteps):
 
-	pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, bond, verlet_list, dt, N, boxl, sig1, ep1, r0, kB, rc)
+	#pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, bond, verlet_list, dt, N, boxl, sig1, ep1, r0, kB, rc)
+
+	pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, bond, verlet_list, dt, nchain, lchain, atom1, atom2, 
+													con_index, con_coeff, ncc, boxl, sig1, ep1, r0, kB, rc, Sdiag)
 
 	energy_array[n] += energy
 
@@ -88,7 +94,7 @@ CMA = cum_mov_average(energy_array) / N
 plt.plot(CMA)
 plt.show()
 
-speed = 200
+speed = 10
 
 tot_pos = np.array([tot_pos[i] for i in range(nsteps) if i % speed == 0])
 

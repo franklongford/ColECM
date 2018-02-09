@@ -35,7 +35,7 @@ def remove_element(a, array): return np.array([x for x in array if x != a])
 
 """ Molecular Mechanics Verlocity Verlet Integration """
 
-def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
+def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc, Sdiag):
 
 	N = nchain*lchain
 	pos = np.zeros((N, 2))
@@ -60,13 +60,15 @@ def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
 	boxl = np.max(pos)
 	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
 
+	con_index, con_coeff, atom1, atom2, ncc = setup_lincs(nchain, lchain, bond, 1, Sdiag)
+
 	vel = (np.random.random((N,2)) - 0.5) * 2 * T
 	dx, dy = get_dx_dy(pos, N, boxl)
 	r2 = dx**2 + dy**2
 	verlet_list = check_cutoff(r2, rc**2)
 	frc = calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, sig1, ep1, r0, kB, rc)
 
-	return pos, vel, frc, bond, boxl
+	return pos, vel, frc, bond, boxl, con_index, con_coeff, atom1, atom2, ncc
 
 
 def grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, lim_x, lim_y, max_energy):
@@ -200,6 +202,52 @@ def grow_chain_2(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, max_energy)
 	return pos, bond, True
 
 
+def setup_lincs(nchain, lchain, bond, m, Sdiag):
+
+	N = nchain*lchain
+	K = int(np.sum(bond) / 2)
+	cmax = 2
+
+	con_index= np.zeros((K, cmax), dtype=int)
+	con_coeff= np.zeros((K, cmax))
+	atom1 = np.zeros(K, dtype=int)
+	atom2 = np.zeros(K, dtype=int)
+	ncc = np.zeros(K, dtype=int)
+	kcount = 0
+
+	for i in range(N):
+		for j in range(i):
+			if bond[i][j] == 1:
+				atom1[kcount] = i
+				atom2[kcount] = j
+				kcount += 1
+
+	for i in range(K):
+		if np.remainder(i, lchain-1) == 0: 
+			ncc[i] = 1
+			con_index[i][0] = i + 1
+		elif np.remainder(i, lchain-1) == lchain - 2: 
+			ncc[i] = int(1)
+			con_index[i][0] = i - 1
+		else: 
+			ncc[i] = int(2)
+			con_index[i][0] = i - 1
+			con_index[i][1] = i + 1
+
+		for j in range(ncc[i]):
+			print(i, j, atom1[i], atom1[con_index[i][j]], atom2[i], atom2[con_index[i][j]])
+			if atom1[i] == atom1[con_index[i][j]] or atom2[i] == atom2[con_index[i][j]]:  
+				con_coeff[i][j] = - 1. / m * Sdiag**2
+			else:
+				con_coeff[i][j] = 1. / m * Sdiag**2
+
+	print(ncc)
+	print(con_index)
+	#sys.exit()
+
+	return con_index, con_coeff, atom1, atom2, ncc
+
+
 def get_dx_dy(pos, N, boxl):
 
 	temp_pos = np.moveaxis(pos, 0, 1)
@@ -242,11 +290,19 @@ def calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, sig1, ep1, r0, kB, rc):
 
 	return f_beads
 
+#def VV_alg(n, pos, vel, frc, bond, verlet_list, dt, N, boxl, sig1, ep1, r0, kB, rc):
+def VV_alg(n, pos, vel, frc, bond, verlet_list, dt, nchain, lchain, atom1, atom2, 
+			con_index, con_coeff, ncc, boxl, sig1, ep1, r0, kB, rc, Sdiag):
 
-def VV_alg(n, pos, vel, frc, bond, verlet_list, dt, N, boxl, sig1, ep1, r0, kB, rc):
-
+	N = nchain * lchain
 	vel += 0.5 * dt * frc
-	pos += dt * vel
+
+	new_pos = pos + dt * vel
+	new_pos += boxl * (1 - np.array((new_pos + boxl) / boxl, dtype=int))
+
+	pos = lincs(pos, new_pos, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, ncc)
+
+	#pos += dt * vel
 	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
 
 	dx, dy = get_dx_dy(pos, N, boxl)
@@ -354,20 +410,74 @@ def plot_system(pos, vel, frc, N, L, bsize, n):
 	plt.show()
 	"""
 
-def lincs():
+def lincs_solve(new_pos, K, atom1, atom2, ncc, con_index, Sdiag, B, A, rhs, solution, nrec=2):
 
-	dx, dy = get_dx_dy(pos, N, boxl)
-	r2 = dx**2 + dy**2
-	r = np.sqrt(r2)
+	w = 1
+	for rec in range(nrec):
+		for i in range(K):
+			rhs[w,i] = 0
+			for n in range(ncc[i]):
+				rhs[w,i] = rhs[w,i] + A[i,n] * rhs[2-w, con_index[i,n]]
+				solution[i] += rhs[w,i]
 
-	Bx = dx / r
-	By = dy / r
+	w = 2 - w
 
-	A = np.zeros(N)
+	for i in range(K):
+		a1 = atom1[i]
+		a2 = atom2[i]
+		for j in range(2):
+			new_pos[a1,j] = new_pos[a1,j] - B[i,j] * Sdiag * solution[i]
+			new_pos[a2,j] = new_pos[a2,j] + B[i,j] * Sdiag * solution[i]
 
-	coeff = 1
-
-	for i in xrange(N):
-		A[i] += np.sum(Bx[i] * Bx[np.argwhere(bond[i] == 1)] + By[i] * By[np.argwhere(bond[i] == 1)])
+	return new_pos
 
 
+def lincs(old_pos, new_pos, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, ncc, nrec=2):
+
+	#dx, dy = get_dx_dy(pos, N, boxl)
+	#r2 = dx**2 + dy**2
+	#r = np.sqrt(r2)
+
+	K = nchain * (lchain-1)
+	cmax = lchain-1
+	rhs = np.zeros((2, K))
+	B = np.zeros((K, 2))
+	solution = np.zeros(K)
+
+	for i in range(K):
+		B[i]= old_pos[atom1[i]] - old_pos[atom2[i]]
+		B[i] -= boxl * np.array(2 * B[i] / boxl, dtype=int)
+		r = np.sqrt(np.sum(B[i]**2))
+		B[i] *= 1. / r
+
+	A = np.zeros((K, cmax))
+
+	for i in range(K):
+		for n in range(ncc[i]):
+			k = con_index[i,n]
+			A[i,n] = con_coeff[i,n] * (B[i,0]*B[k,0] + B[i,1]*B[k,1])  
+			a1 = atom1[i]
+			a2 = atom2[i]
+
+			dxy = (new_pos[a1] - new_pos[a2])
+			dxy -= boxl * np.array(2 * dxy/ boxl, dtype=int)
+
+			rhs[0,i] = Sdiag * (np.sum(B[i] * dxy) - r0)
+			solution[i]=rhs[0,i]
+
+	new_pos = lincs_solve(new_pos, K, atom1, atom2, ncc, con_index, Sdiag, B, A, rhs, solution)
+
+	for i in range(K):
+		a1 = atom1[i]
+		a2 = atom2[i]
+
+		dxy = (new_pos[a1] - new_pos[a2])
+		dxy -= boxl * np.array(2 * dxy/ boxl, dtype=int)
+
+		p = np.sqrt(2 * r0**2 - np.sum(dxy**2))
+		rhs[0,i] = Sdiag * (r0 - p)
+		solution[i] = rhs[0,i]
+ 
+	new_pos = lincs_solve(new_pos, K, atom1, atom2, ncc, con_index, Sdiag, B, A, rhs, solution)
+
+	return new_pos
