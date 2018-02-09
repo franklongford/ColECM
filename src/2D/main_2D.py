@@ -23,6 +23,7 @@ def animate(n):
 	plt.title('Frame {}'.format(n * speed))
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 
+
 def cum_mov_average(array):
 
 	l = len(array)
@@ -34,36 +35,37 @@ def cum_mov_average(array):
 	
 	return average
 
-nsteps = 200000
-nchain = 2
+nsteps = 10000
+nchain = 10
 lchain = 10
 N = nchain * lchain
 
-if nchain > 1: n_section = np.sqrt(np.min([i for i in np.arange(nchain+1)**2 if i >= nchain]))
-else: n_section = 1
-
 sig1 = 1.
 boxl = nchain * sig1 * lchain**2 * 0.1
+print(boxl)
 bsize = sig1 * 300
-ep1 = 2.0
+ep1 = 5.0
 dt = 0.002
-T = 10.
+T = 1.
 
 r0 = 2. **(1./6.) * sig1
-kB = 40.
+kB = 100.
 rc = 4 * sig1
 
 tot_pos = np.zeros((nsteps, N, 2))
 tot_vel = np.zeros((nsteps, N, 2))
 tot_frc = np.zeros((nsteps, N, 2))
 
-pos, vel, frc, bond = ut.setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc)
+pos, vel, frc, bond, boxl = ut.setup_3(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc)
+print(boxl)
 
 dx, dy = ut.get_dx_dy(pos, N, boxl)
 r2 = dx**2 + dy**2
 verlet_list = ut.check_cutoff(r2, rc**2)
 
 energy_array = np.zeros(nsteps)
+
+print('\n')
 
 for n in range(nsteps):
 
@@ -86,9 +88,9 @@ CMA = cum_mov_average(energy_array) / N
 plt.plot(CMA)
 plt.show()
 
-speed = 500
+speed = 200
 
-tot_pos = np.array([tot_pos[i] for i in range(nsteps) if i % 5 == 0])
+tot_pos = np.array([tot_pos[i] for i in range(nsteps) if i % speed == 0])
 
 tot_pos = np.moveaxis(tot_pos, 2, 1)
 

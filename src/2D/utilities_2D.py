@@ -46,9 +46,6 @@ def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
 
 	sections = np.arange(n_section**2)
 
-	start_x = 0
-	start_y = 0
-
 	for chain in range(nchain):
 		section = random.choice(sections)
 		sections = remove_element(section, sections)
@@ -56,10 +53,12 @@ def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
 		lim_x = boxl / n_section * (section % n_section)
 		lim_y = boxl / n_section * int(section / n_section)
 
-
 		for bead in range(lchain):
 			i = chain * lchain + bead
 			pos, bond = grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, lim_x, lim_y, 1E3)
+
+	boxl = np.max(pos)
+	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
 
 	vel = (np.random.random((N,2)) - 0.5) * 2 * T
 	dx, dy = get_dx_dy(pos, N, boxl)
@@ -67,7 +66,7 @@ def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
 	verlet_list = check_cutoff(r2, rc**2)
 	frc = calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, sig1, ep1, r0, kB, rc)
 
-	return pos, vel, frc, bond
+	return pos, vel, frc, bond, boxl
 
 
 def grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, lim_x, lim_y, max_energy):
@@ -77,7 +76,8 @@ def grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, li
 	else:
 		energy = max_energy + 1
 		while  energy > max_energy:
-			pos[i] = pos[i-1] + rand_vector(2) * sig1
+			new_vec = rand_vector(2) * sig1
+			pos[i] = pos[i-1] + new_vec
 			dx, dy = get_dx_dy(pos, N, boxl)
 			r2 = dx**2 + dy**2	
 			energy = pot_energy(dx, dy, r2, bond, boxl, sig1, ep1, r0, kB, rc)
@@ -88,6 +88,116 @@ def grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, li
 		bond[i-1][i] = 1
 
 	return pos, bond
+
+
+def setup_2(boxl, N, T, sig1, ep1, r0, kB, rc):
+
+	pos = np.zeros((N, 2))
+	bond = np.zeros((N, N))
+	beads = np.arange(N)
+
+	i = 0
+	chain = 0
+	bead = 0
+	growing = True
+	loop = 0
+
+	while growing:
+		sys.stdout.write("Placing bead {}/{}  chain {}   box = {}\r".format(i, N, chain, boxl))
+		sys.stdout.flush()
+		pos, bond, check = grow_chain_2(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, 1E3)
+
+		if check:
+			i += 1
+			bead += 1
+			loop = 0
+		else: loop += 1
+
+		if np.random.random() > 0.9 or loop > 10:
+			chain += 1
+			bead = 0
+			loop = 0
+
+		if i >= N: growing = False
+
+	vel = (np.random.random((N,2)) - 0.5) * 2 * T
+	dx, dy = get_dx_dy(pos, N, boxl)
+	r2 = dx**2 + dy**2
+	verlet_list = check_cutoff(r2, rc**2)
+	frc = calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, sig1, ep1, r0, kB, rc)
+
+	return pos, vel, frc, bond
+
+
+def setup_3(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc):
+
+	N = nchain*lchain
+	pos = np.zeros((N, 2))
+	bond = np.zeros((N, N))
+
+	if nchain > 1: n_section = np.sqrt(np.min([i for i in np.arange(nchain+1)**2 if i >= nchain]))
+	else: n_section = 1
+
+	sections = np.arange(n_section**2)
+
+	for chain in range(nchain):
+		if chain == 0:
+			for bead in range(lchain):
+				i = chain * lchain + bead
+				pos, bond = grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, n_section, 0, 0, 1E2)
+
+			width_x = np.nanmax(np.moveaxis(pos, 0, 1)[0]) - np.nanmin(np.moveaxis(pos, 0, 1)[0])
+			width_y = np.nanmax(np.moveaxis(pos, 0, 1)[1]) - np.nanmin(np.moveaxis(pos, 0, 1)[1])
+
+			print(width_x, width_y)
+
+		else:
+			for bead in range(lchain):
+				i = chain * lchain + bead
+				pos[i][0] = pos[bead][0] + width_x * chain
+				pos[i][1] = pos[bead][1] + width_y * chain
+				if bead != 0:
+					bond[i][i-1] = 1
+					bond[i-1][i] = 1
+
+	boxl = np.max(pos)
+	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
+
+	vel = (np.random.random((N,2)) - 0.5) * 2 * T
+	dx, dy = get_dx_dy(pos, N, boxl)
+	r2 = dx**2 + dy**2
+	verlet_list = check_cutoff(r2, rc**2)
+	frc = calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, sig1, ep1, r0, kB, rc)
+
+	return pos, vel, frc, bond, boxl
+
+
+def grow_chain_2(bead, i, N, pos, sig1, ep1, r0, kB, rc, bond, boxl, max_energy):
+
+	if bead == 0:
+		energy = max_energy + 1
+		while  energy > max_energy:
+			pos[i] = np.random.random((2)) * boxl
+			dx, dy = get_dx_dy(pos, N, boxl)
+			r2 = dx**2 + dy**2	
+			energy = pot_energy(dx, dy, r2, bond, boxl, sig1, ep1, r0, kB, rc)
+	else:
+		energy = max_energy + 1
+		attempt = 0
+		while  energy > max_energy:
+			pos[i] = pos[i-1] + rand_vector(2) * sig1
+			dx, dy = get_dx_dy(pos, N, boxl)
+			r2 = dx**2 + dy**2	
+			energy = pot_energy(dx, dy, r2, bond, boxl, sig1, ep1, r0, kB, rc)
+			attempt += 1
+			if attempt > 100: return pos, bond, False
+			
+		pos[i] += boxl * (1 - np.array((pos[i] + boxl) / boxl, dtype=int))
+
+		bond[i][i-1] = 1
+		bond[i-1][i] = 1
+
+	return pos, bond, True
 
 
 def get_dx_dy(pos, N, boxl):
@@ -243,3 +353,21 @@ def plot_system(pos, vel, frc, N, L, bsize, n):
 
 	plt.show()
 	"""
+
+def lincs():
+
+	dx, dy = get_dx_dy(pos, N, boxl)
+	r2 = dx**2 + dy**2
+	r = np.sqrt(r2)
+
+	Bx = dx / r
+	By = dy / r
+
+	A = np.zeros(N)
+
+	coeff = 1
+
+	for i in xrange(N):
+		A[i] += np.sum(Bx[i] * Bx[np.argwhere(bond[i] == 1)] + By[i] * By[np.argwhere(bond[i] == 1)])
+
+

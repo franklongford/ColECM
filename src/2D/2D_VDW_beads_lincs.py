@@ -485,6 +485,7 @@ def lincs(P_BEADS, V_BEADS, R_BONDS, con_index, con_coeff, atom1, atom2, nrec=3)
 	rhs = np.zeros((2, K))
 	sol = np.zeros(K)
 
+	"Update positions and velocities based on forces"
 	for i in xrange(Nch*Nbe):
 		for k in xrange(2):
 			xp[i][k] = P_BEADS[i][k] + dt * Vm1[i][k]
