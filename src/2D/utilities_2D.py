@@ -300,7 +300,7 @@ def VV_alg(n, pos, vel, frc, bond, verlet_list, dt, nchain, lchain, atom1, atom2
 	new_pos = pos + dt * vel
 	new_pos += boxl * (1 - np.array((new_pos + boxl) / boxl, dtype=int))
 
-	pos = lincs(pos, new_pos, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, ncc)
+	pos = lincs_np(pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, ncc)
 
 	#pos += dt * vel
 	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
@@ -481,3 +481,82 @@ def lincs(old_pos, new_pos, boxl, nchain, lchain, r0, Sdiag, con_index, con_coef
 	new_pos = lincs_solve(new_pos, K, atom1, atom2, ncc, con_index, Sdiag, B, A, rhs, solution)
 
 	return new_pos
+
+
+def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, ncc, nrec=2):
+
+	N = nchain * lchain
+
+	K = nchain * (lchain-1)
+	cmax = lchain-1
+	rhs = np.zeros((2, K))
+	B = np.zeros((K, 2))
+	solution = np.zeros(K)
+
+	print(bond)
+	print(np.sum(bond, axis=1))
+
+	old_dx, old_dy = get_dx_dy(old_pos, N, boxl)
+	old_dx = old_dx[np.where(np.triu(bond))]
+	old_dy = old_dy[np.where(np.triu(bond))]
+	old_r = np.sqrt(old_dx**2 + old_dy**2)
+
+	new_dx, new_dy = get_dx_dy(new_pos, N, boxl)
+	new_dx = new_dx[np.where(np.triu(bond))]
+	new_dy = new_dy[np.where(np.triu(bond))]
+	new_r = np.sqrt(old_dx**2 + old_dy**2)
+
+	B_x = old_dx / old_r
+	B_y = old_dy / old_r
+
+	B = np.transpose((B_x, B_y))
+	dxy = np.transpose((new_dx, new_dy))
+
+	print(B)
+	print(dxy)
+	print(np.sum(B*dxy, axis=1))
+
+	A = np.zeros((K, cmax))
+
+	print(ncc)
+
+	for i in range(K):
+		for n in range(ncc[i]):
+			k = con_index[i,n]
+			A[i,n] = con_coeff[i,n] * (B[i,0]*B[k,0] + B[i,1]*B[k,1])  
+			a1 = atom1[i]
+			a2 = atom2[i]
+
+			dxy = (new_pos[a1] - new_pos[a2])
+			dxy -= boxl * np.array(2 * dxy/ boxl, dtype=int)
+
+			print(B[i], dxy)
+			print(B[i] * dxy)
+			print(np.sum(B[i] * dxy))
+			
+			rhs[0,i] = Sdiag * (np.sum(B[i] * dxy) - r0)
+			solution[i]=rhs[0,i]
+
+	#print(A)
+	#print(rhs)
+
+	sys.exit()
+
+	new_pos = lincs_solve(new_pos, K, atom1, atom2, ncc, con_index, Sdiag, B, A, rhs, solution)
+
+	for i in range(K):
+		a1 = atom1[i]
+		a2 = atom2[i]
+
+		dxy = (new_pos[a1] - new_pos[a2])
+		dxy -= boxl * np.array(2 * dxy/ boxl, dtype=int)
+
+		p = np.sqrt(2 * r0**2 - np.sum(dxy**2))
+		rhs[0,i] = Sdiag * (r0 - p)
+		solution[i] = rhs[0,i]
+ 
+	new_pos = lincs_solve(new_pos, K, atom1, atom2, ncc, con_index, Sdiag, B, A, rhs, solution)
+
+	return new_pos
+
+

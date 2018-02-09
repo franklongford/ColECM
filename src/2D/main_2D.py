@@ -35,13 +35,13 @@ def cum_mov_average(array):
 	
 	return average
 
-nsteps = 10000
+nsteps = 1
 nchain = 1
-lchain = 5
+lchain = 4
 N = nchain * lchain
 
 sig1 = 1.
-boxl = nchain * sig1 * lchain**2 * 0.5
+boxl = nchain**0.9 * sig1 * lchain**2
 print(boxl)
 bsize = sig1 * 300
 ep1 = 5.0
@@ -94,7 +94,7 @@ CMA = cum_mov_average(energy_array) / N
 plt.plot(CMA)
 plt.show()
 
-speed = 10
+speed = 100
 
 tot_pos = np.array([tot_pos[i] for i in range(nsteps) if i % speed == 0])
 
