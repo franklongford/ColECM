@@ -300,7 +300,7 @@ def VV_alg(n, pos, vel, frc, bond, verlet_list, dt, nchain, lchain, atom1, atom2
 	new_pos = pos + dt * vel
 	new_pos += boxl * (1 - np.array((new_pos + boxl) / boxl, dtype=int))
 
-	pos = lincs_np(pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2)
+	pos = lincs_np(pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, ncc)
 
 	#pos += dt * vel
 	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
@@ -483,7 +483,7 @@ def lincs(old_pos, new_pos, boxl, nchain, lchain, r0, Sdiag, con_index, con_coef
 	return new_pos
 
 
-def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, nrec=2):
+def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, ncc, nrec=2):
 
 	N = nchain * lchain
 
@@ -497,9 +497,21 @@ def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index,
 	nbonds = int(np.sum(bond) / 2)
 	bond_check = np.transpose((bonds[0], bonds[1]))
 
+	print(con_index, ncc)
+	print(con_coeff)
+	print(np.transpose((atom1, atom2)))
 	print(bond_check)
-	print(con_index)
+
 	ncc = np.zeros(nbonds, dtype=int)
+	bond_index = np.zeros((nbonds, nbonds))
+
+	for i in range(nbonds):
+		for j in range(i):
+			bond_index[i][j] = np.any(np.in1d(bond_check[i], bond_check[j]))
+			bond_index[j][i] = np.any(np.in1d(bond_check[i], bond_check[j]))
+
+	print(bond_index)
+	print(np.where(np.triu(bond_index)))
 
 	for i in range(nbonds):
 		for j in range(nbonds):
@@ -508,6 +520,7 @@ def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index,
 
 	atoms = np.rot90(bond_check)
 
+	"""Form B matrix (shape = (nbonds, 2))"""
 	old_dx, old_dy = get_dx_dy(old_pos, N, boxl)
 	old_dx = old_dx[np.where(np.triu(bond))]
 	old_dy = old_dy[np.where(np.triu(bond))]
@@ -524,19 +537,27 @@ def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index,
 	B = np.transpose((B_x, B_y))
 	dxy = np.transpose((new_dx, new_dy))
 
-	print(B)
-	print(dxy)
-	print(np.sum(B*dxy, axis=1))
+	print(B.shape, B)
+	#print(dxy)
+	#print(np.sum(B*dxy, axis=1))
 
 	A = np.zeros((K, cmax))
 
 	print(ncc)
 
+	for i in range(nbonds):
+		for j in range(nbonds):
+			A[i,j] = con_coeff[i,j] * (B[i,0]*B[j,0] + B[i,1]*B[j,1])
+
+	print(A)
+	A = np.zeros((K, cmax))
+
 	for i in range(K):
-		a1 = atoms[i]
+		a1 = atom1[i]
 		a2 = atom2[i]
 		for n in range(ncc[i]):
 			k = con_index[i,n]
+			print(i, a1, a2, n, k)
 			A[i,n] = con_coeff[i,n] * (B[i,0]*B[k,0] + B[i,1]*B[k,1])  
 
 			dxy = (new_pos[a1] - new_pos[a2])
@@ -549,7 +570,7 @@ def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index,
 			rhs[0,i] = Sdiag * (np.sum(B[i] * dxy) - r0)
 			solution[i]=rhs[0,i]
 
-	#print(A)
+	print(A)
 	#print(rhs)
 
 	sys.exit()
