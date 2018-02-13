@@ -39,7 +39,7 @@ def setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc, Sdiag):
 
 	N = nchain*lchain
 	pos = np.zeros((N, 2))
-	bond = np.zeros((N, N))
+	bond = np.zeros((N, N), dtype=int)
 
 	if nchain > 1: n_section = np.sqrt(np.min([i for i in np.arange(nchain+1)**2 if i >= nchain]))
 	else: n_section = 1
@@ -300,7 +300,7 @@ def VV_alg(n, pos, vel, frc, bond, verlet_list, dt, nchain, lchain, atom1, atom2
 	new_pos = pos + dt * vel
 	new_pos += boxl * (1 - np.array((new_pos + boxl) / boxl, dtype=int))
 
-	pos = lincs_np(pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, ncc)
+	pos = lincs_np(pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2)
 
 	#pos += dt * vel
 	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
@@ -483,7 +483,7 @@ def lincs(old_pos, new_pos, boxl, nchain, lchain, r0, Sdiag, con_index, con_coef
 	return new_pos
 
 
-def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, ncc, nrec=2):
+def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index, con_coeff, atom1, atom2, nrec=2):
 
 	N = nchain * lchain
 
@@ -493,8 +493,20 @@ def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index,
 	B = np.zeros((K, 2))
 	solution = np.zeros(K)
 
-	print(bond)
-	print(np.sum(bond, axis=1))
+	bonds = np.where(np.triu(bond))
+	nbonds = int(np.sum(bond) / 2)
+	bond_check = np.transpose((bonds[0], bonds[1]))
+
+	print(bond_check)
+	print(con_index)
+	ncc = np.zeros(nbonds, dtype=int)
+
+	for i in range(nbonds):
+		for j in range(nbonds):
+			if i != j:
+				ncc[i] += np.sum(np.in1d(bond_check[i], bond_check[j]))
+
+	atoms = np.rot90(bond_check)
 
 	old_dx, old_dy = get_dx_dy(old_pos, N, boxl)
 	old_dx = old_dx[np.where(np.triu(bond))]
@@ -521,11 +533,11 @@ def lincs_np(old_pos, new_pos, bond, boxl, nchain, lchain, r0, Sdiag, con_index,
 	print(ncc)
 
 	for i in range(K):
+		a1 = atoms[i]
+		a2 = atom2[i]
 		for n in range(ncc[i]):
 			k = con_index[i,n]
 			A[i,n] = con_coeff[i,n] * (B[i,0]*B[k,0] + B[i,1]*B[k,1])  
-			a1 = atom1[i]
-			a2 = atom2[i]
 
 			dxy = (new_pos[a1] - new_pos[a2])
 			dxy -= boxl * np.array(2 * dxy/ boxl, dtype=int)
