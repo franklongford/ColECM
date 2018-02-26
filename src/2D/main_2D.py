@@ -35,54 +35,55 @@ def cum_mov_average(array):
 	
 	return average
 
-nsteps = 1
+nsteps = 100000
 nchain = 1
-lchain = 4
+lchain = 40
 N = nchain * lchain
 
 sig1 = 1.
-boxl = nchain**0.9 * sig1 * lchain**2
+boxl = nchain * sig1**2 * lchain
 print(boxl)
 bsize = sig1 * 300
 ep1 = 5.0
-dt = 0.002
-T = 1.
+dt = 0.001
+kBT = 50.
 
 r0 = 2. **(1./6.) * sig1
-kB = 100.
+kB = 20.
 rc = 4 * sig1
-
-m = 1.
-Sdiag = np.sqrt(m / 2.)
 
 tot_pos = np.zeros((nsteps, N, 2))
 tot_vel = np.zeros((nsteps, N, 2))
 tot_frc = np.zeros((nsteps, N, 2))
 
-pos, vel, frc, bond, boxl, con_index, con_coeff, atom1, atom2, ncc = ut.setup(boxl, nchain, lchain, T, sig1, ep1, r0, kB, rc, Sdiag)
+pos, vel, frc, atom_bonds, boxl, mass = ut.setup(boxl, nchain, lchain, kBT, [sig1, ep1], [r0, kB], rc)
 print(boxl)
 
 dx, dy = ut.get_dx_dy(pos, N, boxl)
 r2 = dx**2 + dy**2
 verlet_list = ut.check_cutoff(r2, rc**2)
 
+Langevin = True
+gamma = 2.0
+sigma =  np.sqrt(2 * kBT * gamma / np.array([mass, mass]).T)
+xi = np.random.normal(0, 1, (nsteps, N, 2))
+theta = np.random.normal(0, 1, (nsteps, N, 2))
 energy_array = np.zeros(nsteps)
 
 print('\n')
 
 for n in range(nsteps):
 
-	#pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, bond, verlet_list, dt, N, boxl, sig1, ep1, r0, kB, rc)
-
-	pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, bond, verlet_list, dt, nchain, lchain, atom1, atom2, 
-													con_index, con_coeff, ncc, boxl, sig1, ep1, r0, kB, rc, Sdiag)
+	pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, atom_bonds, mass, verlet_list, 
+											dt, boxl, [sig1, ep1], [r0, kB], rc, kBT, gamma, sigma, 
+											xi[n], theta[n], Langevin)
 
 	energy_array[n] += energy
 
 	sys.stdout.write("STEP {}\r".format(n))
 	sys.stdout.flush()
 
-	if np.sum(np.abs(vel)) >= T * 1000: 
+	if np.sum(np.abs(vel)) >= kBT * 10000: 
 		print("velocity exceeded, step ={}".format(n))
 		break 
 
@@ -94,7 +95,7 @@ CMA = cum_mov_average(energy_array) / N
 plt.plot(CMA)
 plt.show()
 
-speed = 100
+speed = 200
 
 tot_pos = np.array([tot_pos[i] for i in range(nsteps) if i % speed == 0])
 
