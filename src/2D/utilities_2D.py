@@ -58,7 +58,7 @@ def setup(boxl, nchain, lchain, kBT, vdw_param, bnd_param, rc):
 
 		for bead in range(lchain):
 			i = chain * lchain + bead
-			pos, atom_bonds = grow_chain(bead, i, N, pos, vdw_param, bnd_param, rc, atom_bonds, boxl, n_section, lim_x, lim_y, 1E3)
+			pos, atom_bonds = grow_chain(bead, i, N, pos, vdw_param, bnd_param, rc, atom_bonds, boxl, n_section, lim_x, lim_y, 1E2)
 
 	boxl = np.max(pos)
 	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
@@ -121,12 +121,23 @@ def calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, vwd_param, bnd_param, rc
 	cut_frc = force_vdw(rc**2, vwd_param[0], vwd_param[1])
 
 	if np.sum(bond) > 0:
+		"Bond Lengths"
 		bond_index = np.where(np.tril(bond))
 		r = np.sqrt(r2[bond_index])
-		bond_frc = force_bond(r, bnd_param[0], bnd_param[1])
+
+		bond_frc = force_harmonic(r, bnd_param[0], bnd_param[1])
+
 		for i, sign in enumerate([-1, 1]): 
 			f_beads_x[bond_index[i]] += sign * (bond_frc * dx[bond_index] / r)
 			f_beads_y[bond_index[i]] += sign * (bond_frc * dy[bond_index] / r)
+
+		"Bond Angles"
+		vector = np.array((dx[bond_index], dy[bond_index])).T
+		vec_1 = np.array((dx[0][1], dy[0][1]))
+		vec_2 = np.array((dx[1][2], dy[1][2]))
+		cos_the = np.dot(vec_1, vec_2) / (r[0][1] * r[1][2])
+
+		
 
 	nonbond_frc = force_vdw((r2 - bond * r2) * verlet_list , vwd_param[0], vwd_param[1]) - cut_frc
 	f_beads_x += np.nansum(nonbond_frc * dx / r2, axis=0)
@@ -135,6 +146,35 @@ def calc_forces(N, boxl, dx, dy, r2, bond, verlet_list, vwd_param, bnd_param, rc
 	f_beads = np.transpose(np.array([f_beads_x, f_beads_y]))
 
 	return f_beads
+
+
+def pot_energy(dx, dy, r2, bond, boxl, vdw_param, bnd_param, rc):
+
+	N = dx.shape[0]
+	cut_pot = pot_vdw(rc**2, vdw_param[0], vdw_param[1])
+	pot_energy = 0
+
+	if np.sum(bond) > 0:
+		bond_index = np.where(np.tril(bond))
+		r = np.sqrt(r2[bond_index])
+		bond_pot = pot_harmonic(r, bnd_param[0], bnd_param[1])
+		pot_energy += np.sum(bond_pot)
+
+	nonbond_pot = pot_vdw((r2 - bond * r2) * check_cutoff(r2, rc**2), vdw_param[0], vdw_param[1]) - cut_pot
+	pot_energy += np.nansum(nonbond_pot) / 2
+
+	return pot_energy
+
+
+def tot_energy(N, dx, dy, r2, vel, bond, boxl, vdw_param, bnd_param, rc):
+
+	tot_energy = 0
+
+	tot_energy += pot_energy(dx, dy, r2, bond, boxl, vdw_param, bnd_param, rc)
+	tot_energy += kin_energy(vel)
+	
+	return tot_energy 
+
 
 SQRT3 = np.sqrt(3)
 SQRT2 = np.sqrt(2)
@@ -166,10 +206,14 @@ def VV_alg(n, pos, vel, frc, atom_bonds, mass, verlet_list, dt, boxl, vdw_param,
 	return pos, vel, frc, verlet_list, energy
 
 
-def force_bond(r, r0, kB): return 2 * kB * (r0 - r)
+
+def pot_morse(x, x0, k, D): return D * (1 - np.exp(- k * (x - x0)))**2
 
 
-def force_angle(theta, theta0, kA): return 2 * kA * (theta0 - theta)
+def force_harmonic(x, x0, k): return 2 * k * (x0 - x)
+
+
+def pot_harmonic(x, x0, k): return k * (x - x0)**2
 
 
 def force_vdw(r2, sig1, ep1): return 24 * ep1 * (2 * (sig1/r2)**6 - (sig1/r2)**3)
@@ -178,41 +222,9 @@ def force_vdw(r2, sig1, ep1): return 24 * ep1 * (2 * (sig1/r2)**6 - (sig1/r2)**3
 def pot_vdw(r2, sig1, ep1): return 4 * ep1 * ((sig1**12/r2**6) - (sig1**6/r2**3))
 
 
-def pot_bond(r, r0, kB): return kB * (r - r0)**2
-
-
-def pot_angle(theta, theta0, kA): return kA * (theta - theta0)**2
-
-
 def kin_energy(vel): return np.mean(vel**2)
 
 
-def pot_energy(dx, dy, r2, bond, boxl, vdw_param, bnd_param, rc):
-
-	N = dx.shape[0]
-	cut_pot = pot_vdw(rc**2, vdw_param[0], vdw_param[1])
-	pot_energy = 0
-
-	if np.sum(bond) > 0:
-		bond_index = np.where(np.tril(bond))
-		r = np.sqrt(r2[bond_index])
-		bond_pot = pot_bond(r, bnd_param[0], bnd_param[1])
-		pot_energy += np.sum(bond_pot)
-
-	nonbond_pot = pot_vdw((r2 - bond * r2) * check_cutoff(r2, rc**2), vdw_param[0], vdw_param[1]) - cut_pot
-	pot_energy += np.nansum(nonbond_pot) / 2
-
-	return pot_energy
-
-
-def tot_energy(N, dx, dy, r2, vel, bond, boxl, vdw_param, bnd_param, rc):
-
-	tot_energy = 0
-
-	tot_energy += pot_energy(dx, dy, r2, bond, boxl, vdw_param, bnd_param, rc)
-	tot_energy += kin_energy(vel)
-	
-	return tot_energy 
 
 
 def save_traj(pos, vel):

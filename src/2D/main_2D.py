@@ -35,18 +35,18 @@ def cum_mov_average(array):
 	
 	return average
 
-nsteps = 100000
-nchain = 1
+nsteps = 10000
+nchain = 3
 lchain = 40
 N = nchain * lchain
 
 sig1 = 1.
-boxl = nchain * sig1**2 * lchain
+boxl = 0.8 * nchain * sig1**2 * lchain
 print(boxl)
 bsize = sig1 * 300
 ep1 = 5.0
-dt = 0.001
-kBT = 50.
+dt = 0.002
+kBT = 2.
 
 r0 = 2. **(1./6.) * sig1
 kB = 20.
