@@ -35,13 +35,13 @@ def cum_mov_average(array):
 	
 	return average
 
-nsteps = 1
+nsteps = 5000
 nchain = 1
-lchain = 3
+lchain = 5
 N = nchain * lchain
 
 sig1 = 1.
-boxl = 0.8 * nchain * sig1**2 * lchain
+boxl = 10.#nchain * sig1**2 * lchain
 print(boxl)
 bsize = sig1 * 300
 ep1 = 5.0
@@ -53,14 +53,13 @@ kB = 20.
 rc = 4 * sig1
 
 the0 = np.pi
-cos_the0 = -1
-kA = 200.
+kA = 20.
 
 tot_pos = np.zeros((nsteps, N, 2))
 tot_vel = np.zeros((nsteps, N, 2))
 tot_frc = np.zeros((nsteps, N, 2))
 
-pos, vel, frc, bond_atom, bond_angle, boxl, mass = ut.setup(boxl, nchain, lchain, kBT, [sig1, ep1], [r0, kB], [cos_the0, kA], rc)
+pos, vel, frc, bond_atom, bond_angle, boxl, mass = ut.setup(boxl, nchain, lchain, kBT, [sig1, ep1], [r0, kB], [the0, kA], rc)
 print(boxl)
 
 dx, dy = ut.get_dx_dy(pos, N, boxl)
@@ -79,7 +78,7 @@ print('\n')
 for n in range(nsteps):
 
 	pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, bond_atom, bond_angle, mass, verlet_list, 
-											dt, boxl, [sig1, ep1], [r0, kB], [-np.cos(the0), kA], rc, kBT, 
+											dt, boxl, [sig1, ep1], [r0, kB], [the0, kA], rc, kBT, 
 											gamma, sigma, xi[n], theta[n], Langevin)
 
 	energy_array[n] += energy
@@ -91,7 +90,7 @@ for n in range(nsteps):
 		print("velocity exceeded, step ={}".format(n))
 		break 
 
-	tot_pos[n] += pos
+	tot_pos[n] += pos + boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
 	tot_vel[n] += vel
 	tot_frc[n] += frc
 
@@ -99,7 +98,7 @@ CMA = cum_mov_average(energy_array) / N
 plt.plot(CMA)
 plt.show()
 
-speed = 200
+speed = 50
 
 tot_pos = np.array([tot_pos[i] for i in range(nsteps) if i % speed == 0])
 

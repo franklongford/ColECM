@@ -30,6 +30,7 @@ def unit_vector(vector):
 
 def rand_vector(n): return unit_vector(np.random.random((n)) * 2 - 1) 
 
+
 def remove_element(a, array): return np.array([x for x in array if x != a])
 
 
@@ -59,20 +60,6 @@ def setup(boxl, nchain, lchain, kBT, vdw_param, bnd_param, angle_param, rc):
 			pos, bond_atom, bond_angle = grow_chain(bead, n, N, pos, bond_atom, vdw_param, bnd_param, angle_param, rc, boxl, n_section, lim_x, lim_y, 1E2)
 
 	pos = np.array(pos)
-	boxl = np.max(pos)
-	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
-
-	import matplotlib.pyplot as plt
-	for i in range(N):
-		for j in range(i):
-			if bond_atom[i][j]: 
-				plt.plot([pos[i][0], pos[j][0]], [pos[i][1], pos[j][1]])
-
-	plt.scatter(pos.T[0], pos.T[1])
-
-	plt.show()
-
-	sys.exit()
 
 	vel = (np.random.random((N,2)) - 0.5) * 2 * kBT
 	dx, dy = get_dx_dy(pos, N, boxl)
@@ -89,7 +76,6 @@ def grow_chain(bead, n, N, pos, bond_atom, vdw_param, bnd_param, angle_param, rc
 	print(bead, n)
 
 	if bead == 0:
-		#pos[n] = np.random.random((2)) * boxl / n_section + np.array([lim_x, lim_y])
 		pos.append(np.random.random((2)) * boxl / n_section + np.array([lim_x, lim_y]))
 		bond_angle = 0
 
@@ -118,8 +104,6 @@ def grow_chain(bead, n, N, pos, bond_atom, vdw_param, bnd_param, angle_param, rc
 			r2 = dx**2 + dy**2
 			energy = pot_energy(dx, dy, r2, bond_atom, bond_angle, boxl, vdw_param, bnd_param, angle_param, rc)
 			
-		pos[n] += boxl * (1 - np.array((pos[n] + boxl) / boxl, dtype=int))
-
 	return pos, bond_atom, bond_angle
 
 
@@ -131,8 +115,8 @@ def get_dx_dy(pos, N, boxl):
 	dx = np.tile(temp_pos[0], (N, 1))
 	dy = np.tile(temp_pos[1], (N, 1))
 
-	dx -= np.transpose(dx)
-	dy -= np.transpose(dy)
+	dx = dx.T - dx
+	dy = dy.T - dy
 
 	dx -= boxl * np.array(2 * dx / boxl, dtype=int)
 	dy -= boxl * np.array(2 * dy / boxl, dtype=int)
@@ -155,38 +139,64 @@ def calc_forces(N, boxl, dx, dy, r2, bond_atom, bond_angle, verlet_list, vwd_par
 
 	if nbond > 0:
 		"Bond Lengths"
-		bond_index = np.where(np.tril(bond_atom))
-		r = np.sqrt(r2[bond_index])
+		bond_index_half = np.argwhere(np.triu(bond_atom))
+		indices_half = create_index(bond_index_half)
+		bond_index_full = np.argwhere(bond_atom)
+		indices_half = create_index(bond_index_full)
 
+		r = np.sqrt(r2[indices_half])
 		bond_frc = force_harmonic(r, bnd_param[0], bnd_param[1])
 
-		for i, sign in enumerate([-1, 1]): 
-			f_beads_x[bond_index[i]] += sign * (bond_frc * dx[bond_index] / r)
-			f_beads_y[bond_index[i]] += sign * (bond_frc * dy[bond_index] / r)
+		for i, sign in enumerate([1, -1]):
+			f_beads_x[indices_half[i]] += sign * (bond_frc * dx[indices_half] / r)
+			f_beads_y[indices_half[i]] += sign * (bond_frc * dy[indices_half] / r)
 
-		"Bond Angles"
-		vector = np.array((dx[bond_index], dy[bond_index])).T
-		vector_matrix = np.reshape(np.tile(vector, (1, nbond)), (nbond, nbond, 2))
-		r_matrix = np.reshape(np.tile(r, (1, nbond)), (nbond, nbond))
+		#"""
+		if np.sum(bond_angle) > 0:
+			"Bond Angles"
+			count = np.unique(bond_index_full.T[0]).shape[0]
+			r = np.repeat(r, 2)
 
-		dot_prod = np.sum(vector_matrix * np.moveaxis(vector_matrix, 0, 1), axis=2)
+			for n in range(count):
+				slice_full = np.argwhere(bond_index_full.T[0] == n)
+				slice_half = np.argwhere(bond_index_half.T[0] == n)
 
-		cos_the = dot_prod / (r_matrix * r_matrix.T)
+				nb = slice_full.shape[0]
 
-		angle_index = np.where(np.tril(bond_angle))
-		bond_frc = force_harmonic(cos_the, angle_param[0], angle_param[1])
+				if nb > 1:
+					atoms = np.unique(bond_index_full[slice_full].flatten())
+					switch = np.ones((nb, nb)) - np.identity(nb)
+					indices_full = create_index(bond_index_full[slice_full])
 
-		print(bond_frc)
+					vector = np.concatenate((dx[indices_full], dy[indices_full]), axis=0).T
+					vector_matrix = np.reshape(np.tile(vector, (1, nb)), (nb, nb, 2))
+					r_matrix = np.reshape(np.tile(r[slice_full].flatten(), (1, nb)), (nb, nb)).T
 
-		sys.exit()
+					dot_prod = np.sum(vector_matrix * np.moveaxis(vector_matrix, 0, 1), axis=2)
+					cos_the = dot_prod / (r_matrix * r_matrix.T)
+					vector_norm = vector / r[slice_full]
+						
+					frc_angle = angle_param[1] * (vector_norm * cos_the[0][1] - np.flip(vector_norm, axis=0)) / r[slice_full]
+					frc_angle = np.insert(frc_angle, -1, -np.sum(frc_angle, axis=0), axis=0)
+		
+					f_beads_x[atoms] -= frc_angle.T[0]
+					f_beads_y[atoms] -= frc_angle.T[1]
+	
+		#"""
 
 	nonbond_frc = force_vdw(r2 * verlet_list , vwd_param[0], vwd_param[1]) - cut_frc
-	f_beads_x += np.nansum(nonbond_frc * dx / r2, axis=0)
-	f_beads_y += np.nansum(nonbond_frc * dy / r2, axis=0)
+
+	f_beads_x -= np.nansum(nonbond_frc * dx / r2, axis=0)
+	f_beads_y -= np.nansum(nonbond_frc * dy / r2, axis=0)
 
 	f_beads = np.transpose(np.array([f_beads_x, f_beads_y]))
 
 	return f_beads
+
+
+def create_index(array):
+    
+    return (np.array(array.T[0]), np.array(array.T[1]))
 
 
 def pot_energy(dx, dy, r2, bond_atom, bond_angle, boxl, vdw_param, bnd_param, angle_param, rc):
@@ -198,27 +208,37 @@ def pot_energy(dx, dy, r2, bond_atom, bond_angle, boxl, vdw_param, bnd_param, an
 	nbond = int(np.sum(np.tril(bond_atom)))
 
 	if nbond > 0:
-		bond_index = np.where(np.tril(bond_atom))
-		r = np.sqrt(r2[bond_index])
+		bond_index_half = np.argwhere(np.triu(bond_atom))
+		bond_index_full = np.argwhere(bond_atom)
+
+		r = np.sqrt(r2[create_index(bond_index_half)])
+
 		bond_pot = pot_harmonic(r, bnd_param[0], bnd_param[1])
 		pot_energy += np.sum(bond_pot)
 
 		if np.sum(bond_angle) > 0:
 			"Bond Angles"
-			vector = np.array((dx[bond_index], dy[bond_index])).T
-			vector_matrix = np.reshape(np.tile(vector, (1, nbond)), (nbond, nbond, 2))
-			r_matrix = np.reshape(np.tile(r, (1, nbond)), (nbond, nbond))
+			count = np.unique(bond_index_full.T[0]).shape[0]
+			r = np.repeat(r, 2)
 
-			dot_prod = np.sum(vector_matrix * np.moveaxis(vector_matrix, 0, 1), axis=2)
-			cos_theta = dot_prod / (r_matrix * r_matrix.T)
+			for n in range(count):
+				slice_full = np.argwhere(bond_index_full.T[0] == n)
+				slice_half = np.argwhere(bond_index_half.T[0] == n)
 
-			bond_pot = angle_param[1] * cos_theta**2
-			bond_pot -= np.diag(np.diag(bond_pot))
-			pot_energy += np.sum(bond_pot) / 2
+				nb = slice_full.shape[0]
 
-			print("cos_theta")
-			print(cos_theta**2)
-			print(np.sum(bond_pot) / 2)
+				if nb > 1:
+					switch = np.ones((nb, nb)) - np.identity(nb)
+					indices_full = create_index(bond_index_full[slice_full])
+
+					vector = np.array((dx[indices_full], dy[indices_full])).T
+					vector_matrix = np.reshape(np.tile(vector, (1, nb)), (nb, nb, 2))
+					r_matrix = np.reshape(np.tile(r[slice_full].flatten(), (1, nb)), (nb, nb)).T
+
+					dot_prod = np.sum(vector_matrix * np.moveaxis(vector_matrix, 0, 1), axis=2)
+					cos_the = dot_prod / (r_matrix * r_matrix.T)
+
+					pot_energy += np.nansum(np.triu(cos_the) * angle_param[1] * switch)
 
 	nonbond_pot = pot_vdw(r2 * check_cutoff(r2, rc**2), vdw_param[0], vdw_param[1]) - cut_pot
 	pot_energy += np.nansum(nonbond_pot) / 2
@@ -226,11 +246,11 @@ def pot_energy(dx, dy, r2, bond_atom, bond_angle, boxl, vdw_param, bnd_param, an
 	return pot_energy
 
 
-def tot_energy(N, dx, dy, r2, vel, bond_atom, bond_angle, boxl, vdw_param, bnd_param, rc):
+def tot_energy(N, dx, dy, r2, vel, bond_atom, bond_angle, boxl, vdw_param, bnd_param, angle_param, rc):
 
 	tot_energy = 0
 
-	tot_energy += pot_energy(dx, dy, r2, bond_atom, bond_angle, boxl, vdw_param, bnd_param, rc)
+	tot_energy += pot_energy(dx, dy, r2, bond_atom, bond_angle, boxl, vdw_param, bnd_param, angle_param, rc)
 	tot_energy += kin_energy(vel)
 	
 	return tot_energy 
@@ -239,7 +259,7 @@ def tot_energy(N, dx, dy, r2, vel, bond_atom, bond_angle, boxl, vdw_param, bnd_p
 SQRT3 = np.sqrt(3)
 SQRT2 = np.sqrt(2)
 
-def VV_alg(n, pos, vel, frc, bond_atom, bond_angle, mass, verlet_list, dt, boxl, vdw_param, bnd_param, rc, kBT, gamma, sigma, xi = 0, theta = 0, Langevin=False):
+def VV_alg(n, pos, vel, frc, bond_atom, bond_angle, mass, verlet_list, dt, boxl, vdw_param, bnd_param, angle_param, rc, kBT, gamma, sigma, xi = 0, theta = 0, Langevin=False):
 
 	N = pos.shape[0]
 	
@@ -250,18 +270,18 @@ def VV_alg(n, pos, vel, frc, bond_atom, bond_angle, mass, verlet_list, dt, boxl,
 		C = 0.5 * dt**2 * (frc / np.array([mass, mass]).T - gamma * vel) + sigma * dt**(3./2) * (xi + theta / SQRT3) / 2.
 		pos += C
 
-	pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
+	#pos += boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
 	dx, dy = get_dx_dy(pos, N, boxl)
 	r2 = dx**2 + dy**2
 
 	verlet_list = check_cutoff(r2, rc**2)
-	new_frc = calc_forces(N, boxl, dx, dy, r2, bond_atom, bond_angle, verlet_list, vdw_param, bnd_param, rc)
+	new_frc = calc_forces(N, boxl, dx, dy, r2, bond_atom, bond_angle, verlet_list, vdw_param, bnd_param, angle_param, rc)
 	vel += 0.5 * dt * new_frc / np.array([mass, mass]).T
 
 	if Langevin: vel += 0.5 * dt * frc / np.array([mass, mass]).T - gamma * (dt * vel + C) + sigma * xi * np.sqrt(dt)
 	
 	frc = new_frc
-	energy = tot_energy(N, dx, dy, r2, vel, bond_atom, bond_angle, boxl, vdw_param, bnd_param, rc)
+	energy = tot_energy(N, dx, dy, r2, vel, bond_atom, bond_angle, boxl, vdw_param, bnd_param, angle_param, rc)
 
 	return pos, vel, frc, verlet_list, energy
 
