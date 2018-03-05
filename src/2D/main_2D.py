@@ -35,9 +35,9 @@ def cum_mov_average(array):
 	
 	return average
 
-nsteps = 10000
-nchain = 3
-lchain = 40
+nsteps = 1
+nchain = 1
+lchain = 3
 N = nchain * lchain
 
 sig1 = 1.
@@ -52,11 +52,15 @@ r0 = 2. **(1./6.) * sig1
 kB = 20.
 rc = 4 * sig1
 
+the0 = np.pi
+cos_the0 = -1
+kA = 200.
+
 tot_pos = np.zeros((nsteps, N, 2))
 tot_vel = np.zeros((nsteps, N, 2))
 tot_frc = np.zeros((nsteps, N, 2))
 
-pos, vel, frc, atom_bonds, boxl, mass = ut.setup(boxl, nchain, lchain, kBT, [sig1, ep1], [r0, kB], rc)
+pos, vel, frc, bond_atom, bond_angle, boxl, mass = ut.setup(boxl, nchain, lchain, kBT, [sig1, ep1], [r0, kB], [cos_the0, kA], rc)
 print(boxl)
 
 dx, dy = ut.get_dx_dy(pos, N, boxl)
@@ -74,9 +78,9 @@ print('\n')
 
 for n in range(nsteps):
 
-	pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, atom_bonds, mass, verlet_list, 
-											dt, boxl, [sig1, ep1], [r0, kB], rc, kBT, gamma, sigma, 
-											xi[n], theta[n], Langevin)
+	pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, bond_atom, bond_angle, mass, verlet_list, 
+											dt, boxl, [sig1, ep1], [r0, kB], [-np.cos(the0), kA], rc, kBT, 
+											gamma, sigma, xi[n], theta[n], Langevin)
 
 	energy_array[n] += energy
 
