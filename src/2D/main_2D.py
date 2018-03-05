@@ -35,13 +35,13 @@ def cum_mov_average(array):
 	
 	return average
 
-nsteps = 5000
+nsteps = 10000
 nchain = 1
-lchain = 5
+lchain = 40
 N = nchain * lchain
 
 sig1 = 1.
-boxl = 10.#nchain * sig1**2 * lchain
+boxl = nchain * sig1**2 * lchain
 print(boxl)
 bsize = sig1 * 300
 ep1 = 5.0
@@ -60,7 +60,6 @@ tot_vel = np.zeros((nsteps, N, 2))
 tot_frc = np.zeros((nsteps, N, 2))
 
 pos, vel, frc, bond_atom, bond_angle, boxl, mass = ut.setup(boxl, nchain, lchain, kBT, [sig1, ep1], [r0, kB], [the0, kA], rc)
-print(boxl)
 
 dx, dy = ut.get_dx_dy(pos, N, boxl)
 r2 = dx**2 + dy**2
@@ -86,19 +85,20 @@ for n in range(nsteps):
 	sys.stdout.write("STEP {}\r".format(n))
 	sys.stdout.flush()
 
-	if np.sum(np.abs(vel)) >= kBT * 10000: 
+	if np.sum(np.abs(vel)) >= kBT * 1E5: 
 		print("velocity exceeded, step ={}".format(n))
+		nsteps = n
 		break 
 
 	tot_pos[n] += pos + boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
 	tot_vel[n] += vel
 	tot_frc[n] += frc
 
-CMA = cum_mov_average(energy_array) / N
+CMA = cum_mov_average(energy_array[:nsteps]) / N
 plt.plot(CMA)
 plt.show()
 
-speed = 50
+speed = 100
 
 tot_pos = np.array([tot_pos[i] for i in range(nsteps) if i % speed == 0])
 

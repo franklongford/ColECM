@@ -73,8 +73,6 @@ def setup(boxl, nchain, lchain, kBT, vdw_param, bnd_param, angle_param, rc):
 
 def grow_chain(bead, n, N, pos, bond_atom, vdw_param, bnd_param, angle_param, rc, boxl, n_section, lim_x, lim_y, max_energy):
 
-	print(bead, n)
-
 	if bead == 0:
 		pos.append(np.random.random((2)) * boxl / n_section + np.array([lim_x, lim_y]))
 		bond_angle = 0
@@ -89,7 +87,7 @@ def grow_chain(bead, n, N, pos, bond_atom, vdw_param, bnd_param, angle_param, rc
 		for i in range(nbond):
 			for j in range(i):
 				bond_angle[i][j] = np.in1d(bond_index[i], bond_index[j]).any()
-				bond_angle[j][i] += bond_angle[i][j]
+				bond_angle[j][i] = bond_angle[i][j]
 
 		new_vec = rand_vector(2) * vdw_param[0]
 		pos.append(pos[n-1] + new_vec)
@@ -142,7 +140,7 @@ def calc_forces(N, boxl, dx, dy, r2, bond_atom, bond_angle, verlet_list, vwd_par
 		bond_index_half = np.argwhere(np.triu(bond_atom))
 		indices_half = create_index(bond_index_half)
 		bond_index_full = np.argwhere(bond_atom)
-		indices_half = create_index(bond_index_full)
+		indices_full = create_index(bond_index_full)
 
 		r = np.sqrt(r2[indices_half])
 		bond_frc = force_harmonic(r, bnd_param[0], bnd_param[1])
@@ -184,7 +182,7 @@ def calc_forces(N, boxl, dx, dy, r2, bond_atom, bond_angle, verlet_list, vwd_par
 	
 		#"""
 
-	nonbond_frc = force_vdw(r2 * verlet_list , vwd_param[0], vwd_param[1]) - cut_frc
+	nonbond_frc = force_vdw(r2 * verlet_list, vwd_param[0], vwd_param[1]) - cut_frc
 
 	f_beads_x -= np.nansum(nonbond_frc * dx / r2, axis=0)
 	f_beads_y -= np.nansum(nonbond_frc * dy / r2, axis=0)
@@ -237,6 +235,7 @@ def pot_energy(dx, dy, r2, bond_atom, bond_angle, boxl, vdw_param, bnd_param, an
 
 					dot_prod = np.sum(vector_matrix * np.moveaxis(vector_matrix, 0, 1), axis=2)
 					cos_the = dot_prod / (r_matrix * r_matrix.T)
+					#sin_the = np.sin(np.arccos(cos_the))
 
 					pot_energy += np.nansum(np.triu(cos_the) * angle_param[1] * switch)
 
@@ -309,8 +308,6 @@ def pot_vdw(r2, sig1, ep1): return 4 * ep1 * ((sig1**12/r2**6) - (sig1**6/r2**3)
 
 
 def kin_energy(vel): return np.mean(vel**2)
-
-
 
 
 def save_traj(pos, vel):
