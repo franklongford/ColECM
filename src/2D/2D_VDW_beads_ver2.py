@@ -18,6 +18,89 @@ import sys
 import os
 
 
+def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc):
+	"""
+	calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc)
+
+	Return tot potential energy and forces on each bead in simulation
+	"""
+	
+	N = dx.shape[0]
+	f_beads_x = np.zeros((N))
+	f_beads_y = np.zeros((N))
+	pot_energy = 0
+	cut_frc = force_vdw(rc**2, vdw_param[0], vdw_param[1])
+	cut_pot = pot_vdw(rc**2, vdw_param[0], vdw_param[1])
+	
+	nbond = int(np.sum(np.triu(bond_matrix)))
+
+	if nbond > 0:
+		"Bond Lengths"
+		bond_index_half = np.argwhere(np.triu(bond_matrix))
+		bond_index_full = np.argwhere(bond_matrix)
+
+		indices_half = create_index(bond_index_half)
+		indices_full = create_index(bond_index_full)
+
+		r = np.sqrt(r2[indices_half])
+		
+		bond_pot = pot_harmonic(r, bond_param[0], bond_param[1])
+		pot_energy += np.sum(bond_pot)
+
+		bond_frc = force_harmonic(r, bond_param[0], bond_param[1])
+		for i, sign in enumerate([1, -1]):
+			f_beads_x[indices_half[i]] += sign * (bond_frc * dx[indices_half] / r)
+			f_beads_y[indices_half[i]] += sign * (bond_frc * dy[indices_half] / r)
+
+		#"""
+		"Bond Angles"
+		count = np.unique(bond_index_full.T[0]).shape[0]
+
+		r = np.repeat(r, 2)
+
+		for n in range(count):
+			slice_full = np.argwhere(bond_index_full.T[0] == n)
+			slice_half = np.argwhere(bond_index_half.T[0] == n)
+
+			n_bonds = slice_full.shape[0]
+
+			if n_bonds > 1:
+				atoms = np.unique(bond_index_full[slice_full].flatten())
+				switch = np.ones((n_bonds, n_bonds)) - np.identity(n_bonds)
+				indices = create_index(bond_index_full[slice_full])
+
+				vector = np.concatenate((dx[indices], dy[indices]), axis=0).T
+				vector_matrix = np.reshape(np.tile(vector, (1, n_bonds)), (n_bonds, n_bonds, 2))
+				r_matrix = np.reshape(np.tile(r[slice_full].flatten(), (1, n_bonds)), (n_bonds, n_bonds)).T
+
+				dot_prod = np.sum(vector_matrix * np.moveaxis(vector_matrix, 0, 1), axis=2)
+				cos_the = dot_prod / (r_matrix * r_matrix.T)
+
+				pot_energy += np.nansum(np.triu(cos_the) * angle_param[1] * switch)
+
+				vector_norm = vector / r[slice_full]
+					
+				frc_angle = angle_param[1] * (vector_norm * cos_the[0][1] - np.flip(vector_norm, axis=0)) / r[slice_full]
+				frc_angle = np.insert(frc_angle, -1, -np.sum(frc_angle, axis=0), axis=0)
+
+				f_beads_x[atoms] -= frc_angle.T[0]
+				f_beads_y[atoms] -= frc_angle.T[1]
+
+		#"""
+
+	non_zero = np.nonzero(r2)
+	nonbond_pot = pot_vdw(r2[non_zero] * verlet_list[non_zero], vdw_param[0], vdw_param[1]) - cut_pot
+	pot_energy += np.nansum(nonbond_pot) / 2
+
+	nonbond_frc = force_vdw(r2 * verlet_list, vdw_param[0], vdw_param[1]) - cut_frc
+	f_beads_x += np.nansum(nonbond_frc * dx / r2, axis=0)
+	f_beads_y += np.nansum(nonbond_frc * dy / r2, axis=0)
+
+	frc_beads = np.transpose(np.array([f_beads_x, f_beads_y]))
+
+	return pot_energy, frc_beads
+	
+
 
 def make_chains(Nch, Nbe, L, sig1, r0, theta0):
 	"Creates Nch fibrils chains containing Nbe beads in a cell with an area of L x L"

@@ -1,16 +1,13 @@
 """
-COLLAGEN FIBRIL SIMULATION 2D
+COLLAGEN FIBRE SIMULATION 2D
 
 Created by: Frank Longford
 Created on: 01/11/15
 
-Last Modified: 02/02/2018
+Last Modified: 06/03/2018
 """
 
 import numpy as np
-import scipy.constants as con
-import scipy.integrate as spin
-import scipy.optimize as spop
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
@@ -24,92 +21,94 @@ def animate(n):
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 
 
-def cum_mov_average(array):
+n_steps = 5000
+n_fibre = 10
+l_fibre = 5
+N = n_fibre * l_fibre
 
-	l = len(array)
-	average = np.zeros(l)
-	average[0] = array[0]
+mass = 1.
 
-	for i in range(l-1):
-		average[i+1] = average[i] + (array[i+1] - average[i]) / (i+1)  
-	
-	return average
-
-nsteps = 10000
-nchain = 1
-lchain = 40
-N = nchain * lchain
-
-sig1 = 1.
-boxl = nchain * sig1**2 * lchain
-print(boxl)
-bsize = sig1 * 300
-ep1 = 5.0
 dt = 0.002
-kBT = 2.
 
-r0 = 2. **(1./6.) * sig1
-kB = 20.
-rc = 4 * sig1
+vdw_sigma = 1.
+vdw_epsilon = 5.0
+vdw_param = [vdw_sigma, vdw_epsilon]
 
-the0 = np.pi
-kA = 20.
+bond_r0 = 2. **(1./6.) * vdw_sigma
+bond_k = 20.
+bond_param = [bond_r0, bond_k]
 
-tot_pos = np.zeros((nsteps, N, 2))
-tot_vel = np.zeros((nsteps, N, 2))
-tot_frc = np.zeros((nsteps, N, 2))
+angle_theta0 = np.pi
+angle_k = 20.
+angle_param = [angle_theta0, angle_k]
 
-pos, vel, frc, bond_atom, bond_angle, boxl, mass = ut.setup(boxl, nchain, lchain, kBT, [sig1, ep1], [r0, kB], [the0, kA], rc)
+rc = 4 * vdw_sigma
 
-dx, dy = ut.get_dx_dy(pos, N, boxl)
+cell_L = n_fibre * vdw_sigma**2 * l_fibre
+cell_dim = np.array([cell_L, cell_L], dtype=float)
+tile_cell_dim = np.tile(cell_dim, (N, 1))
+
+tot_pos = np.zeros((n_steps, N, 2))
+tot_vel = np.zeros((n_steps, N, 2))
+tot_frc = np.zeros((n_steps, N, 2))
+
+Langevin = True
+kBT = 5.
+thermo_gamma = 2.0
+thermo_sigma =  np.sqrt(2 * kBT * thermo_gamma / mass)
+thermo_xi = np.random.normal(0, 1, (n_steps, N, 2))
+thermo_theta = np.random.normal(0, 1, (n_steps, N, 2))
+
+energy_array = np.zeros(n_steps)
+
+pos, vel, frc, cell_dim, bond_matrix, verlet_list, atoms, dxdy_index, r_index = ut.setup_test(cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc)
+
+dx, dy = ut.get_dx_dy(pos, N, cell_dim)
 r2 = dx**2 + dy**2
 verlet_list = ut.check_cutoff(r2, rc**2)
 
-Langevin = True
-gamma = 2.0
-sigma =  np.sqrt(2 * kBT * gamma / np.array([mass, mass]).T)
-xi = np.random.normal(0, 1, (nsteps, N, 2))
-theta = np.random.normal(0, 1, (nsteps, N, 2))
-energy_array = np.zeros(nsteps)
-
 print('\n')
 
-for n in range(nsteps):
+for step in range(n_steps):
 
-	pos, vel, frc, verlet_list, energy = ut.VV_alg(n, pos, vel, frc, bond_atom, bond_angle, mass, verlet_list, 
-											dt, boxl, [sig1, ep1], [r0, kB], [the0, kA], rc, kBT, 
-											gamma, sigma, xi[n], theta[n], Langevin)
+	pos, vel, frc, verlet_list, energy = ut.velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, atoms, dxdy_index, r_index, 
+						dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT, thermo_gamma, 
+						thermo_sigma, thermo_xi[step], thermo_theta[step], Langevin)
 
-	energy_array[n] += energy
+	energy_array[step] += energy
 
-	sys.stdout.write("STEP {}\r".format(n))
+	sys.stdout.write("STEP {}\r".format(step))
 	sys.stdout.flush()
 
 	if np.sum(np.abs(vel)) >= kBT * 1E5: 
-		print("velocity exceeded, step ={}".format(n))
-		nsteps = n
+		print("velocity exceeded, step ={}".format(step))
+		print(pos)
+		print(vel)
+		n_steps = step
 		break 
 
-	tot_pos[n] += pos + boxl * (1 - np.array((pos + boxl) / boxl, dtype=int))
-	tot_vel[n] += vel
-	tot_frc[n] += frc
+	tot_pos[step] += pos + cell_L * (1 - np.array((pos + cell_L) / cell_L, dtype=int))
+	tot_vel[step] += vel
+	tot_frc[step] += frc
 
-CMA = cum_mov_average(energy_array[:nsteps]) / N
+
+
+CMA = ut.cum_mov_average(energy_array[:n_steps]) / N
 plt.plot(CMA)
 plt.show()
 
 speed = 100
 
-tot_pos = np.array([tot_pos[i] for i in range(nsteps) if i % speed == 0])
+tot_pos = np.array([tot_pos[i] for i in range(n_steps) if i % speed == 0])
 
 tot_pos = np.moveaxis(tot_pos, 2, 1)
 
 fig, ax = plt.subplots()
 
 sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
-plt.xlim(0, boxl)
-plt.ylim(0, boxl)
-ani = animation.FuncAnimation(fig, animate, frames=int(nsteps/speed), interval=100, repeat=False)
+plt.xlim(0, cell_dim[0])
+plt.ylim(0, cell_dim[1])
+ani = animation.FuncAnimation(fig, animate, frames=int(n_steps/speed), interval=100, repeat=False)
 plt.show()	
 
 
