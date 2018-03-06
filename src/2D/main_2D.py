@@ -21,7 +21,7 @@ def animate(n):
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 
 
-n_steps = 5000
+n_steps = 2000
 n_fibre = 10
 l_fibre = 5
 N = n_fibre * l_fibre
@@ -63,6 +63,8 @@ energy_array = np.zeros(n_steps)
 
 pos, vel, frc, cell_dim, bond_matrix, verlet_list, atoms, dxdy_index, r_index = ut.setup_test(cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc)
 
+print(cell_dim)
+
 dx, dy = ut.get_dx_dy(pos, N, cell_dim)
 r2 = dx**2 + dy**2
 verlet_list = ut.check_cutoff(r2, rc**2)
@@ -87,7 +89,7 @@ for step in range(n_steps):
 		n_steps = step
 		break 
 
-	tot_pos[step] += pos + cell_L * (1 - np.array((pos + cell_L) / cell_L, dtype=int))
+	tot_pos[step] += pos
 	tot_vel[step] += vel
 	tot_frc[step] += frc
 

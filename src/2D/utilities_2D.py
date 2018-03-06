@@ -485,6 +485,12 @@ def setup_test(cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, ang
 	size_y = np.max(pos.T[1]) + vdw_param[0]
 	bead_list = np.arange(0, l_fibre)
 
+	if n_fibre > 1: n_section = np.sqrt(np.min([i for i in np.arange(n_fibre + 1)**2 if i >= n_fibre]))
+	else: n_section = 1
+
+	sections = np.arange(n_section**2)
+
+
 	for fibre in range(1, n_fibre):
 	
 		pos_x = pos.T[0][bead_list] + size_x * fibre
