@@ -9,400 +9,462 @@ from matplotlib import animation
 
 """ STANDARD ROUTINES """
 
+SQRT3 = np.sqrt(3)
+SQRT2 = np.sqrt(2)
+
+
+def numpy_remove(list1, list2):
+	"""
+	numpy_remove(list1, list2)
+	Deletes overlapping elements of list2 from list1
+	"""
+
+	return np.delete(list1, np.where(np.isin(list1, list2)))
+
 
 def unit_vector(vector):
+	"""
+	unit_vector(vector)
+	
+	Returns unit vector of input vector
 
-	sum_ = np.sum([i**2 for i in vector])
-	norm = 1./sum_
-	return np.array([np.sqrt(i**2 * norm) * np.sign(i) for i in vector])
+	"""
+	vector_2 = vector**2 
+	norm = 1. / np.sum(vector_2)
+
+	unit_vector = np.sqrt(vector_2 * norm) * np.sign(vector) 
+
+	return unit_vector
 
 
-def rand_vector(n): return unit_vector(np.random.random((n)) * 2 - 1) 
+def rand_vector(n): 
+	"""
+	rand_vector(n)
+	
+	Returns n dimensional unit vector, components of which lie in the range -1..1
 
+	"""
+
+	return unit_vector(np.random.random((n)) * 2 - 1) 
+
+
+def remove_element(a, array): 
+	"""
+	remove_element(a, array)
+	
+	Returns new array without element a
+
+	"""
+
+	return np.array([x for x in array if x != a])
+
+
+def check_cutoff(array, thresh):
+	"""
+	check_cutoff(array, rc)
+
+	Determines whether elements of array are less than or equal to thresh
+	"""
+
+	return (array <= thresh).astype(float)
+
+
+def get_dx_dy_dz(pos, N, cell_dim):
+	"""
+	get_dx_dy_dz(pos, N, cell_dim)
+
+	Calculate distance vector between two beads
+	"""
+
+	N = pos.shape[0]
+	temp_pos = np.moveaxis(pos, 0, 1)
+
+	dx = np.tile(temp_pos[0], (N, 1))
+	dy = np.tile(temp_pos[1], (N, 1))
+	dz = np.tile(temp_pos[2], (N, 1))
+
+	dx = dx.T - dx
+	dy = dy.T - dy
+	dz = dz.T - dz
+
+	dx -= cell_dim[0] * np.array(2 * dx / cell_dim[0], dtype=int)
+	dy -= cell_dim[1] * np.array(2 * dy / cell_dim[1], dtype=int)
+	dz -= cell_dim[2] * np.array(2 * dz / cell_dim[2], dtype=int)
+
+	return dx, dy, dz
+
+
+def create_index(array):
+	"""
+	create_index(array)
+
+	Takes a list of 2D indicies and returns an index array that can be used to access elements in a 2D numpy array
+	"""
+    
+	return (np.array(array.T[0]), np.array(array.T[1]))
+
+
+def pot_harmonic(x, x0, k): 
+	"""
+	pot_harmonic(x, x0, k)
+
+	Returns harmonic potential from displacememt of x away from x0
+	"""
+
+	return k * (x - x0)**2
+
+
+def force_harmonic(x, x0, k): 
+	"""
+	force_harmonic(x, x0, k)
+
+	Returns force acting from displacememt of x away from x0 from harmonic potential
+	"""
+
+	return 2 * k * (x0 - x)
+
+
+def pot_vdw(r2, sigma, epsilon):
+	"""
+	pot_vdw(x, x0, k)
+
+	Returns Van de Waals potential from square radial distance r2
+	"""
+	
+	return 4 * epsilon * ((sigma**2 / r2)**6 - (sigma**6 / r2**3))
+
+
+def force_vdw(r2, sigma, epsilon):
+	"""
+	pot_harmonic(x, x0, k)
+
+	Returns harmonic potential from displacememt of x away from x0
+	"""
+
+	return - 24 * epsilon * (2 * (sigma**2 / r2)**6 - (sigma**6 / r2**3))
+
+
+def kin_energy(vel): return np.mean(vel**2)
+
+
+def update_bond_lists(bond_matrix):
+	"""
+	update_bond_lists(bond_matrix)
+
+	Return atom indicies of angular terms
+	"""
+
+	N = bond_matrix.shape[0]
+
+	bond_index_half = np.argwhere(np.triu(bond_matrix))
+	bond_index_full = np.argwhere(bond_matrix)
+
+	indices_half = create_index(bond_index_half)
+	indices_full = create_index(bond_index_full)
+
+	bond_beads = []
+	dxdydz_index = []
+	r_index = []
+
+	count = np.unique(bond_index_full.T[0]).shape[0]
+
+	for n in range(N):
+		slice_full = np.argwhere(bond_index_full.T[0] == n)
+		slice_half = np.argwhere(bond_index_half.T[0] == n)
+
+		if slice_full.shape[0] > 1:
+			bond_beads.append(np.unique(bond_index_full[slice_full].flatten()))
+			dxdydz_index.append(bond_index_full[slice_full])
+			r_index.append(slice_full[0])
+
+	bond_beads = np.array(bond_beads)
+	dxdy_index = np.reshape(dxdydz_index, (2 * len(dxdydz_index), 2))
+	r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(dxdydz_index**2, axis=1)]).flatten()
+
+	return bond_beads, dxdydz_index, r_index
+
+
+def calc_energy_forces(dx, dy, dz, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdydz_index, r_index):
+	"""
+	calc_energy_forces_linear(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc)
+
+	Return tot potential energy and forces on each bead in simulation
+	"""
+
+	N = dx.shape[0]
+	f_beads_x = np.zeros((N))
+	f_beads_y = np.zeros((N))
+	f_beads_z = np.zeros((N))
+	pot_energy = 0
+	cut_frc = force_vdw(rc**2, vdw_param[0], vdw_param[1])
+	cut_pot = pot_vdw(rc**2, vdw_param[0], vdw_param[1])
+	
+	nbond = int(np.sum(np.triu(bond_matrix)))
+
+	if nbond > 0:
+		"Bond Lengths"
+		bond_index_half = np.argwhere(np.triu(bond_matrix))
+		bond_index_full = np.argwhere(bond_matrix)
+
+		indices_half = create_index(bond_index_half)
+		indices_full = create_index(bond_index_full)
+
+		r_half = np.sqrt(r2[indices_half])
+		r_full = np.repeat(r_half, 2)
+		
+		bond_pot = pot_harmonic(r_half, bond_param[0], bond_param[1])
+		pot_energy += np.sum(bond_pot)
+
+		bond_frc = force_harmonic(r_half, bond_param[0], bond_param[1])
+		for i, sign in enumerate([1, -1]):
+			f_beads_x[indices_half[i]] += sign * (bond_frc * dx[indices_half] / r_half)
+			f_beads_y[indices_half[i]] += sign * (bond_frc * dy[indices_half] / r_half)
+			f_beads_z[indices_half[i]] += sign * (bond_frc * dz[indices_half] / r_half)
+
+		"Bond Angles"
+
+		try:
+			"Make array of vectors rij, rjk for all connected bonds"
+			vector = np.stack((dx[create_index(dxdy_index)], dy[create_index(dxdy_index)]), axis=1)
+			n_vector = int(vector.shape[0])
+
+			"Find |rij| values for each vector"
+			r_vector = r_half[r_index]
+			"Calculate |rij||rjk| product for each pair of vectors"
+			r_prod = np.prod(np.reshape(r_vector, (int(n_vector/2), 3)), axis = 1)
+
+			"Form dot product of each vector pair rij*rjk in vector array corresponding to an angle"
+			dot_prod = np.sum(np.prod(np.reshape(vector, (int(n_vector/2), 2, 3)), axis=1), axis=1)
+			"Calculate cos(theta) for each angle"
+			cos_the = dot_prod / r_prod
+
+			"Form arrays of |rij| vales, cos(theta) and |rij||rjk| terms same shape as vector array"
+			r_array = np.reshape(np.repeat(r_vector, 2), vector.shape)
+			cos_the_array = np.reshape(np.repeat(cos_the, 4), vector.shape)
+			r_prod_array = np.reshape(np.repeat(r_prod, 4), vector.shape)
+
+			"Form left and right hand side terms of (cos(theta) rij / |rij|^2 - rjk / |rij||rjk|)"
+			r_left = cos_the_array * vector / r_array**2
+			r_right = vector / r_prod_array
+
+			ij_indices = np.arange(0, vector.shape[0], 2)
+			jk_indices = np.arange(1, vector.shape[0], 2)
+
+			"Perfrom right hand - left hand term for every rij rkj pair"
+			r_left[ij_indices] -= r_right[jk_indices]
+			r_left[jk_indices] -= r_right[ij_indices] 
+		
+			"Calculate forces upon beads i, j and k"
+			frc_angle_ij = angle_param[1] * r_left
+			frc_angle_k = -np.sum(np.reshape(frc_angle_ij, (int(n_vector/2), 2, 3)), axis=1) 
+
+			"Add angular forces to force array" 
+			f_beads_x[bond_beads.T[0]] -= frc_angle_ij[ij_indices].T[0]
+			f_beads_x[bond_beads.T[1]] -= frc_angle_k.T[0]
+			f_beads_x[bond_beads.T[2]] -= frc_angle_ij[jk_indices].T[0]
+
+			f_beads_y[bond_beads.T[0]] -= frc_angle_ij[ij_indices].T[1]
+			f_beads_y[bond_beads.T[1]] -= frc_angle_k.T[1]
+			f_beads_y[bond_beads.T[2]] -= frc_angle_ij[jk_indices].T[1]
+
+			f_beads_z[bond_beads.T[0]] -= frc_angle_ij[ij_indices].T[2]
+			f_beads_z[bond_beads.T[1]] -= frc_angle_k.T[2]
+			f_beads_z[bond_beads.T[2]] -= frc_angle_ij[jk_indices].T[2]
+
+		except IndexError: pass
+
+
+	non_zero = np.nonzero(r2)
+	nonbond_pot = pot_vdw(r2[non_zero] * verlet_list[non_zero], vdw_param[0], vdw_param[1]) - cut_pot
+	pot_energy += np.nansum(nonbond_pot) / 2
+
+	nonbond_frc = force_vdw(r2 * verlet_list, vdw_param[0], vdw_param[1]) - cut_frc
+	f_beads_x += np.nansum(nonbond_frc * dx / r2, axis=0)
+	f_beads_y += np.nansum(nonbond_frc * dy / r2, axis=0)
+	f_beads_z += np.nansum(nonbond_frc * dz / r2, axis=0)
+
+	frc_beads = np.transpose(np.array([f_beads_x, f_beads_y, f_beads_z]))
+
+	return pot_energy, frc_beads
 
 """ Molecular Mechanics Verlocity Verlet Integration """
 
-def setup(boxl, nchain, lchain, sig1, ep1, r0, kB):
 
-	N = nchain*lchain
-	pos = np.zeros((N, 3))
-	bond = np.zeros((N, N))
+def grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, max_energy):
+	"""
+	grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, max_energy)
 
-	for chain in xrange(nchain):
-		for bead in xrange(lchain):
-			i = chain * nchain + bead
-			pos, bond[i][i-1], bond[i-1][i] = grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, bond, boxl, 1E6)
-
-	vel = (np.random.random((N,3)) - 0.5) * 2
-	frc = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB)
-
-	return pos, vel, frc, bond
-
-
-def grow_chain(bead, i, N, pos, sig1, ep1, r0, kB, bond, boxl, max_energy):
+	Grow collagen fibre consisting of beads
+	"""
 
 	if bead == 0:
-		pos[i] = np.random.random((3)) * boxl  
-		return  pos, 0, 0
+		pos[n] = np.random.random((3)) * vdw_param[0] * 2
+
 	else:
-		energy = max_energy +1
-		while  energy > max_energy:
-			pos[i] = pos[i-1] + rand_vector(3) * sig1
-			energy = tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB)
-			
-		for n in xrange(3): pos[i][n] += boxl * (1 - int((pos[i][n] + boxl) / boxl))
-		return pos, 1, 1
+		bond_matrix[n][n-1] = 1
+		bond_matrix[n-1][n] = 1
 
+		bond_beads, dxdy_index, r_index = update_bond_lists(bond_matrix)
 
-def calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB):
+		energy = max_energy + 1
 
-	f_beads = np.zeros((N, 3))
-
-	for i in xrange(N):
-		for j in xrange(i):
-			dx = (pos[i][0] - pos[j][0])
-			dx -= boxl * int(2*dx/boxl)
-			dy = (pos[i][1] - pos[j][1])
-			dy -= boxl * int(2*dy/boxl)
-			dz = (pos[i][2] - pos[j][2])
-			dz -= boxl * int(2*dz/boxl)
+		while energy > max_energy:
+			new_vec = rand_vector(3) * vdw_param[0]
+			pos[n] = pos[n-1] + new_vec
+			dx, dy, dz = get_dx_dy_dz(np.array(pos), N, cell_dim)
 			r2 = dx**2 + dy**2 + dz**2
 
-			if bond[i][j] == 1:
-				r = np.sqrt(r2)
-				Fr = force_bond(r, r0, kB)
-				f_beads[i][0] += dx / r * Fr
-				f_beads[i][1] += dy / r * Fr
-				f_beads[i][2] += dz / r * Fr
-
-				f_beads[j][0] -= dx / r * Fr
-				f_beads[j][1] -= dy / r * Fr
-				f_beads[j][2] -= dz / r * Fr
-
-			else:
-				Fr = force_vdw(r2, sig1, ep1)
-				f_beads[i][0] += dx / r2 * Fr
-				f_beads[i][1] += dy / r2 * Fr
-				f_beads[i][2] += dz / r2 * Fr
-
-				f_beads[j][0] -= dx / r2 * Fr
-				f_beads[j][1] -= dy / r2 * Fr
-				f_beads[j][2] -= dz / r2 * Fr
-
-			#print "{} {} {}".format(x, y, r)
-
-	return f_beads
+			energy, _ = calc_energy_forces(dx, dy, dz, r2, bond_matrix, check_cutoff(r2, rc**2), vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
+			
+	return pos, bond_matrix
 
 
-def VV_alg(pos, vel, frc, bond, dt, N, boxl, sig1, ep1, r0, kB):
+def setup(file_name, cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc):
+	"""
+	setup(cell_dim, nchain, lchain, mass, kBT, vdw_param, bond_param, angle_param, rc)
+	
+	Setup simulation using parameters provided
 
-	for i in xrange(N):
-		for j in xrange(3):  
-			vel[i][j] += 0.5 * dt * frc[i][j]
-			pos[i][j] += dt * vel[i][j]
-			pos[i][j] += boxl * (1 - int((pos[i][j] + boxl) / boxl))
+	Parameters
+	----------
 
-	frc = calc_forces(N, boxl, pos, bond, sig1, ep1, r0, kB)
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
 
-	for i in xrange(N): 
-		for j in xrange(3): vel[i][j] += 0.5 * dt * frc[i][j]
+	n_fibre: int
+		Number of collegen fibres to populate
 
-	return pos, vel, frc
+	l_fibre: int
+		Length of each fibre in number of beads
 
+	mass: float
+		Mass of each bead in collagen simulations
 
-def force_bond(r, r0, kB): return 2 * kB * (r0 - r)
+	kBT: float
+		Value of thermostat constant kB x T in reduced units
 
+	vdw_param: array_like, dtype=float
+		Parameters of van der Waals potential (sigma, epsilon)
 
-def force_vdw(r2, sig1, ep1): return 24 * ep1 * (2 * (sig1/r2)**6 - (sig1/r2)**3)
+	bond_param: array_like, dtype=float
+		Parameters of bond length potential (r0, kB)
 
+	angle_param: array_like, dtype=float
+		Parameters of angular potential (theta0, kA)
 
-def pot_vdw(r2, sig1, ep1): return 4 * ep1 * ((sig1**12/r2**6) - (sig1**6/r2**3))
+	rc:  float
+		Radial cutoff distance for non-bonded interactions
 
+	
+	Returns
+	-------
 
-def pot_bond(r, r0, kB): return kB * (r - r0)**2
+	pos: array_like, dtype=float
+		Positions of each bead in all collagen fibres
 
+	vel: array_like, dtype=float
+		Velocity of each bead in all collagen fibres
 
-def tot_energy(N, pos, bond, boxl, sig1, ep1, r0, kB):
+	frc: array_like, dtype=float
+		Forces acting upon each bead in all collagen fibres
 
-	energy = 0	
-	for i in xrange(N):
-		for j in xrange(i):
-			if np.dot(pos[i], pos[j]) != 0:
-				dx = (pos[i][0] - pos[j][0])
-				dx -= boxl * int(2*dx/boxl)
-				dy = (pos[i][1] - pos[j][1])
-				dy -= boxl * int(2*dy/boxl)
-				dz = (pos[i][2] - pos[j][2])
-				dz -= boxl * int(2*dz/boxl)
-				r2 = dx**2 + dy**2 + dz**2
+	bond_matrix: array_like, dtype=int
+		Matrix determining whether a bond is present between two beads
 
-				if bond[i][j] == 1:
-					r = np.sqrt(r2)
-					energy += pot_bond(r, r0, kB)
+	verlet_list: array_like, dtype=int
+		Matrix determining whether two beads are within rc radial distance
+	
+	"""
 
-				else: energy += pot_vdw(r2, sig1, ep1)
-	return energy 
+	N = n_fibre * l_fibre
+	pos = np.zeros((N, 3), dtype=float)
+	bond_matrix = np.zeros((N, N), dtype=int)
 
+	if not os.path.exists(file_name):
 
-""" Dissipative Particle Dynamics Verlocity Verlet Integration """
+		print("Growing {} fibres containing {} beads".format(n_fibre, l_fibre))
 
-def setup_DPD(boxl, nchain, lchain, a, gamma, sigma, sqrt_dt, r_m, K):
+		for bead in range(l_fibre):
+			pos, bond_matrix = grow_fibre(bead, bead, N, pos, bond_matrix, vdw_param, bond_param, 
+						      angle_param, rc, cell_dim, 1E2)
 
-	N = nchain * lchain
-	chains = np.zeros(N)
-	beads = np.zeros(N)
-	polar = np.zeros(N)
-	bond = np.zeros((N, N))
-	A = np.zeros((N,N))
-	p = 1
+		pos -= np.min(pos)
 
-	pos = np.zeros((N, 3))
+		size_x = np.max(pos.T[0]) + vdw_param[0] * 3
+		size_y = np.max(pos.T[1]) + vdw_param[0] * 3
+		size_z = np.max(pos.T[2]) + vdw_param[0] * 3
+		bead_list = np.arange(0, l_fibre)
 
-	for i in xrange(N): 
-		chains[i] = int(i / lchain)
-		beads[i] = i % lchain
-		pos, bond[i][i-1], bond[i-1][i] = grow_chain_DPD(i, beads[i], pos, sigma, boxl)
-		if np.random.rand() < 0.2: p = -p
-		polar[i] = p 
+		for fibre in range(1, n_fibre):
+		
+			pos_x = pos.T[0][bead_list] + size_x * int(fibre / np.sqrt(n_fibre))
+			pos_y = pos.T[1][bead_list] + size_y * int(fibre % np.sqrt(n_fibre))
+			pos_z = pos.T[2][bead_list] + size_z * int(fibre % np.sqrt(n_fibre))
 
-	for i in xrange(N): 
-		for j in xrange(i):
-			if chains[i] == chains[j]: A[i][j] = a[0]
-			else: A[i][j] = a[1]
+			pos[bead_list + l_fibre * fibre] += np.array((pos_x, pos_y, pos_z)).T
 
-	vel = (np.random.random((N, 3)) - 0.5) * 2
-	frc = calc_forces_DPD(N, boxl, pos, vel, bond, polar, A, gamma, sigma, sqrt_dt, r_m, K, chains, beads)
+			for bead in range(1, l_fibre):
+				n = fibre * l_fibre + bead
+				bond_matrix[n][n-1] = 1
+				bond_matrix[n-1][n] = 1
 
-	return pos, vel, frc, bond, polar, A, chains, beads
+		cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0], np.max(pos.T[2]) + vdw_param[0]])
 
-
-def grow_chain_DPD(i, bead, pos, r_m, boxl):
-
-	if bead == 0:
-		pos[i] = np.random.random((3)) * boxl  
-		return  pos, 0, 0
 	else:
-		pos[i] = pos[i-1] + rand_vector(3) * r_m	
-		for n in xrange(3): pos[i][n] += boxl * (1 - int((pos[i][n] + boxl) / boxl))
-		return pos, 1, 1
+		print("Loading restart file {}".format(file_name))
+
+		pos = np.load(file_name)
+		cell_dim = pos[-1]
+		pos = pos[:-1]
+
+		for fibre in range(n_fibre):
+			for bead in range(1, l_fibre):
+					n = fibre * l_fibre + bead
+					bond_matrix[n][n-1] = 1
+					bond_matrix[n-1][n] = 1
 
 
-def make_bond_DPD(i, j, polar, bond, chains, beads):
+	vel = (np.random.random((N, 3)) - 0.5) * 2 * kBT
+	dx, dy, dz = get_dx_dy_dz(pos, N, cell_dim)
+	r2 = dx**2 + dy**2 + dz**2
 
-	chaini = int(i / lchain)
-	chainj = int(j / lchain)
-	beadi = i % lchain
-	beadj = j % lchain
+	verlet_list = check_cutoff(r2, rc**2)
 
-	if beadi == 0 or (i+1) % lchain == lchain-1:
-		if beadj == 0 or beadj == lchain-1:
-			if polar[i] == polar[j] and np.random.rand() < 0.001: 
-				bond[i][j] = 1
-				bond[j][i] = 1
-				print "Bond formed, N = {} {}, TYPE = {} {}".format(i, j, TYPE[i], TYPE[j])
-				for n in xrange(chaini*lchain, (chaini+1)*lchain): TYPE[n] = np.min([TYPE[i],TYPE[j]])
-				for n in xrange(chainj*lchain, (chainj+1)*lchain): TYPE[n] = np.min([TYPE[i],TYPE[j]])
-				start = int(np.min([chaini,chainj])*lchain)
-				end = int(np.min([chaini,chainj])*lchain + lchain)
-				for n in xrange(start, 	end):
+	bond_beads, dxdydz_index, r_index = update_bond_lists(bond_matrix)
+	_, frc = calc_energy_forces(dx, dy, dz, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
 
-	return bond, chains, beads
+	return pos, vel, frc, cell_dim, bond_matrix, verlet_list, bond_beads, dxdydz_index, r_index
 
 
-def calc_forces_DPD(N, boxl, pos, vel, bond, polar, A, gamma, sigma, sqrt_dt, r_m, K, chains, beads):
-			
-	f_beads = np.zeros((N, 3))
+def velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, bond_beads, dxdy_index, r_index, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT, gamma, sigma, xi = 0, theta = 0, Langevin=False):
+	"""
+	velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT, gamma, sigma, xi = 0, theta = 0, Langevin=False)
 
-	for i in xrange(N):
-		for j in xrange(i):
+	Integrate positions and velocities through time using verlocity verlet algorithm
+	"""
+
+	N = pos.shape[0]
 	
-			dx = (pos[i][0] - pos[j][0])
-			dx -= boxl * int(2*dx/boxl)
-			dy = (pos[i][1] - pos[j][1])
-			dy -= boxl * int(2*dy/boxl)
-			dz = (pos[i][2] - pos[j][2])
-			dz -= boxl * int(2*dz/boxl)
-			r2 = dx**2 + dy**2 + dz**2	
-			
-			if r2 < r_m**2 and bond[i][j] == 0: make_bond_DPD(i, j, polar, bond, chains, beads)
-			if bond[i][j] == 1:
-				
-				r = np.sqrt(r2)
-				r_uvector = unit_vector([dx, dy, dz])
-				a = A[i][j]
+	vel += 0.5 * dt * frc / mass
+	pos += dt * vel
 
-				Fr = DPD_force_C(r, a, r_uvector)
-
-				f_beads[i] += Fr
-				f_beads[j] -= Fr			
-
-			elif r2 < 1:
-				r = np.sqrt(r2)
-				a = A[i][j]
-				r_uvector = unit_vector([dx, dy, dz])
-				v_vector = [(vel[i][0] - vel[j][0]), (vel[i][1] - vel[j][1]), (vel[i][2] - vel[j][2])]
-
-				Fr = DPD_force_C(r, a, r_uvector)
-				Fr += DPD_force_D(r, gamma, r_uvector, v_vector)		
-				Fr += DPD_force_R(r, sigma, sqrt_dt, r_uvector)
-
-				f_beads[i] += Fr
-				f_beads[j] -= Fr
-
-	return f_beads
-
-
-def VV_alg_DPD(pos, vel, frc, dt, N, boxl, bond, polar, A, gamma, sigma, lam, sqrt_dt, r_m, K, chains, beads):
-
-	new_vel = np.zeros((N, 3))
-
-	for i in xrange(N):
-		for j in xrange(3):
-			new_vel[i][j] += lam * dt * frc[i][j]
-			pos[i][j] += dt * vel[i][j] + 0.5 * dt**2 * frc[i][j]
-			pos[i][j] += boxl * (1 - int((pos[i][j] + boxl) / boxl))
-
-	new_frc = calc_forces_DPD(N, boxl, pos, new_vel, bond, polar, A, gamma, sigma, sqrt_dt, r_m, K, chains, beads)
-			
-	for i in xrange(N): 
-		for j in xrange(3): vel[i][j] += 0.5 * dt * (frc[i][j] + new_frc[i][j])
-
-	return pos, vel, new_frc, chains, beads
-
-
-def DPD_force_C(r, a, r_uvector): return a * omegaR(r) * r_uvector
-
-
-def DPD_force_D(r, gamma, r_uvector, v_vector): return - gamma * omegaR(r)**2 * r * np.dot(r_uvector, v_vector) * r_uvector
-
-
-def DPD_force_R(r, sigma, sqrt_dt, r_uvector): return sigma * omegaR(r) * (np.random.rand()*2 - 1) * r_uvector / sqrt_dt
-
-
-def DPD_force_FENE(r, r_m, K, r_uvector): return K * r_uvector / (1 - (r / r_m))
-
-
-def omegaR(r): return 1. - r
-
-
-def save_system(root, pos, vel, frc, bond, TYPE, nchain, lchain):
-
-	if not os.path.exists(root): os.mkdir(root)
-
-	with file('{}/{}_{}_POS.npz'.format(root, nchain, lchain), 'w') as outfile:
-		np.savez(outfile, pos=pos, fmt='%-12.6f')
-	with file('{}/{}_{}_VEL.npz'.format(root, nchain, lchain), 'w') as outfile:
-		np.savez(outfile, vel=vel, fmt='%-12.6f')
-	with file('{}/{}_{}_FRC.npz'.format(root, nchain, lchain), 'w') as outfile:
-		np.savez(outfile, frc=frc, fmt='%-12.6f')
-	with file('{}/{}_{}_BOND.npz'.format(root, nchain, lchain), 'w') as outfile:
-		np.savez(outfile, bond=bond)
-	with file('{}/{}_{}_TYPE.npz'.format(root, nchain, lchain), 'w') as outfile:
-		np.savez(outfile, TYPE=TYPE)
-
-def load_system(root, nchain, lchain):
-
-	with file('{}/{}_{}_POS.npz'.format(root, nchain, lchain), 'r') as infile:
-		npzfile = np.load(infile)
-		pos = npzfile['pos']
-	with file('{}/{}_{}_VEL.npz'.format(root, nchain, lchain), 'r') as infile:
-		npzfile = np.load(infile)
-		vel = npzfile['vel']
-	with file('{}/{}_{}_FRC.npz'.format(root, nchain, lchain), 'r') as infile:
-		npzfile = np.load(infile)
-		frc = npzfile['frc']
-	with file('{}/{}_{}_BOND.npz'.format(root, nchain, lchain), 'r') as infile:
-		npzfile = np.load(infile)
-		bond = npzfile['bond']
-	with file('{}/{}_{}_TYPE.npz'.format(root, nchain, lchain), 'r') as infile:
-		npzfile = np.load(infile)
-		TYPE = npzfile['TYPE']
-
-	return pos, vel, frc, bond, TYPE
-
-
-""" Visualisation of System """
-
-def plot_system(pos, vel, frc, N, L, bsize):
-
-	width = 0.2
-	plt.ion()
-	positions = np.rot90(np.array(pos))
-	fig = plt.figure(0, figsize=(15,15))
-	fig.clf()
-
-	ax = plt.subplot(2,1,1)
-	ax = fig.gca(projection='3d')
-	ax.scatter(positions[0], positions[1], positions[2], c=range(N), s=bsize)
-	ax.set_xlim3d(0, L)
-	ax.set_ylim3d(0, L)
-	ax.set_zlim3d(0, L)
-	fig.canvas.draw()
-
-	velocities = np.rot90(vel)
-	forces = np.rot90(frc)
-
-	fig = plt.figure(1, figsize=(15,15))
-	fig.clf()
-
-	ax = plt.subplot(2,1,1)
-	ax.set_ylim(-10,10)
-	vel_x = ax.bar(range(N), velocities[0], width, color='b')
-	vel_y = ax.bar(np.arange(N)+width, velocities[1], width, color='g')
-	vel_z = ax.bar(np.arange(N)+2*width, velocities[2], width, color='r')
-
-	ax = plt.subplot(2,1,2)
-	ax.set_ylim(-20,20)
-	frc_x = ax.bar(range(N), forces[0], width, color='b')
-	frc_y = ax.bar(np.arange(N)+width, forces[1], width, color='g')
-	frc_z = ax.bar(np.arange(N)+2*width, forces[2], width, color='r')
-	fig.canvas.draw()
-
-
-def plot_system_DPD(pos, vel, frc, bond, N, L, bsize, TYPE, n):
-
-	width = 0.2
-	plt.ion()
-
-	positions = np.rot90(pos)
-	velocities = np.rot90(vel)
-	forces = np.rot90(frc)
-
-	fig = plt.figure(0, figsize=(15,15))
-	plt.title(n)
-	fig.clf()
+	if Langevin:
+		C = 0.5 * dt**2 * (frc / mass - gamma * vel) + sigma * dt**(3./2) * (xi + theta / SQRT3) / 2.
+		pos += C
 	
-	ax = plt.subplot(2,1,1)
-	ax.set_ylim(-10,10)
-	vel_x = ax.bar(range(N), velocities[0], width, color='b')
-	vel_y = ax.bar(np.arange(N)+width, velocities[1], width, color='g')
-	vel_z = ax.bar(np.arange(N)+2*width, velocities[2], width, color='r')
+	cell = np.tile(cell_dim, (N, 1)) 
+	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
+ 
+	dx, dy, dz = get_dx_dy_dz(pos, N, cell_dim)
+	r2 = dx**2 + dy**2 + dz**2
 
-	ax = plt.subplot(2,1,2)
-	ax.set_ylim(-20,20)
-	frc_x = ax.bar(range(N), forces[0], width, color='b')
-	frc_y = ax.bar(np.arange(N)+width, forces[1], width, color='g')
-	frc_z = ax.bar(np.arange(N)+2*width, forces[2], width, color='r')
-	fig.canvas.draw()
+	verlet_list = check_cutoff(r2, rc**2)
+	pot_energy, new_frc = calc_energy_forces(dx, dy, dz, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdydz_index, r_index)
+	vel += 0.5 * dt * new_frc / mass
 
-	fig = plt.figure(1, figsize=(15,15))
-	plt.title(n)
-	fig.clf()
-
-	COLOUR = ['b', 'g', 'r']
-
-	ax = plt.subplot(2,1,1)
-	ax = fig.gca(projection='3d')
-	ax.scatter(positions[0], positions[1], positions[2], c=TYPE, s=bsize)
-	#for i in xrange(N):	
-	#	for j in xrange(i):
-	#		if bond[i][j] == 1: ax.plot([positions[0][i], positions[0][j]], [positions[1][i], positions[1][j]], 
-	#		[positions[2][i], positions[2][j]], c=COLOUR[int(TYPE[i])])
-	ax.set_xlim3d(0, L)
-	ax.set_ylim3d(0, L)
-	ax.set_zlim3d(0, L)
-	fig.canvas.draw()
-
+	if Langevin: vel += 0.5 * dt * frc / mass - gamma * (dt * vel + C) + sigma * xi * np.sqrt(dt)
 	
+	frc = new_frc
+	tot_energy = pot_energy + kin_energy(vel)
 
-
+	return pos, vel, frc, verlet_list, tot_energy
