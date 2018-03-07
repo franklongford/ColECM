@@ -21,11 +21,15 @@ def animate(n):
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 
 
+if len(sys.argv) < 2: n_fibre = int(input("Enter number of fibrils: "))
+else: n_fibre = int(sys.argv[1])
+if len(sys.argv) < 3: l_fibre = int(input("Enter length of fibrils: "))
+else: l_fibre = int(sys.argv[2])
+
+n_dim = 2
 n_steps = 100000
 traj_steps = 100
-n_fibre = 6
 n_fibre *= n_fibre
-l_fibre = 10
 N = n_fibre * l_fibre
 
 mass = 1.
@@ -50,21 +54,21 @@ cell_L = n_fibre * vdw_sigma**2 * l_fibre
 cell_dim = np.array([cell_L, cell_L], dtype=float)
 tile_cell_dim = np.tile(cell_dim, (N, 1))
 
-tot_pos = np.zeros((n_steps, N, 2))
-tot_vel = np.zeros((n_steps, N, 2))
-tot_frc = np.zeros((n_steps, N, 2))
+tot_pos = np.zeros((n_steps, N, n_dim))
+tot_vel = np.zeros((n_steps, N, n_dim))
+tot_frc = np.zeros((n_steps, N, n_dim))
 
 Langevin = True
 kBT = 5.
 thermo_gamma = 2.0
 thermo_sigma =  np.sqrt(2 * kBT * thermo_gamma / mass)
-thermo_xi = np.random.normal(0, 1, (n_steps, N, 2))
-thermo_theta = np.random.normal(0, 1, (n_steps, N, 2))
+thermo_xi = np.random.normal(0, 1, (n_steps, N, n_dim))
+thermo_theta = np.random.normal(0, 1, (n_steps, N, n_dim))
 
 energy_array = np.zeros(n_steps)
 
-if len(sys.argv) < 2: directory = raw_input("Enter directory: ")
-else: directory = sys.argv[1] + '/'
+if len(sys.argv) < 4: directory = input("Enter directory: ")
+else: directory = sys.argv[3] + '/'
 restart_file_name = "collagen_{}_{}_{}.npy".format(n_fibre, l_fibre, vdw_sigma)
 traj_file_name = "collagen_{}_{}_{}_{}_traj.npy".format(n_fibre, l_fibre, n_steps, vdw_sigma)
 
