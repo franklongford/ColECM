@@ -17,14 +17,15 @@ import os
 import utilities_2D as ut
 
 def animate(n):
-	plt.title('Frame {}'.format(n * speed))
+	plt.title('Frame {}'.format(n * traj_steps))
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 
 
-n_steps = 10000
-n_fibre = 4
+n_steps = 100000
+traj_steps = 100
+n_fibre = 6
 n_fibre *= n_fibre
-l_fibre = 50
+l_fibre = 10
 N = n_fibre * l_fibre
 
 mass = 1.
@@ -54,7 +55,7 @@ tot_vel = np.zeros((n_steps, N, 2))
 tot_frc = np.zeros((n_steps, N, 2))
 
 Langevin = True
-kBT = 10.
+kBT = 5.
 thermo_gamma = 2.0
 thermo_sigma =  np.sqrt(2 * kBT * thermo_gamma / mass)
 thermo_xi = np.random.normal(0, 1, (n_steps, N, 2))
@@ -64,11 +65,12 @@ energy_array = np.zeros(n_steps)
 
 if len(sys.argv) < 2: directory = raw_input("Enter directory: ")
 else: directory = sys.argv[1] + '/'
-file_name = "collagen_{}_{}_{}.npy".format(n_fibre, l_fibre, vdw_sigma)
+restart_file_name = "collagen_{}_{}_{}.npy".format(n_fibre, l_fibre, vdw_sigma)
+traj_file_name = "collagen_{}_{}_{}_{}_traj.npy".format(n_fibre, l_fibre, n_steps, vdw_sigma)
 
 print("Entering Setup")
 
-pos, vel, frc, cell_dim, bond_matrix, verlet_list, atoms, dxdy_index, r_index = ut.setup(directory + file_name, cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc)
+pos, vel, frc, cell_dim, bond_matrix, verlet_list, atoms, dxdy_index, r_index = ut.setup(directory + restart_file_name, cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc)
 
 print("Setup complete: simulation cell dimensions = {}".format(cell_dim))
 
@@ -103,28 +105,17 @@ for step in range(n_steps):
 	tot_vel[step] += vel
 	tot_frc[step] += frc
 
-print("Saving restart file {}".format(directory + file_name))
-np.save(directory + file_name, np.vstack((tot_pos[-1], cell_dim)))
+print("Saving restart file {}".format(directory + restart_file_name))
+np.save(directory + restart_file_name, np.vstack((tot_pos[-1], cell_dim)))
+
+tot_pos = np.array([tot_pos[i] for i in range(n_steps) if i % traj_steps == 0])
+
+print("Saving trajectory file {}".format(directory + traj_file_name))
+np.save(directory + traj_file_name, tot_pos)
+
 
 CMA = ut.cum_mov_average(energy_array[:n_steps]) / N
 plt.plot(CMA)
 plt.show()
-
-speed = 100
-
-tot_pos = np.array([tot_pos[i] for i in range(n_steps) if i % speed == 0])
-
-tot_pos = np.moveaxis(tot_pos, 2, 1)
-
-fig, ax = plt.subplots()
-
-sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
-plt.xlim(0, cell_dim[0])
-plt.ylim(0, cell_dim[1])
-ani = animation.FuncAnimation(fig, animate, frames=int(n_steps/speed), interval=100, repeat=False)
-plt.show()	
-
-
-
 
 
