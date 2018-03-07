@@ -21,8 +21,9 @@ def animate(n):
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 
 
-n_steps = 2000
-n_fibre = 10
+n_steps = 200
+n_fibre = 2
+n_fibre *= n_fibre
 l_fibre = 5
 N = n_fibre * l_fibre
 
@@ -53,7 +54,7 @@ tot_vel = np.zeros((n_steps, N, 2))
 tot_frc = np.zeros((n_steps, N, 2))
 
 Langevin = True
-kBT = 5.
+kBT = 10.
 thermo_gamma = 2.0
 thermo_sigma =  np.sqrt(2 * kBT * thermo_gamma / mass)
 thermo_xi = np.random.normal(0, 1, (n_steps, N, 2))
@@ -61,7 +62,10 @@ thermo_theta = np.random.normal(0, 1, (n_steps, N, 2))
 
 energy_array = np.zeros(n_steps)
 
-pos, vel, frc, cell_dim, bond_matrix, verlet_list, atoms, dxdy_index, r_index = ut.setup_test(cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc)
+directory = '/Users/franklongford/Documents/Postdoc/restarts/'
+file_name = "collagen_{}_{}_{}.npy".format(n_fibre, l_fibre, vdw_sigma)
+
+pos, vel, frc, cell_dim, bond_matrix, verlet_list, atoms, dxdy_index, r_index = ut.setup(directory + file_name, cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc)
 
 print(cell_dim)
 
@@ -84,8 +88,9 @@ for step in range(n_steps):
 
 	if np.sum(np.abs(vel)) >= kBT * 1E5: 
 		print("velocity exceeded, step ={}".format(step))
-		print(pos)
-		print(vel)
+		dx, dy = ut.get_dx_dy(pos, N, cell_dim)
+		r2 = dx**2 + dy**2
+		print(r2)
 		n_steps = step
 		break 
 
@@ -93,13 +98,13 @@ for step in range(n_steps):
 	tot_vel[step] += vel
 	tot_frc[step] += frc
 
-
+np.save(directory + file_name, np.vstack((tot_pos[-1], cell_dim)))
 
 CMA = ut.cum_mov_average(energy_array[:n_steps]) / N
 plt.plot(CMA)
 plt.show()
 
-speed = 100
+speed = 10
 
 tot_pos = np.array([tot_pos[i] for i in range(n_steps) if i % speed == 0])
 

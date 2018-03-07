@@ -265,128 +265,159 @@ def calc_energy_forces_linear(dx, dy, r2, bond_matrix, verlet_list, vdw_param, b
 	return pot_energy, frc_beads
 
 
-def grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, n_section, limits, max_energy):
+def update_bond_lists_test(bond_matrix):
 	"""
-	grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, n_section, limits, max_energy)
+	update_bond_lists(bond_matrix)
 
-	Grow collagen fibre consisting of beads
+	Return atom indicies of angular terms
 	"""
 
-	if bead == 0:
-		pos[n] = (np.random.random((2)) * cell_dim / n_section + limits)
+	N = bond_matrix.shape[0]
 
-	else:
-		bond_matrix[n][n-1] = 1
-		bond_matrix[n-1][n] = 1
+	bond_index_half = np.argwhere(np.triu(bond_matrix))
+	bond_index_full = np.argwhere(bond_matrix)
 
-		atoms, dxdy_index, r_index = update_bond_lists(bond_matrix)
+	indices_half = create_index(bond_index_half)
+	indices_full = create_index(bond_index_full)
 
-		energy = max_energy + 1
+	count = np.unique(bond_index_full.T[0]).shape[0]
 
-		while energy > max_energy:
-			print(energy)
-			new_vec = rand_vector(2) * vdw_param[0]
-			pos[n] = pos[n-1] + new_vec
-			dx, dy = get_dx_dy(np.array(pos), N, cell_dim)
-			r2 = dx**2 + dy**2
+	slice_full = np.argwhere(bond_index_full.T[0] == 1)
+	slice_half = np.argwhere(bond_index_half.T[0] == 1)
 
-			energy, _ = calc_energy_forces_linear(dx, dy, r2, bond_matrix, check_cutoff(r2, rc**2), vdw_param, bond_param, angle_param, rc, atoms, dxdy_index, r_index)
-			
-	return pos, bond_matrix
+	atoms = np.unique(bond_index_full[slice_full].flatten())
+	dxdy_index = bond_index_full[slice_full.flatten()]
+	r_index = [slice_full.flatten()]
+
+	for n in range(2, N):
+		slice_full = np.argwhere(bond_index_full.T[0] == n)
+		slice_half = np.argwhere(bond_index_half.T[0] == n)
+
+		if slice_full.shape[0] > 1:
+			atoms = np.vstack((atoms, np.unique(bond_index_full[slice_full].flatten())))
+			dxdy_index = np.vstack((dxdy_index, bond_index_full[slice_full.flatten()]))
+			r_index.append(slice_full.flatten())
+
+	print(atoms)
+	print(dxdy_index)
+	print(r_index)
+
+	sys.exit()
+
+	return atoms, dxdy_index, np.array(r_index)
 
 
-def setup(cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc):
+def calc_energy_forces_test(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, atoms, dxdy_index, r_index):
 	"""
-	setup(cell_dim, nchain, lchain, mass, kBT, vdw_param, bond_param, angle_param, rc)
+	calc_energy_forces_linear(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc)
+
+	Return tot potential energy and forces on each bead in simulation
+	"""
+
+	N = dx.shape[0]
+	f_beads_x = np.zeros((N))
+	f_beads_y = np.zeros((N))
+	pot_energy = 0
+	cut_frc = force_vdw(rc**2, vdw_param[0], vdw_param[1])
+	cut_pot = pot_vdw(rc**2, vdw_param[0], vdw_param[1])
 	
-	Setup simulation using parameters provided
+	nbond = int(np.sum(np.triu(bond_matrix)))
 
-	Parameters
-	----------
+	if nbond > 0:
+		"Bond Lengths"
+		bond_index_half = np.argwhere(np.triu(bond_matrix))
+		bond_index_full = np.argwhere(bond_matrix)
 
-	cell_dim: array_like, dtype=float
-		Array with simulation cell dimensions
+		indices_half = create_index(bond_index_half)
+		indices_full = create_index(bond_index_full)
 
-	n_fibre: int
-		Number of collegen fibres to populate
+		r = np.sqrt(r2[indices_half])
+		
+		bond_pot = pot_harmonic(r, bond_param[0], bond_param[1])
+		pot_energy += np.sum(bond_pot)
 
-	l_fibre: int
-		Length of each fibre in number of beads
+		bond_frc = force_harmonic(r, bond_param[0], bond_param[1])
+		for i, sign in enumerate([1, -1]):
+			f_beads_x[indices_half[i]] += sign * (bond_frc * dx[indices_half] / r)
+			f_beads_y[indices_half[i]] += sign * (bond_frc * dy[indices_half] / r)
 
-	mass: float
-		Mass of each bead in collagen simulations
+		#"""
+		"Bond Angles"
+		r = np.repeat(r, 2)
+		switch = np.ones((2, 2)) - np.identity(2)
 
-	kBT: float
-		Value of thermostat constant kB x T in reduced units
+		vector = np.stack((dx[create_index(dxdy_index)], dy[create_index(dxdy_index)]), axis=1)
+		n_vector = int(vector.shape[0])
 
-	vdw_param: array_like, dtype=float
-		Parameters of van der Waals potential (sigma, epsilon)
+		print(indices_half)
+		print(r)
+		print(r_index)
+		print(dxdy_index)
 
-	bond_param: array_like, dtype=float
-		Parameters of bond length potential (r0, kB)
+		r_vector = np.reshape(np.repeat(r[r_index], 4), (n_vector, 2))
+		print(vector)
+		vector_norm = vector / r_vector
+		print(vector_norm)
+		vector_split = np.hsplit(np.reshape(vector, (int(n_vector/2), 4)), 2)
+		dot_prod = np.sum(vector_split[0] * vector_split[1], axis=1)
+		cos_the = dot_prod / r[r_index]
+		print(cos_the)
+		cos_the_vector = np.reshape(np.repeat(cos_the, 4), (n_vector, 2))
+		print(cos_the_vector)
+		print(np.nansum(cos_the * angle_param[1]))
+		print(vector_norm * cos_the_vector)
+		print(vector_norm)
+		temp_vector = np.reshape(vector_norm, (int(n_vector/2), 2, 2))
+		vector_norm_flip = np.reshape(np.flip(temp_vector, axis=1), (n_vector, 2))
 
-	angle_param: array_like, dtype=float
-		Parameters of angular potential (theta0, kA)
+		#print(vector_norm[np.arange(0, vector.shape[0], 2)])
+		#print(vector_norm[np.arange(1, vector.shape[0], 2)])
 
-	rc:  float
-		Radial cutoff distance for non-bonded interactions
+		frc_angle = angle_param[1] * (vector_norm * cos_the - vector_norm_flip) / np.reshape(np.repeat(r[r_index], 2), (n_vector))
 
-	
-	Returns
-	-------
+		print(frc_angle)
 
-	pos: array_like, dtype=float
-		Positions of each bead in all collagen fibres
+		frc_angle = np.insert(frc_angle, -1, -np.sum(frc_angle, axis=0), axis=0)
+		
 
-	vel: array_like, dtype=float
-		Velocity of each bead in all collagen fibres
+		sys.exit()
 
-	frc: array_like, dtype=float
-		Forces acting upon each bead in all collagen fibres
+		for i, atom in enumerate(atoms):
 
-	bond_matrix: array_like, dtype=int
-		Matrix determining whether a bond is present between two beads
+			di = create_index(dxdy_index[i])
+			ri = r_index[i]
+		
+			vector = np.concatenate((dx[di], dy[di]), axis=0).T
+		
+			dot_prod = np.dot(vector[0], vector[1])
+			cos_the = dot_prod / r[ri]
 
-	verlet_list: array_like, dtype=int
-		Matrix determining whether two beads are within rc radial distance
-	
-	"""
+			pot_energy += np.nansum(np.triu(cos_the) * angle_param[1] * switch)
 
-	N = n_fibre * l_fibre
-	pos = np.zeros((N, 2), dtype=float)
-	bond_matrix = np.zeros((N, N), dtype=int)
+			vector_norm = vector / r[ri]
+				
+			frc_angle = angle_param[1] * (vector_norm * cos_the - np.flip(vector_norm, axis=0)) / r[ri]
+			frc_angle = np.insert(frc_angle, -1, -np.sum(frc_angle, axis=0), axis=0)
 
-	if n_fibre > 1: n_section = np.sqrt(np.min([i for i in np.arange(n_fibre + 1)**2 if i >= n_fibre]))
-	else: n_section = 1
+			f_beads_x[atom] -= frc_angle.T[0]
+			f_beads_y[atom] -= frc_angle.T[1]
 
-	sections = np.arange(n_section**2)
+		#"""
 
-	for fibre in range(n_fibre):
-		section = random.choice(sections)
-		sections = remove_element(section, sections)
+	non_zero = np.nonzero(r2)
+	nonbond_pot = pot_vdw(r2[non_zero] * verlet_list[non_zero], vdw_param[0], vdw_param[1]) - cut_pot
+	pot_energy += np.nansum(nonbond_pot) / 2
 
-		lim_x = cell_dim[0] / n_section * (section % n_section)
-		lim_y = cell_dim[1] / n_section * int(section / n_section)
-		limits = np.array([lim_x, lim_y])
+	nonbond_frc = force_vdw(r2 * verlet_list, vdw_param[0], vdw_param[1]) - cut_frc
+	f_beads_x += np.nansum(nonbond_frc * dx / r2, axis=0)
+	f_beads_y += np.nansum(nonbond_frc * dy / r2, axis=0)
 
-		for bead in range(l_fibre):
-			n = fibre * l_fibre + bead
-			pos, bond_matrix = grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, 
-						      angle_param, rc, cell_dim, n_section, limits, 1E2)
+	frc_beads = np.transpose(np.array([f_beads_x, f_beads_y]))
 
-	vel = (np.random.random((N, 2)) - 0.5) * 2 * kBT
-	dx, dy = get_dx_dy(pos, N, cell_dim)
-	r2 = dx**2 + dy**2
-
-	verlet_list = check_cutoff(r2, rc**2)
-
-	atoms, dxdy_index, r_index = update_bond_lists(bond_matrix)
-	_, frc = calc_energy_forces_linear(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, atoms, dxdy_index, r_index)
-
-	return pos, vel, frc, bond_matrix, verlet_list, atoms, dxdy_index, r_index
+	return pot_energy, frc_beads
 
 
-def grow_fibre_test(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, max_energy):
+def grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, max_energy):
 	"""
 	grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, max_energy)
 
@@ -394,7 +425,7 @@ def grow_fibre_test(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_p
 	"""
 
 	if bead == 0:
-		pos[n] = (np.random.random((2)) * cell_dim / 5.)
+		pos[n] = np.random.random((2)) * vdw_param[0] * 2
 
 	else:
 		bond_matrix[n][n-1] = 1
@@ -405,7 +436,6 @@ def grow_fibre_test(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_p
 		energy = max_energy + 1
 
 		while energy > max_energy:
-			print(energy)
 			new_vec = rand_vector(2) * vdw_param[0]
 			pos[n] = pos[n-1] + new_vec
 			dx, dy = get_dx_dy(np.array(pos), N, cell_dim)
@@ -416,7 +446,7 @@ def grow_fibre_test(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_p
 	return pos, bond_matrix
 
 
-def setup_test(cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc):
+def setup(file_name, cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc):
 	"""
 	setup(cell_dim, nchain, lchain, mass, kBT, vdw_param, bond_param, angle_param, rc)
 	
@@ -477,33 +507,44 @@ def setup_test(cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, ang
 	pos = np.zeros((N, 2), dtype=float)
 	bond_matrix = np.zeros((N, N), dtype=int)
 
-	for bead in range(l_fibre):
-		pos, bond_matrix = grow_fibre_test(bead, bead, N, pos, bond_matrix, vdw_param, bond_param, 
-					      angle_param, rc, cell_dim, 1E2)
+	if not os.path.exists(file_name):
 
-	size_x = np.max(pos.T[0]) + vdw_param[0]
-	size_y = np.max(pos.T[1]) + vdw_param[0]
-	bead_list = np.arange(0, l_fibre)
+		for bead in range(l_fibre):
+			pos, bond_matrix = grow_fibre(bead, bead, N, pos, bond_matrix, vdw_param, bond_param, 
+						      angle_param, rc, cell_dim, 1E2)
 
-	if n_fibre > 1: n_section = np.sqrt(np.min([i for i in np.arange(n_fibre + 1)**2 if i >= n_fibre]))
-	else: n_section = 1
+		pos -= np.min(pos)
 
-	sections = np.arange(n_section**2)
+		size_x = np.max(pos.T[0]) + vdw_param[0] * 3
+		size_y = np.max(pos.T[1]) + vdw_param[0] * 3
+		bead_list = np.arange(0, l_fibre)
 
+		for fibre in range(1, n_fibre):
+		
+			pos_x = pos.T[0][bead_list] + size_x * int(fibre / np.sqrt(n_fibre))
+			pos_y = pos.T[1][bead_list] + size_y * int(fibre % np.sqrt(n_fibre))
 
-	for fibre in range(1, n_fibre):
-	
-		pos_x = pos.T[0][bead_list] + size_x * fibre
-		pos_y = pos.T[1][bead_list] + size_y * fibre
+			pos[bead_list + l_fibre * fibre] += np.array((pos_x, pos_y)).T
 
-		pos[bead_list + l_fibre * fibre] += np.array((pos_x, pos_y)).T
+			for bead in range(1, l_fibre):
+				n = fibre * l_fibre + bead
+				bond_matrix[n][n-1] = 1
+				bond_matrix[n-1][n] = 1
 
-		for bead in range(1, l_fibre):
-			n = fibre * l_fibre + bead
-			bond_matrix[n][n-1] = 1
-			bond_matrix[n-1][n] = 1
+		cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0]])
 
-	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0]])
+	else:
+
+		pos = np.load(file_name)
+		cell_dim = pos[-1]
+		pos = pos[:-1]
+
+		for fibre in range(n_fibre):
+			for bead in range(1, l_fibre):
+					n = fibre * l_fibre + bead
+					bond_matrix[n][n-1] = 1
+					bond_matrix[n-1][n] = 1
+
 
 	vel = (np.random.random((N, 2)) - 0.5) * 2 * kBT
 	dx, dy = get_dx_dy(pos, N, cell_dim)
@@ -513,6 +554,9 @@ def setup_test(cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, ang
 
 	atoms, dxdy_index, r_index = update_bond_lists(bond_matrix)
 	_, frc = calc_energy_forces_linear(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, atoms, dxdy_index, r_index)
+
+	atoms, dxdy_index, r_index = update_bond_lists_test(bond_matrix)
+	_, frc = calc_energy_forces_test(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, atoms, dxdy_index, r_index)
 
 	return pos, vel, frc, cell_dim, bond_matrix, verlet_list, atoms, dxdy_index, r_index
 

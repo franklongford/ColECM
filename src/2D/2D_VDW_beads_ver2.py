@@ -150,6 +150,127 @@ def make_chains(Nch, Nbe, L, sig1, r0, theta0):
 	return P_BEADS, B_BEADS, NB_BEADS, DA_BEADS
 
 
+def grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, n_section, limits, max_energy):
+	"""
+	grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, n_section, limits, max_energy)
+
+	Grow collagen fibre consisting of beads
+	"""
+
+	if bead == 0:
+		pos[n] = (np.random.random((2)) * cell_dim / n_section + limits)
+
+	else:
+		bond_matrix[n][n-1] = 1
+		bond_matrix[n-1][n] = 1
+
+		atoms, dxdy_index, r_index = update_bond_lists(bond_matrix)
+
+		energy = max_energy + 1
+
+		while energy > max_energy:
+			print(energy)
+			new_vec = rand_vector(2) * vdw_param[0]
+			pos[n] = pos[n-1] + new_vec
+			dx, dy = get_dx_dy(np.array(pos), N, cell_dim)
+			r2 = dx**2 + dy**2
+
+			energy, _ = calc_energy_forces_linear(dx, dy, r2, bond_matrix, check_cutoff(r2, rc**2), vdw_param, bond_param, angle_param, rc, atoms, dxdy_index, r_index)
+			
+	return pos, bond_matrix
+
+
+def setup(cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc):
+	"""
+	setup(cell_dim, nchain, lchain, mass, kBT, vdw_param, bond_param, angle_param, rc)
+	
+	Setup simulation using parameters provided
+
+	Parameters
+	----------
+
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
+
+	n_fibre: int
+		Number of collegen fibres to populate
+
+	l_fibre: int
+		Length of each fibre in number of beads
+
+	mass: float
+		Mass of each bead in collagen simulations
+
+	kBT: float
+		Value of thermostat constant kB x T in reduced units
+
+	vdw_param: array_like, dtype=float
+		Parameters of van der Waals potential (sigma, epsilon)
+
+	bond_param: array_like, dtype=float
+		Parameters of bond length potential (r0, kB)
+
+	angle_param: array_like, dtype=float
+		Parameters of angular potential (theta0, kA)
+
+	rc:  float
+		Radial cutoff distance for non-bonded interactions
+
+	
+	Returns
+	-------
+
+	pos: array_like, dtype=float
+		Positions of each bead in all collagen fibres
+
+	vel: array_like, dtype=float
+		Velocity of each bead in all collagen fibres
+
+	frc: array_like, dtype=float
+		Forces acting upon each bead in all collagen fibres
+
+	bond_matrix: array_like, dtype=int
+		Matrix determining whether a bond is present between two beads
+
+	verlet_list: array_like, dtype=int
+		Matrix determining whether two beads are within rc radial distance
+	
+	"""
+
+	N = n_fibre * l_fibre
+	pos = np.zeros((N, 2), dtype=float)
+	bond_matrix = np.zeros((N, N), dtype=int)
+
+	if n_fibre > 1: n_section = np.sqrt(np.min([i for i in np.arange(n_fibre + 1)**2 if i >= n_fibre]))
+	else: n_section = 1
+
+	sections = np.arange(n_section**2)
+
+	for fibre in range(n_fibre):
+		section = random.choice(sections)
+		sections = remove_element(section, sections)
+
+		lim_x = cell_dim[0] / n_section * (section % n_section)
+		lim_y = cell_dim[1] / n_section * int(section / n_section)
+		limits = np.array([lim_x, lim_y])
+
+		for bead in range(l_fibre):
+			n = fibre * l_fibre + bead
+			pos, bond_matrix = grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, 
+						      angle_param, rc, cell_dim, n_section, limits, 1E2)
+
+	vel = (np.random.random((N, 2)) - 0.5) * 2 * kBT
+	dx, dy = get_dx_dy(pos, N, cell_dim)
+	r2 = dx**2 + dy**2
+
+	verlet_list = check_cutoff(r2, rc**2)
+
+	atoms, dxdy_index, r_index = update_bond_lists(bond_matrix)
+	_, frc = calc_energy_forces_linear(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, atoms, dxdy_index, r_index)
+
+	return pos, vel, frc, bond_matrix, verlet_list, atoms, dxdy_index, r_index
+
+
 def grow_chains(P_BEADS, V_BEADS, F_BEADS, R_BONDS, sig1, r0, theta0):
 
 	facb = 0.2
