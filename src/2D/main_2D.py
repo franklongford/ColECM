@@ -21,10 +21,10 @@ def animate(n):
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 
 
-n_steps = 200
-n_fibre = 2
+n_steps = 10000
+n_fibre = 4
 n_fibre *= n_fibre
-l_fibre = 5
+l_fibre = 50
 N = n_fibre * l_fibre
 
 mass = 1.
@@ -62,18 +62,23 @@ thermo_theta = np.random.normal(0, 1, (n_steps, N, 2))
 
 energy_array = np.zeros(n_steps)
 
-directory = '/Users/franklongford/Documents/Postdoc/restarts/'
+if len(sys.argv) < 2: directory = raw_input("Enter directory: ")
+else: directory = sys.argv[1] + '/'
 file_name = "collagen_{}_{}_{}.npy".format(n_fibre, l_fibre, vdw_sigma)
+
+print("Entering Setup")
 
 pos, vel, frc, cell_dim, bond_matrix, verlet_list, atoms, dxdy_index, r_index = ut.setup(directory + file_name, cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc)
 
-print(cell_dim)
+print("Setup complete: simulation cell dimensions = {}".format(cell_dim))
 
 dx, dy = ut.get_dx_dy(pos, N, cell_dim)
 r2 = dx**2 + dy**2
 verlet_list = ut.check_cutoff(r2, rc**2)
 
 print('\n')
+
+print("Running Simulation")
 
 for step in range(n_steps):
 
@@ -98,13 +103,14 @@ for step in range(n_steps):
 	tot_vel[step] += vel
 	tot_frc[step] += frc
 
+print("Saving restart file {}".format(directory + file_name))
 np.save(directory + file_name, np.vstack((tot_pos[-1], cell_dim)))
 
 CMA = ut.cum_mov_average(energy_array[:n_steps]) / N
 plt.plot(CMA)
 plt.show()
 
-speed = 10
+speed = 100
 
 tot_pos = np.array([tot_pos[i] for i in range(n_steps) if i % speed == 0])
 
