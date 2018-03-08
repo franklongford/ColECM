@@ -10,13 +10,98 @@ Last Modified: 06/03/2018
 import numpy as np
 import random
 
-import sys
-import os
-
+import sys, os, pickle
 
 
 SQRT3 = np.sqrt(3)
 SQRT2 = np.sqrt(2)
+
+
+def make_param_file(param_file_name):
+	"""
+	make_paramfile(paramfile_name)
+
+	Creates checkfile for analysis, storing key paramtere
+	"""
+
+	param_file = {}
+	pickle.dump(param_file, open(param_file_name + '.pkl', 'wb'))
+
+
+def read_param_file(param_file_name):
+	"""
+	read_param_file(param_file_name)
+
+	Reads param_file to lookup stored key paramters
+	"""
+
+	param_file = pickle.load(open(param_file_name + '.pkl', 'rb'))
+	return param_file
+
+
+def update_param_file(param_file_name, symb, obj):
+	"""
+	update_paramfile(param_file_name, symb, obj)
+
+	Updates checkfile parameter
+
+	Parameters
+	----------
+	paramfile_name:  str
+			Paramfile path + name
+	symb:  str
+			Key for paramfile dictionary of object obj
+	obj:
+			Parameter to be saved
+
+	Returns
+	-------
+	paramfile:  dict
+			Dictionary of key parameters
+	"""
+
+	param_file = pickle.load(open(param_file_name + '.pkl', 'rb'))
+	param_file[symb] = obj
+	pickle.dump(param_file, open(param_file_name + '.pkl', 'wb'))
+
+	return param_file
+
+
+def save_npy(file_path, array):
+	"""
+	save_npy(file_path, array)
+	General purpose algorithm to save an array to a npy file
+	Parameters
+	----------
+	file_path:  str
+		Path name of npy file
+	array:  array_like (float);
+		Data array to be saved
+	"""
+
+	np.save(file_path, array)
+
+
+def load_npy(file_path, frames=[]):
+	"""
+	load_npy(file_path, frames=[])
+	General purpose algorithm to load an array from a npy file
+	Parameters
+	----------
+	file_path:  str
+		Path name of npy file
+	frames:  int, list (optional)
+		Trajectory frames to load
+	Returns
+	-------
+	array:  array_like (float);
+		Data array to be loaded
+	"""
+
+	if len(frames) == 0: array = np.load(file_path + '.npy')
+	else: array = np.load(file_path + '.npy')[frames]
+
+	return array
 
 
 def numpy_remove(list1, list2):
@@ -288,28 +373,35 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_par
 		except IndexError: pass
 
 
-	non_zero = np.nonzero(r2)
-	nonbond_pot = pot_vdw(r2[non_zero] * verlet_list[non_zero], vdw_param[0], vdw_param[1]) - cut_pot
+	non_zero = np.nonzero(r2 * verlet_list)
+	nonbond_pot = pot_vdw((r2 * verlet_list)[non_zero], vdw_param[0], vdw_param[1]) - cut_pot
 	pot_energy += np.nansum(nonbond_pot) / 2
 
-	nonbond_frc = force_vdw(r2 * verlet_list, vdw_param[0], vdw_param[1]) - cut_frc
-	f_beads_x += np.nansum(nonbond_frc * dx / r2, axis=0)
-	f_beads_y += np.nansum(nonbond_frc * dy / r2, axis=0)
+	nonbond_frc = force_vdw((r2 * verlet_list)[non_zero], vdw_param[0], vdw_param[1]) - cut_frc
+	temp_x = np.zeros(r2.shape)
+	temp_y = np.zeros(r2.shape)
+	temp_x[non_zero] += nonbond_frc * (dx[non_zero] / r2[non_zero])
+	temp_y[non_zero] += nonbond_frc * (dy[non_zero] / r2[non_zero])
+
+	f_beads_x += np.sum(temp_x, axis=0)
+	f_beads_y += np.sum(temp_y, axis=0)
 
 	frc_beads = np.transpose(np.array([f_beads_x, f_beads_y]))
 
 	return pot_energy, frc_beads
 
 
-def grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, max_energy):
+def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, max_energy):
 	"""
-	grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, cell_dim, max_energy)
+	grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, max_energy)
 
 	Grow collagen fibre consisting of beads
 	"""
 
+	cell_dim = np.array([vdw_param[0]**2 * n_bead] * n_dim)
+
 	if bead == 0:
-		pos[n] = np.random.random((2)) * vdw_param[0] * 2
+		pos[n] = np.random.random((n_dim)) * vdw_param[0] * 2
 
 	else:
 		bond_matrix[n][n-1] = 1
@@ -320,17 +412,58 @@ def grow_fibre(n, bead, N, pos, bond_matrix, vdw_param, bond_param, angle_param,
 		energy = max_energy + 1
 
 		while energy > max_energy:
-			new_vec = rand_vector(2) * vdw_param[0]
+			new_vec = rand_vector(n_dim) * vdw_param[0]
 			pos[n] = pos[n-1] + new_vec
-			dx, dy = get_dx_dy(np.array(pos), N, cell_dim)
+			dx, dy = get_dx_dy(pos, n_bead, cell_dim)
 			r2 = dx**2 + dy**2
 
-			energy, _ = calc_energy_forces(dx, dy, r2, bond_matrix, check_cutoff(r2, rc**2), vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
+			energy, _ = calc_energy_forces(dx, dy, r2, bond_matrix, check_cutoff(r2, rc**2), 
+						vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
 			
 	return pos, bond_matrix
 
 
-def setup(file_name, cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_param, angle_param, rc):
+def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc):
+	"""
+	create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc)
+	"""
+
+	n_bead = n_fibre * l_fibre
+	pos = np.zeros((n_bead, n_dim), dtype=float)
+	bond_matrix = np.zeros((n_bead, n_bead), dtype=int)
+
+	print("Growing {} fibres containing {} beads".format(n_fibre, l_fibre))
+
+	for bead in range(l_fibre):
+		pos, bond_matrix = grow_fibre(bead, bead, n_dim, n_bead, pos, bond_matrix, 
+					vdw_param, bond_param, angle_param, rc, 1E2)
+
+	pos -= np.min(pos)
+
+	size_x = np.max(pos.T[0]) + vdw_param[0] * 2
+	size_y = np.max(pos.T[1]) + vdw_param[0] * 2
+	bead_list = np.arange(0, l_fibre)
+
+	print(pos)
+
+	for fibre in range(1, n_fibre):
+	
+		pos_x = pos.T[0][bead_list] + size_x * int(fibre / np.sqrt(n_fibre))
+		pos_y = pos.T[1][bead_list] + size_y * int(fibre % np.sqrt(n_fibre))
+
+		pos[bead_list + l_fibre * fibre] += np.array((pos_x, pos_y)).T
+
+		for bead in range(1, l_fibre):
+			n = fibre * l_fibre + bead
+			bond_matrix[n][n-1] = 1
+			bond_matrix[n-1][n] = 1
+
+	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0]])
+
+	return pos, cell_dim, bond_matrix
+
+
+def setup(pos, cell_dim, bond_matrix, mass, vdw_param, bond_param, angle_param, rc, kBT=1.0):
 	"""
 	setup(cell_dim, nchain, lchain, mass, kBT, vdw_param, bond_param, angle_param, rc)
 	
@@ -387,54 +520,9 @@ def setup(file_name, cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_para
 	
 	"""
 
-	N = n_fibre * l_fibre
-	pos = np.zeros((N, 2), dtype=float)
-	bond_matrix = np.zeros((N, N), dtype=int)
-
-	if not os.path.exists(file_name):
-
-		print("Growing {} fibres containing {} beads".format(n_fibre, l_fibre))
-
-		for bead in range(l_fibre):
-			pos, bond_matrix = grow_fibre(bead, bead, N, pos, bond_matrix, vdw_param, bond_param, 
-						      angle_param, rc, cell_dim, 1E2)
-
-		pos -= np.min(pos)
-
-		size_x = np.max(pos.T[0]) + vdw_param[0] * 3
-		size_y = np.max(pos.T[1]) + vdw_param[0] * 3
-		bead_list = np.arange(0, l_fibre)
-
-		for fibre in range(1, n_fibre):
-		
-			pos_x = pos.T[0][bead_list] + size_x * int(fibre / np.sqrt(n_fibre))
-			pos_y = pos.T[1][bead_list] + size_y * int(fibre % np.sqrt(n_fibre))
-
-			pos[bead_list + l_fibre * fibre] += np.array((pos_x, pos_y)).T
-
-			for bead in range(1, l_fibre):
-				n = fibre * l_fibre + bead
-				bond_matrix[n][n-1] = 1
-				bond_matrix[n-1][n] = 1
-
-		cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0]])
-
-	else:
-		print("Loading restart file {}".format(file_name))
-
-		pos = np.load(file_name)
-		cell_dim = pos[-1]
-		pos = pos[:-1]
-
-		for fibre in range(n_fibre):
-			for bead in range(1, l_fibre):
-					n = fibre * l_fibre + bead
-					bond_matrix[n][n-1] = 1
-					bond_matrix[n-1][n] = 1
-
-
-	vel = (np.random.random((N, 2)) - 0.5) * 2 * kBT
-	dx, dy = get_dx_dy(pos, N, cell_dim)
+	n_bead = pos.shape[0]
+	vel = (np.random.random((n_bead, 2)) - 0.5) * 2 * kBT
+	dx, dy = get_dx_dy(pos, n_bead, cell_dim)
 	r2 = dx**2 + dy**2
 
 	verlet_list = check_cutoff(r2, rc**2)
@@ -442,7 +530,7 @@ def setup(file_name, cell_dim, n_fibre, l_fibre, mass, kBT, vdw_param, bond_para
 	bond_beads, dxdy_index, r_index = update_bond_lists(bond_matrix)
 	_, frc = calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
 
-	return pos, vel, frc, cell_dim, bond_matrix, verlet_list, bond_beads, dxdy_index, r_index
+	return vel, frc, verlet_list, bond_beads, dxdy_index, r_index
 
 
 def velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, bond_beads, dxdy_index, r_index, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT, gamma, sigma, xi = 0, theta = 0, Langevin=False):
@@ -479,46 +567,3 @@ def velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, bond_bead
 	return pos, vel, frc, verlet_list, tot_energy
 
 
-
-def save_traj(pos, vel):
-
-	pass
-
-
-""" Visualisation of System """
-
-def plot_system(pos, vel, frc, N, L, bsize, n):
-
-	width = 0.2
-	positions = np.rot90(np.array(pos))
-	fig = plt.figure(0, figsize=(15,15))
-	plt.title(n)
-	fig.clf()
-
-	#ax = plt.subplot(2,1,1)
-	plt.scatter(positions[0], positions[1], c=range(N), s=bsize)
-	plt.axis([0, L, 0, L])
-	plt.show(False)
-	plt.draw()
-
-	"""
-
-	velocities = np.rot90(vel)
-	forces = np.rot90(frc)
-
-	fig = plt.figure(1, figsize=(15,15))
-	#fig.clf()
-
-	ax = plt.subplot(2,1,1)
-	ax.set_ylim(-10,10)
-	vel_x = ax.bar(range(N), velocities[0], width, color='b')
-	vel_y = ax.bar(np.arange(N)+width, velocities[1], width, color='g')
-
-	ax = plt.subplot(2,1,2)
-	ax.set_ylim(-20,20)
-	frc_x = ax.bar(range(N), forces[0], width, color='b')
-	frc_y = ax.bar(np.arange(N)+width, forces[1], width, color='g')
-	#fig.canvas.draw()
-
-	plt.show()
-	"""

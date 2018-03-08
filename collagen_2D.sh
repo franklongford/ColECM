@@ -1,7 +1,7 @@
 #!/bin/bash
 
-declare n_fibre="$1"
-declare l_fibre="$2"
-declare directory="$3"
+declare param_file_name="$1"
+declare pos_file_name="$2"
+declare output_file_name="$3"
 
-python3 -B src/2D/main_2D.py $n_fibre $l_fibre $directory
+python3 -B src/2D/main_2D.py $param_file_name $pos_file_name $output_file_name

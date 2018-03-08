@@ -20,19 +20,19 @@ def animate(n):
 	plt.title('Frame {}'.format(n))
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
 
+current_dir = os.getcwd()
+dir_path = os.path.dirname(os.path.realpath(__file__))
 
-if len(sys.argv) < 2: directory = raw_input("Enter traj file: ")
-else: traj_file_name = sys.argv[1]
+if len(sys.argv) < 2: traj_file_name = current_dir + '/' + input("Enter traj_file name: ")
+else: traj_file_name = current_dir + '/' + sys.argv[1]
+if len(sys.argv) < 3: param_file_name = current_dir + '/' + input("Enter param_file name: ")
+else: param_file_name = current_dir + '/' + sys.argv[2]
 
-if len(sys.argv) < 3: directory = raw_input("Enter restart file: ")
-else: restart_file_name = sys.argv[2]
 
+param_file = ut.read_param_file(param_file_name)
+cell_dim = param_file['cell_dim']
 
-pos = np.load(restart_file_name)
-cell_dim = pos[-1]
-pos = pos[:-1]
-
-tot_pos = np.load(traj_file_name)
+tot_pos = ut.load_npy(traj_file_name)
 
 tot_pos = np.moveaxis(tot_pos, 2, 1)
 
