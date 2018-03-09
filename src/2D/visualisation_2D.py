@@ -43,7 +43,7 @@ vdw_param = param_file['vdw_param']
 tot_pos = ut.load_npy(traj_file_name)
 n_frame = tot_pos.shape[0]
 
-size = 2
+size = 1
 res = int(1.5 * np.sqrt(np.sum(cell_dim**2)))
 
 for num in [0, -1]:

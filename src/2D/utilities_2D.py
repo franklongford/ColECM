@@ -213,7 +213,7 @@ def create_image(traj, sigma, resolution):
 	r = np.sqrt(r2)
 
 	r_cut = np.zeros((resolution, resolution))
-	cutoff = np.where(r <= sigma * 4)
+	cutoff = np.where(r <= sigma * 2)
 	r_cut[cutoff] += r[cutoff]
 
 	non_zero = np.zeros((resolution, resolution))

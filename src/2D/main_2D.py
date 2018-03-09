@@ -8,10 +8,8 @@ Last Modified: 09/03/2018
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 
-import sys, os, time, pathlib
+import sys, os, time
 
 import utilities_2D as ut
 import simulation_2D as sim
@@ -143,7 +141,7 @@ tot_pos = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
 tot_vel = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
 tot_frc = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
 
-energy_array = np.zeros(n_steps)
+#energy_array = np.zeros(n_steps)
 
 init_time_stop = time.time()
 
