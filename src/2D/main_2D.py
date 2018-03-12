@@ -50,7 +50,7 @@ n_dim = 2
 traj_steps = 100
 dt = 0.002
 
-pos, cell_dim, bond_matrix, params = sim.import_files(n_dim, param_file_name, pos_file_name)
+pos, cell_dim, l_conv, bond_matrix, params = sim.import_files(n_dim, param_file_name, pos_file_name)
 if len(params) == 7: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin = params
 else: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin, thermo_gamma, thermo_sigma = params
 
@@ -66,7 +66,7 @@ tot_frc = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
 
 init_time_stop = time.time()
 
-print("\nSetup complete: {:5.3f} s \nSimulation cell dimensions = {}".format(init_time_stop - init_time_start, cell_dim))
+print("\nSetup complete: {:5.3f} s \nBead radius = {} um, Simulation cell dimensions = {} um".format(init_time_stop - init_time_start, l_conv, cell_dim * l_conv))
 
 sim_time_start = time.time()
 

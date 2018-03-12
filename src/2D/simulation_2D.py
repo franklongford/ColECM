@@ -94,12 +94,15 @@ def import_files(n_dim, param_file_name, pos_file_name):
 		n_fibre *= n_fibre
 		l_fibre = int(input("Enter length of fibril (no. of beads): "))
 
+		l_conv = 10. / (l_fibre * 2 * vdw_param[0])
+
 		pos, cell_dim, bond_matrix = create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc)
 		print("Saving input pos file {}.npy".format(pos_file_name))
 		ut.save_npy(pos_file_name, pos)
 
 		param_file = ut.update_param_file(param_file_name, 'cell_dim', cell_dim)
 		param_file = ut.update_param_file(param_file_name, 'bond_matrix', bond_matrix)
+		param_file = ut.update_param_file(param_file_name, 'l_conv', l_conv)
 		
 	else:
 
@@ -107,8 +110,9 @@ def import_files(n_dim, param_file_name, pos_file_name):
 		pos = ut.load_npy(pos_file_name)
 		cell_dim = param_file['cell_dim']
 		bond_matrix = param_file['bond_matrix']
+		l_conv = param_file['l_conv']
 
-	return pos, cell_dim, bond_matrix, params
+	return pos, cell_dim, l_conv, bond_matrix, params
 
 
 
@@ -532,12 +536,15 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 	pos = np.zeros((n_bead, n_dim), dtype=float)
 	bond_matrix = np.zeros((n_bead, n_bead), dtype=int)
 
-	print("Growing {} fibres containing {} beads".format(n_fibre, l_fibre))
+	init_pos = np.zeros((l_fibre, n_dim), dtype=float)
+
+	print("Creating fibre template containing {} beads".format(l_fibre))
 
 	for bead in range(l_fibre):
-		pos, bond_matrix = grow_fibre(bead, bead, n_dim, n_bead, pos, bond_matrix, 
+		init_pos, bond_matrix = grow_fibre(bead, bead, n_dim, n_bead, init_pos, bond_matrix, 
 					vdw_param, bond_param, angle_param, rc, 1E2)
 
+	pos[range(l_fibre)] += init_pos
 	pos -= np.min(pos)
 
 	size_x = np.max(pos.T[0]) + vdw_param[0] * 2
@@ -545,7 +552,9 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 	bead_list = np.arange(0, l_fibre)
 
 	for fibre in range(1, n_fibre):
-	
+		sys.stdout.write("Teselating {} fibres containing {} beads\r".format(fibre, l_fibre))
+		sys.stdout.flush()
+
 		pos_x = pos.T[0][bead_list] + size_x * int(fibre / np.sqrt(n_fibre))
 		pos_y = pos.T[1][bead_list] + size_y * int(fibre % np.sqrt(n_fibre))
 

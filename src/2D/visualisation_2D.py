@@ -34,7 +34,7 @@ def make_gif(file_name, gif_dir, n_frame, images, res, sharp, cell_dim, itype='M
 				plt.ylim(0, cell_dim[1])
 			elif itype.upper() == 'SHG':
 				fig = plt.figure()
-				plt.imshow(images[frame], cmap='viridis', interpolation='nearest', extent=[0, cell_dim[0], 0, cell_dim[1]])
+				plt.imshow(images[frame], cmap='viridis', interpolation='nearest', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
 				#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
 				#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
 				#plt.gca().set_xticklabels(real_x)
@@ -100,15 +100,17 @@ n_y = int(cell_dim[1] * res)
 gif_dir = current_dir + '/gif'
 if not os.path.exists(gif_dir): os.mkdir(gif_dir)
 
-skip = 10
+skip = 5
 n_image = int(n_frame/skip)
 
-image_shg = np.zeros((n_image, n_y, n_x))
+tot_pos = np.moveaxis(tot_pos, 2, 1)
+image_md = [tot_pos[n] for n in range(0, n_frame, skip)]
 
-for i, image in enumerate(range(0, n_frame, skip)):
-	_, image_shg[i] = ut.create_image(tot_pos[image], 2 * vdw_param[0] * sharp, n_x, n_y)
+image_shg = ut.images_for_gif(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, n_image)
 
 make_gif(gif_file_name + '_SHG', gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
+
+make_gif(gif_file_name + '_MD', gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
 """
 hist, image = ut.create_image(tot_pos[-1], 2 * vdw_param[0] * sharp, n_x, n_y)
@@ -132,14 +134,7 @@ plt.imshow(image, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origi
 #plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
 plt.savefig('{}/{}_{}_{}_gauss_sample.png'.format(gif_dir, gif_file_name, res, sharp), bbox_inches='tight')
 plt.close()
-"""
 
-tot_pos = np.moveaxis(tot_pos, 2, 1)
-image_md = [tot_pos[n] for n in range(0, n_frame, skip)]
-
-make_gif(gif_file_name + '_MD', gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
-
-"""
 fig, ax = plt.subplots()
 plt.imshow(image_pos[0], cmap='viridis', interpolation='nearest')
 ani = animation.FuncAnimation(fig, heatmap_animation, frames=n_frame, interval=100, repeat=False)

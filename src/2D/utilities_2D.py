@@ -197,42 +197,64 @@ def move_2D_array_centre(array, centre):
 def gaussian(x, mean, std): return np.exp(-(x-mean)**2 / (2 * std**2)) / (SQRT2 * std * SQRTPI)
 
 
-def create_image(traj, sigma, n_x, n_y):
+def images_for_gif(traj, sigma, n_x, n_y, n_image):
 
-	histogram, xedges, yedges = np.histogram2d(traj.T[0], traj.T[1], bins=[n_x, n_y])#, range=[[0, 0], [cell_dim[0], cell_dim[1]]])
-	
-	H = histogram.T
+	image_shg = np.zeros((n_image, n_y, n_x))
 
+	"Calculate distances between grid points"
 	dx = np.tile(np.arange(n_x), (n_y, 1)).T
 	dy = np.tile(np.arange(n_y), (n_x, 1))
 
+	"Enforce periodic boundaries"
 	dx -= n_x * np.array(2 * dx / n_x, dtype=int)
 	dy -= n_y * np.array(2 * dy / n_y, dtype=int)
 
+	"Calculate radial distances"
 	r2 = dx**2 + dy**2
-	r = np.sqrt(r2)
 
-	r_cut = np.zeros((n_x, n_y))
-	cutoff = np.where(r <= sigma * 2)
-	r_cut[cutoff] += r[cutoff]
+	"Find indicies within cutoff radius"
+	cutoff = np.where(r2 <= (sigma * 2)**2)
 
+	"Form a filter for cutoff radius"
 	non_zero = np.zeros((n_x, n_y))
 	non_zero[cutoff] += 1
 	non_zero[0][0] += 1
 
+	"Form a matrix of radial distances corresponding to filter" 
+	r_cut = np.zeros((n_x, n_y))
+	r_cut[cutoff] += np.sqrt(r2[cutoff])
+
+	for i, image in enumerate(range(n_image)):
+		_, image_shg[i] = create_image(traj[image][0], traj[image][1], sigma, n_x, n_y, r_cut, non_zero)
+
+	return image_shg
+
+
+def create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero):
+
+	"Discretise data"
+	histogram, xedges, yedges = np.histogram2d(pos_x, pos_y, bins=[n_x, n_y])#, range=[[0, 0], [cell_dim[0], cell_dim[1]]])
+	H = histogram.T
+
+	"Get indicies and intensity of non-zero histogram grid points"
 	indices = np.argwhere(H)
 	intensity = H[np.where(H)]
+
+	"Generate blank image"
 	image = np.zeros((n_x, n_y))
 
 	for i, index in enumerate(indices):
-
+	
 		r_cut_shift = move_2D_array_centre(r_cut, index)
 		non_zero_shift = move_2D_array_centre(non_zero, index)
 		image[np.where(non_zero_shift)] += gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, sigma) * intensity[i]
 
+		#"Performs the full mapping for comparison"
 		#r_shift = move_2D_array_centre(r, index)
 		#gauss_map = np.reshape(gaussian(r_shift.flatten(), 0, sigma), 
 		#				(n_x, n_y)) * intensity[i]
 		#image += gauss_map
 
+
 	return histogram.T, image.T
+
