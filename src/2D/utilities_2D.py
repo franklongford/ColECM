@@ -197,32 +197,32 @@ def move_2D_array_centre(array, centre):
 def gaussian(x, mean, std): return np.exp(-(x-mean)**2 / (2 * std**2)) / (SQRT2 * std * SQRTPI)
 
 
-def create_image(traj, sigma, resolution):
+def create_image(traj, sigma, n_x, n_y):
 
-
-	histogram, xedges, yedges = np.histogram2d(traj.T[0], traj.T[1], bins=resolution)#, range=[[0, 0], [cell_dim[0], cell_dim[1]]])
+	histogram, xedges, yedges = np.histogram2d(traj.T[0], traj.T[1], bins=[n_x, n_y])#, range=[[0, 0], [cell_dim[0], cell_dim[1]]])
+	
 	H = histogram.T
 
-	dx = np.tile(np.arange(resolution), (resolution, 1))
-	dy = np.tile(np.arange(resolution), (resolution, 1)).T
+	dx = np.tile(np.arange(n_x), (n_y, 1)).T
+	dy = np.tile(np.arange(n_y), (n_x, 1))
 
-	dx -= resolution * np.array(2 * dx / resolution, dtype=int)
-	dy -= resolution * np.array(2 * dy / resolution, dtype=int)
+	dx -= n_x * np.array(2 * dx / n_x, dtype=int)
+	dy -= n_y * np.array(2 * dy / n_y, dtype=int)
 
 	r2 = dx**2 + dy**2
 	r = np.sqrt(r2)
 
-	r_cut = np.zeros((resolution, resolution))
+	r_cut = np.zeros((n_x, n_y))
 	cutoff = np.where(r <= sigma * 2)
 	r_cut[cutoff] += r[cutoff]
 
-	non_zero = np.zeros((resolution, resolution))
+	non_zero = np.zeros((n_x, n_y))
 	non_zero[cutoff] += 1
 	non_zero[0][0] += 1
 
 	indices = np.argwhere(H)
 	intensity = H[np.where(H)]
-	image = np.zeros((resolution, resolution))
+	image = np.zeros((n_x, n_y))
 
 	for i, index in enumerate(indices):
 
@@ -232,7 +232,7 @@ def create_image(traj, sigma, resolution):
 
 		#r_shift = move_2D_array_centre(r, index)
 		#gauss_map = np.reshape(gaussian(r_shift.flatten(), 0, sigma), 
-		#				(resolution, resolution)) * intensity[i]
+		#				(n_x, n_y)) * intensity[i]
 		#image += gauss_map
 
-	return image
+	return histogram.T, image.T
