@@ -19,6 +19,7 @@ SQRT2 = np.sqrt(2)
 SQRTPI = np.sqrt(np.pi)
 
 
+
 def make_param_file(param_file_name):
 	"""
 	make_paramfile(paramfile_name)
@@ -195,6 +196,7 @@ def move_2D_array_centre(array, centre):
 
 
 def gaussian(x, mean, std): return np.exp(-(x-mean)**2 / (2 * std**2)) / (SQRT2 * std * SQRTPI)
+
 
 
 def images_for_gif(traj, sigma, n_x, n_y, n_image):

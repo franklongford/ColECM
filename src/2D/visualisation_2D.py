@@ -17,7 +17,7 @@ import os
 import utilities_2D as ut
 
 
-def make_gif(file_name, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD'):
+def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD'):
 
 	import imageio
 
@@ -26,7 +26,7 @@ def make_gif(file_name, gif_dir, n_frame, images, res, sharp, cell_dim, itype='M
 
 	for frame in range(n_frame):
 
-		if not os.path.exists('{}/{}_{}_ISM.png'.format(gif_dir, file_name_plot, frame)):
+		if not os.path.exists('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame)):
 			if itype.upper() == 'MD': 
 				fig, ax = plt.subplots(figsize=(cell_dim[0]/4, cell_dim[1]/4))
 				plt.scatter(images[frame][0], images[frame][1])
@@ -39,25 +39,27 @@ def make_gif(file_name, gif_dir, n_frame, images, res, sharp, cell_dim, itype='M
 				#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
 				#plt.gca().set_xticklabels(real_x)
 				#plt.gca().set_yticklabels(real_y)
-			plt.savefig('{}/{}_{}_heat.png'.format(gif_dir, file_name_plot, frame), bbox_inches='tight')
+			plt.savefig('{}/{}_{}_heat.png'.format(fig_dir, file_name_plot, frame), bbox_inches='tight')
 			plt.close()
 
-		image_list.append('{}/{}_{}_heat.png'.format(gif_dir, file_name_plot, frame))
+		image_list.append('{}/{}_{}_heat.png'.format(fig_dir, file_name_plot, frame))
 
 	file_name_gif = '{}_{}_{}_{}'.format(file_name, res, sharp, n_frame)
-	images = []#[PIL.Image.open(image) for image in image_list]
 	file_path_name = '{}/{}.gif'.format(gif_dir, file_name_gif)
 
-	#for filename in image_list:
-	#       images.append(imageio.imread(filename))
-	#imageio.mimsave(file_path_name, images)
+	"""
+	images = []
+	for filename in image_list:
+	       images.append(imageio.imread(filename))
+	imageio.mimsave(file_path_name, images)
+	"""
 
 	with imageio.get_writer(file_path_name, mode='I', duration=0.3, format='GIF') as writer:
 		for filename in image_list:
 			image = imageio.imread(filename)
 			writer.append_data(image)
-			os.remove(filename)
-
+			#os.remove(filename)
+	
 
 
 
@@ -99,6 +101,8 @@ n_y = int(cell_dim[1] * res)
 
 gif_dir = current_dir + '/gif'
 if not os.path.exists(gif_dir): os.mkdir(gif_dir)
+fig_dir = current_dir + '/fig'
+if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
 skip = 5
 n_image = int(n_frame/skip)
@@ -108,9 +112,9 @@ image_md = [tot_pos[n] for n in range(0, n_frame, skip)]
 
 image_shg = ut.images_for_gif(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, n_image)
 
-make_gif(gif_file_name + '_SHG', gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
+make_gif(gif_file_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
 
-make_gif(gif_file_name + '_MD', gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
+make_gif(gif_file_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
 """
 hist, image = ut.create_image(tot_pos[-1], 2 * vdw_param[0] * sharp, n_x, n_y)

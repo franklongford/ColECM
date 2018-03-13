@@ -70,8 +70,8 @@ print("\nSetup complete: {:5.3f} s \nBead radius = {} um, Simulation cell dimens
 
 sim_time_start = time.time()
 
-dx, dy = sim.get_dx_dy(pos, cell_dim)
-r2 = dx**2 + dy**2
+dxy = sim.get_dxyz(pos, cell_dim)
+r2 = np.sum(dxy**2, axis=1)
 verlet_list = sim.check_cutoff(r2, rc**2)
 
 print("\nRunning Simulation")
@@ -83,7 +83,7 @@ for step in range(n_steps):
 	thermo_xi = np.random.normal(0, 1, (n_bead, n_dim))
 	thermo_theta = np.random.normal(0, 1, (n_bead, n_dim))
 
-	pos, vel, frc, verlet_list, energy = sim.velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list,
+	pos, vel, frc, verlet_list, energy = sim.velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, verlet_list,
 						bond_beads, dxdy_index, r_index, dt, cell_dim, vdw_param, bond_param,
 						angle_param, rc, kBT, Langevin, thermo_gamma, thermo_sigma, thermo_xi, thermo_theta)
 
@@ -97,7 +97,7 @@ for step in range(n_steps):
 
 	if np.sum(np.abs(vel)) >= kBT * 1E5: 
 		print("velocity exceeded, step ={}".format(step))
-		dx, dy = sim.get_dx_dy(pos, cell_dim)
+		dx, dy = sim.get_dxyz(pos, cell_dim)
 		r2 = dx**2 + dy**2
 		n_steps = step
 		break 

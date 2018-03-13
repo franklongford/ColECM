@@ -126,9 +126,9 @@ def check_cutoff(array, thresh):
 	return (array <= thresh).astype(float)
 
 
-def get_dx_dy(pos, cell_dim):
+def get_dxyz(pos, cell_dim):
 	"""
-	get_dx_dy(pos, n_dim, cell_dim)
+	get_dxyz(pos, n_dim, cell_dim)
 
 	Calculate distance vector between two beads
 
@@ -144,11 +144,8 @@ def get_dx_dy(pos, cell_dim):
 	Returns
 	-------
 
-	dx:  array_like (float); shape=(n_bead, n_bead)
-		Displacement along x axis between each bead
-
-	dy:  array_like (float); shape=(n_bead, n_bead)
-		Displacement along y axis between each bead
+	dxyz:  array_like (float); shape=(n_dim, n_bead, n_bead)
+		Displacement along each axis between each bead
 
 	"""
 
@@ -156,17 +153,15 @@ def get_dx_dy(pos, cell_dim):
 	n_dim = cell_dim.shape[0]
 
 	temp_pos = np.moveaxis(pos, 0, 1)
+	
+	dxyz = np.array([np.tile(temp_pos[0], (n_bead, 1)), np.tile(temp_pos[1], (n_bead, 1))])
+	dxyz = np.reshape(np.tile(temp_pos, (1, n_bead)), (n_dim, n_bead, n_bead))
 
-	dx = np.tile(temp_pos[0], (n_bead, 1))
-	dy = np.tile(temp_pos[1], (n_bead, 1))
+	dxyz = np.transpose(dxyz, axes=(0, 2, 1)) - dxyz
 
-	dx = dx.T - dx
-	dy = dy.T - dy
-
-	dx -= cell_dim[0] * np.array(2 * dx / cell_dim[0], dtype=int)
-	dy -= cell_dim[1] * np.array(2 * dy / cell_dim[1], dtype=int)
-
-	return dx, dy
+	for i in range(n_dim): dxyz[i] -= cell_dim[i] * np.array(2 * dxyz[i] / cell_dim[i], dtype=int)
+	
+	return dxyz
 
 
 def pot_harmonic(x, x0, k): 
@@ -256,7 +251,7 @@ def update_bond_lists(bond_matrix):
 
 def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index):
 	"""
-	calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
+	calc_energy_forces(dxy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
 
 	Return tot potential energy and forces on each bead in simulation
 
@@ -293,7 +288,7 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_par
 	bond_beads:  array_like, (int); shape=(n_angle, 3)
 		Array containing indicies in pos array all 3-bead angular interactions
 
-	dxdy_index:  array_like, (int); shape=(n_bond, 2)
+	dxy_index:  array_like, (int); shape=(n_bond, 2)
 		Array containing indicies in dx and dy arrays of all bonded interactions
 
 	r_index:  array_like, (int); shape=(n_bond, 2)
@@ -310,9 +305,10 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_par
 
 	"""
 
-	N = dx.shape[0]
-	f_beads_x = np.zeros((N))
-	f_beads_y = np.zeros((N))
+	n_bead = dx.shape[0]
+	#frc_beads = np.zeros((n_dim, n_bead))
+	f_beads_x = np.zeros((n_bead))
+	f_beads_y = np.zeros((n_bead))
 	pot_energy = 0
 	cut_frc = force_vdw(rc**2, vdw_param[0], vdw_param[1])
 	cut_pot = pot_vdw(rc**2, vdw_param[0], vdw_param[1])
@@ -337,6 +333,9 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_par
 		for i, sign in enumerate([1, -1]):
 			f_beads_x[indices_half[i]] += sign * (bond_frc * dx[indices_half] / r_half)
 			f_beads_y[indices_half[i]] += sign * (bond_frc * dy[indices_half] / r_half)
+
+			#frc_beads[0][indices_half[i]] += sign * (bond_frc * dxyz[0][indices_half] / r_half)
+			#frc_beads[1][indices_half[i]] += sign * (bond_frc * dxyz[1][indices_half] / r_half)
 
 		"Bond Angles"
 
@@ -468,23 +467,20 @@ def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_param, bond_param, 
 		pos[n] = np.random.random((n_dim)) * vdw_param[0] * 2
 
 	else:
-		bond_matrix[n][n-1] = 1
-		bond_matrix[n-1][n] = 1
-
-		bond_beads, dxdy_index, r_index = update_bond_lists(bond_matrix)
+		bond_beads, dxy_index, r_index = update_bond_lists(bond_matrix)
 
 		energy = max_energy + 1
 
 		while energy > max_energy:
 			new_vec = ut.rand_vector(n_dim) * vdw_param[0]
 			pos[n] = pos[n-1] + new_vec
-			dx, dy = get_dx_dy(pos, cell_dim)
+			dx, dy = get_dxyz(pos, cell_dim)
 			r2 = dx**2 + dy**2
 
 			energy, _ = calc_energy_forces(dx, dy, r2, bond_matrix, check_cutoff(r2, rc**2), 
-						vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
+						vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 			
-	return pos, bond_matrix
+	return pos
 
 
 def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc):
@@ -535,14 +531,31 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 	n_bead = n_fibre * l_fibre
 	pos = np.zeros((n_bead, n_dim), dtype=float)
 	bond_matrix = np.zeros((n_bead, n_bead), dtype=int)
+	"""
+	cross_matrix = np.zeros(n_bead, dtype=int)
+
+	for bead in range(n_bead):
+		if bead % l_fibre == 0: cross_matrix[bead] += 1
+		if bead % l_fibre == l_fibre-1: cross_matrix[bead] += 1
+
+	cross_matrix = np.tile(cross_matrix, (1, n_bead))
+
+	for bead in range(n_bead): cross_matrix[bead][bead] = 0
+	"""
+	for fibre in range(n_fibre):
+		for bead in range(1, l_fibre):
+			n = fibre * l_fibre + bead
+			bond_matrix[n][n-1] = 1
+			bond_matrix[n-1][n] = 1
 
 	init_pos = np.zeros((l_fibre, n_dim), dtype=float)
 
 	print("Creating fibre template containing {} beads".format(l_fibre))
 
 	for bead in range(l_fibre):
-		init_pos, bond_matrix = grow_fibre(bead, bead, n_dim, n_bead, init_pos, bond_matrix, 
-					vdw_param, bond_param, angle_param, rc, 1E2)
+		init_pos = grow_fibre(bead, bead, n_dim, n_bead, init_pos, 
+				bond_matrix[[slice(0, l_fibre) for _ in bond_matrix.shape]], 
+				vdw_param, bond_param, angle_param, rc, 1E2)
 
 	pos[range(l_fibre)] += init_pos
 	pos -= np.min(pos)
@@ -559,11 +572,6 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 		pos_y = pos.T[1][bead_list] + size_y * int(fibre % np.sqrt(n_fibre))
 
 		pos[bead_list + l_fibre * fibre] += np.array((pos_x, pos_y)).T
-
-		for bead in range(1, l_fibre):
-			n = fibre * l_fibre + bead
-			bond_matrix[n][n-1] = 1
-			bond_matrix[n-1][n] = 1
 
 	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0]])
 
@@ -622,7 +630,7 @@ def setup(pos, cell_dim, bond_matrix, mass, vdw_param, bond_param, angle_param, 
 	bond_beads:  array_like, (int); shape=(n_angle, 3)
 		Array containing indicies in pos array all 3-bead angular interactions
 
-	dxdy_index:  array_like, (int); shape=(n_bond, 2)
+	dxyz_index:  array_like, (int); shape=(n_bond, 2)
 		Array containing indicies in dx and dy arrays of all bonded interactions
 
 	r_index:  array_like, (int); shape=(n_bond, 2)
@@ -632,22 +640,22 @@ def setup(pos, cell_dim, bond_matrix, mass, vdw_param, bond_param, angle_param, 
 
 	n_bead = pos.shape[0]
 	vel = (np.random.random((n_bead, 2)) - 0.5) * 2 * kBT
-	dx, dy = get_dx_dy(pos, cell_dim)
+	dx, dy = get_dxyz(pos, cell_dim)
 	r2 = dx**2 + dy**2
 
 	verlet_list = check_cutoff(r2, rc**2)
 
-	bond_beads, dxdy_index, r_index = update_bond_lists(bond_matrix)
-	_, frc = calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
+	bond_beads, dxy_index, r_index = update_bond_lists(bond_matrix)
+	_, frc = calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 
-	return vel, frc, verlet_list, bond_beads, dxdy_index, r_index
+	return vel, frc, verlet_list, bond_beads, dxy_index, r_index
 
 
-def velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, bond_beads, dxdy_index, 
+def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, verlet_list, bond_beads, dxy_index, 
 					r_index, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, 
 					Langevin=False, gamma=0, sigma=1.0, xi = 0, theta = 0):
 	"""
-	velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, bond_beads, dxdy_index, 
+	velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, verlet_list, bond_beads, dxy_index, 
 					r_index, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, 
 					Langevin=False, gamma=0, sigma=1.0, xi = 0, theta = 0)
 
@@ -655,6 +663,9 @@ def velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, bond_bead
 
 	Parameters
 	----------
+
+	n_dim:  int
+		Number of dimensions
 
 	pos:  array_like (float); shape=(n_bead, n_dim)
 		Positions of n_bead beads in n_dim
@@ -677,7 +688,7 @@ def velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, bond_bead
 	bond_beads:  array_like, (int); shape=(n_angle, 3)
 		Array containing indicies in pos array all 3-bead angular interactions
 
-	dxdy_index:  array_like, (int); shape=(n_bond, 2)
+	dxy_index:  array_like, (int); shape=(n_bond, 2)
 		Array containing indicies in dx and dy arrays of all bonded interactions
 
 	r_index:  array_like, (int); shape=(n_bond, 2)
@@ -752,11 +763,11 @@ def velocity_verlet_alg(pos, vel, frc, mass, bond_matrix, verlet_list, bond_bead
 	cell = np.tile(cell_dim, (n_bead, 1)) 
 	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
  
-	dx, dy = get_dx_dy(pos, cell_dim)
+	dx, dy = get_dxyz(pos, cell_dim)
 	r2 = dx**2 + dy**2
 
 	verlet_list = check_cutoff(r2, rc**2)
-	pot_energy, new_frc = calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
+	pot_energy, new_frc = calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 	vel += 0.5 * dt * new_frc / mass
 
 	if Langevin: vel += 0.5 * dt * frc / mass - gamma * (dt * vel + C) + sigma * xi * np.sqrt(dt)
