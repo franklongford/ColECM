@@ -19,6 +19,15 @@ import simulation_2D as sim
 
 
 THRESH = 1E-8
+cell_dim = np.array([60, 60])
+
+pos = np.array([[20.3155606, 29.0287238],
+		[20.3657056, 28.0910350],
+		[19.7335474, 29.3759130]])
+bond_matrix = np.array([[0, 1, 0],
+			[1, 0, 1],
+			[0, 1, 0]])
+
 
 def test_unit_vector():
 
@@ -80,12 +89,6 @@ def test_load_save():
 
 def test_get_dxyz():
 
-	cell_dim = np.array([60, 60])
-
-	pos = np.array([[20.3155606, 29.0287238],
-			[20.3657056, 28.0910350],
-			[19.7335474, 29.3759130,]])
-
 	dx_check = np.array([[0, 20.3155606 - 20.3657056, 20.3155606 - 19.7335474],
 			     [20.3657056 - 20.3155606, 0, 20.3657056 - 19.7335474],
 			     [19.7335474 - 20.3155606, 19.7335474 - 20.3657056, 0]])
@@ -93,12 +96,13 @@ def test_get_dxyz():
 			     [28.0910350 - 29.0287238, 0, 28.0910350 - 29.3759130],
 			     [29.3759130 - 29.0287238, 29.3759130 - 28.0910350, 0]])
 
-	dx, dy = sim.get_dxyz(pos, cell_dim)
+	dx, dy = sim.get_dx_dy(pos, cell_dim)
 
 	assert abs(np.sum(dx - dx_check)) <= THRESH
 	assert abs(np.sum(dy - dy_check)) <= THRESH
 
 
+	"""
 	cell_dim = np.array([60, 60, 60])
 
 	pos = np.array([[20.3155606, 29.0287238, 58.6756206],
@@ -120,5 +124,25 @@ def test_get_dxyz():
 	assert abs(np.sum(dx - dx_check)) <= THRESH
 	assert abs(np.sum(dy - dy_check)) <= THRESH
 	assert abs(np.sum(dz - dz_check)) <= THRESH
+	"""
 
+def test_cos_sin_theta():
+
+	dx, dy = sim.get_dx_dy(pos, cell_dim)
+	bond_beads, dxdy_index, r_index = sim.update_bond_lists(bond_matrix)
+	indices_dxy = ut.create_index(dxdy_index)
+
+	vector = np.stack((dx[indices_dxy], dy[indices_dxy]), axis=1)
+	n_vector = int(vector.shape[0])
+
+	"Find |rij| values for each vector"
+	r_vector = np.sqrt(np.sum(vector**2, axis=1))
+
+	cos_the, sin_the, _ = sim.cos_theta(vector, r_vector)
+	cos = np.arccos(cos_the)
+
+	assert abs(np.sum(cos_the - 0.91957468)) <= THRESH
+	assert abs(np.sum(sin_the - np.sin(cos))) <= THRESH
+	
+	
 

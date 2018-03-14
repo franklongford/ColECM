@@ -96,12 +96,14 @@ def import_files(n_dim, param_file_name, pos_file_name):
 
 		l_conv = 10. / (l_fibre * 2 * vdw_param[0])
 
-		pos, cell_dim, bond_matrix = create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc)
+		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc)
+		cell_dim = np.array([20, 20])
 		print("Saving input pos file {}.npy".format(pos_file_name))
 		ut.save_npy(pos_file_name, pos)
 
 		param_file = ut.update_param_file(param_file_name, 'cell_dim', cell_dim)
 		param_file = ut.update_param_file(param_file_name, 'bond_matrix', bond_matrix)
+		param_file = ut.update_param_file(param_file_name, 'vdw_matrix', vdw_matrix)
 		param_file = ut.update_param_file(param_file_name, 'l_conv', l_conv)
 		
 	else:
@@ -110,9 +112,10 @@ def import_files(n_dim, param_file_name, pos_file_name):
 		pos = ut.load_npy(pos_file_name)
 		cell_dim = param_file['cell_dim']
 		bond_matrix = param_file['bond_matrix']
+		vdw_matrix = param_file['vdw_matrix']
 		l_conv = param_file['l_conv']
 
-	return pos, cell_dim, l_conv, bond_matrix, params
+	return pos, cell_dim, l_conv, bond_matrix, vdw_matrix, params
 
 
 
@@ -126,9 +129,9 @@ def check_cutoff(array, thresh):
 	return (array <= thresh).astype(float)
 
 
-def get_dxyz(pos, cell_dim):
+def get_dx_dy(pos, cell_dim):
 	"""
-	get_dxyz(pos, n_dim, cell_dim)
+	get_dx_dy(pos, n_dim, cell_dim)
 
 	Calculate distance vector between two beads
 
@@ -144,8 +147,11 @@ def get_dxyz(pos, cell_dim):
 	Returns
 	-------
 
-	dxyz:  array_like (float); shape=(n_dim, n_bead, n_bead)
-		Displacement along each axis between each bead
+	dx:  array_like (float); shape=(n_bead, n_bead)
+		Displacement along x axis between each bead
+
+	dy:  array_like (float); shape=(n_bead, n_bead)
+		Displacement along y axis between each bead
 
 	"""
 
@@ -153,15 +159,24 @@ def get_dxyz(pos, cell_dim):
 	n_dim = cell_dim.shape[0]
 
 	temp_pos = np.moveaxis(pos, 0, 1)
-	
+
+	dx = np.tile(temp_pos[0], (n_bead, 1))
+	dy = np.tile(temp_pos[1], (n_bead, 1))
+
+	dx = dx.T - dx
+	dy = dy.T - dy
+
+	dx -= cell_dim[0] * np.array(2 * dx / cell_dim[0], dtype=int)
+	dy -= cell_dim[1] * np.array(2 * dy / cell_dim[1], dtype=int)
+
+	"""	
 	dxyz = np.array([np.tile(temp_pos[0], (n_bead, 1)), np.tile(temp_pos[1], (n_bead, 1))])
 	dxyz = np.reshape(np.tile(temp_pos, (1, n_bead)), (n_dim, n_bead, n_bead))
-
 	dxyz = np.transpose(dxyz, axes=(0, 2, 1)) - dxyz
-
 	for i in range(n_dim): dxyz[i] -= cell_dim[i] * np.array(2 * dxyz[i] / cell_dim[i], dtype=int)
-	
-	return dxyz
+	"""	
+
+	return dx, dy
 
 
 def pot_harmonic(x, x0, k): 
@@ -249,7 +264,32 @@ def update_bond_lists(bond_matrix):
 	return bond_beads, dxdy_index, r_index
 
 
-def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index):
+def cos_theta(vector, r_vector):
+
+	n_vector = int(vector.shape[0])
+	temp_vector = np.reshape(vector, (int(n_vector/2), 2, 2))
+	split_vector = np.hsplit(np.reshape(vector, (int(n_vector/2), 4)), 2)
+
+	"Calculate |rij||rjk| product for each pair of vectors"
+	r_prod = np.prod(np.reshape(r_vector, (int(n_vector/2), 2)), axis = 1)
+
+	"Form dot product of each vector pair rij*rjk in vector array corresponding to an angle"
+	dot_prod = np.sum(np.prod(temp_vector, axis=1), axis=1)
+
+	"Form pseudo-cross product of each vector pair rij*rjk in vector array corresponding to an angle"
+	cross_prod = (split_vector[0] * np.flip(split_vector[1], 1)).T
+	cross_prod = cross_prod[0] - cross_prod[1]
+
+	"Calculate cos(theta) for each angle"
+	cos_the = dot_prod / r_prod
+
+	"Calculate sin(theta) for each angle"
+	sin_the = cross_prod / r_prod
+
+	return cos_the, sin_the, r_prod
+
+
+def calc_energy_forces(dx, dy, r2, bond_matrix, vdw_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index):
 	"""
 	calc_energy_forces(dxy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxdy_index, r_index)
 
@@ -322,6 +362,8 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_par
 
 		indices_half = ut.create_index(bond_index_half)
 		indices_full = ut.create_index(bond_index_full)
+	
+		indices_dxy = ut.create_index(dxdy_index)
 
 		r_half = np.sqrt(r2[indices_half])
 		r_full = np.repeat(r_half, 2)
@@ -341,19 +383,38 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_par
 
 		try:
 			"Make array of vectors rij, rjk for all connected bonds"
-			vector = np.stack((dx[ut.create_index(dxdy_index)], dy[ut.create_index(dxdy_index)]), axis=1)
+			vector = np.stack((dx[indices_dxy], dy[indices_dxy]), axis=1)
 			n_vector = int(vector.shape[0])
 
 			"Find |rij| values for each vector"
 			r_vector = r_half[r_index]
-			"Calculate |rij||rjk| product for each pair of vectors"
-			r_prod = np.prod(np.reshape(r_vector, (int(n_vector/2), 2)), axis = 1)
+			cos_the, sin_the, r_prod = cos_theta(vector, r_vector)
+			pot_energy += angle_param[1] * np.sum(cos_the + 1)
 
-			"Form dot product of each vector pair rij*rjk in vector array corresponding to an angle"
-			dot_prod = np.sum(np.prod(np.reshape(vector, (int(n_vector/2), 2, 2)), axis=1), axis=1)
-			"Calculate cos(theta) for each angle"
-			cos_the = dot_prod / r_prod
+			print(cos_the, np.arccos(cos_the) * 180 / np.pi)
+			print(sin_the, np.arcsin(sin_the) * 180 / np.pi)
 
+			"Form arrays of |rij| vales, cos(theta) and |rij||rjk| terms same shape as vector array"
+			r_array = np.reshape(np.repeat(r_vector, 2), vector.shape)
+			sin_the_array = np.reshape(np.repeat(sin_the, 4), vector.shape)
+			r_prod_array = np.reshape(np.repeat(r_prod, 4), vector.shape)
+
+			"Form left and right hand side terms of (cos(theta) rij / |rij|^2 - rjk / |rij||rjk|)"
+			r_left = vector / r_prod_array
+			r_right = sin_the_array * vector / r_array**2
+
+			ij_indices = np.arange(0, n_vector, 2)
+			jk_indices = np.arange(1, n_vector, 2)
+
+			"Perfrom right hand - left hand term for every rij rkj pair"
+			r_left[ij_indices] -= r_right[jk_indices]
+			r_left[jk_indices] -= r_right[ij_indices] 
+		
+			"Calculate forces upon beads i, j and k"
+			frc_angle_ij = angle_param[1] * r_left
+			frc_angle_k = -np.sum(np.reshape(frc_angle_ij, (int(n_vector/2), 2, 2)), axis=1) 
+
+			"""
 			"Form arrays of |rij| vales, cos(theta) and |rij||rjk| terms same shape as vector array"
 			r_array = np.reshape(np.repeat(r_vector, 2), vector.shape)
 			cos_the_array = np.reshape(np.repeat(cos_the, 4), vector.shape)
@@ -373,6 +434,7 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_par
 			"Calculate forces upon beads i, j and k"
 			frc_angle_ij = angle_param[1] * r_left
 			frc_angle_k = -np.sum(np.reshape(frc_angle_ij, (int(n_vector/2), 2, 2)), axis=1) 
+			"""
 
 			"Add angular forces to force array" 
 			f_beads_x[bond_beads.T[0]] -= frc_angle_ij[ij_indices].T[0]
@@ -387,10 +449,10 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_par
 
 
 	non_zero = np.nonzero(r2 * verlet_list)
-	nonbond_pot = pot_vdw((r2 * verlet_list)[non_zero], vdw_param[0], vdw_param[1]) - cut_pot
+	nonbond_pot = vdw_matrix[non_zero] * pot_vdw((r2 * verlet_list)[non_zero], vdw_param[0], vdw_param[1]) - cut_pot
 	pot_energy += np.nansum(nonbond_pot) / 2
 
-	nonbond_frc = force_vdw((r2 * verlet_list)[non_zero], vdw_param[0], vdw_param[1]) - cut_frc
+	nonbond_frc = vdw_matrix[non_zero] * force_vdw((r2 * verlet_list)[non_zero], vdw_param[0], vdw_param[1]) - cut_frc
 	temp_x = np.zeros(r2.shape)
 	temp_y = np.zeros(r2.shape)
 	temp_x[non_zero] += nonbond_frc * (dx[non_zero] / r2[non_zero])
@@ -404,7 +466,7 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_par
 	return pot_energy, frc_beads
 
 
-def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, max_energy):
+def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_matrix, vdw_param, bond_param, angle_param, rc, max_energy):
 	"""
 	grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_param, bond_param, angle_param, rc, max_energy)
 
@@ -474,10 +536,10 @@ def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_param, bond_param, 
 		while energy > max_energy:
 			new_vec = ut.rand_vector(n_dim) * vdw_param[0]
 			pos[n] = pos[n-1] + new_vec
-			dx, dy = get_dxyz(pos, cell_dim)
+			dx, dy = get_dx_dy(pos[:bead+1], cell_dim)
 			r2 = dx**2 + dy**2
 
-			energy, _ = calc_energy_forces(dx, dy, r2, bond_matrix, check_cutoff(r2, rc**2), 
+			energy, _ = calc_energy_forces(dx, dy, r2, bond_matrix, vdw_matrix, check_cutoff(r2, rc**2), 
 						vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 			
 	return pos
@@ -531,17 +593,17 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 	n_bead = n_fibre * l_fibre
 	pos = np.zeros((n_bead, n_dim), dtype=float)
 	bond_matrix = np.zeros((n_bead, n_bead), dtype=int)
-	"""
-	cross_matrix = np.zeros(n_bead, dtype=int)
+	vdw_matrix = np.zeros(n_bead, dtype=int)
 
 	for bead in range(n_bead):
-		if bead % l_fibre == 0: cross_matrix[bead] += 1
-		if bead % l_fibre == l_fibre-1: cross_matrix[bead] += 1
+		if bead % l_fibre == 0: vdw_matrix[bead] += 4
+		elif bead % l_fibre == l_fibre-1: vdw_matrix[bead] += 4
+		else: vdw_matrix[bead] += 1
 
-	cross_matrix = np.tile(cross_matrix, (1, n_bead))
+	vdw_matrix = np.reshape(np.tile(vdw_matrix, (1, n_bead)), (n_bead, n_bead))
 
-	for bead in range(n_bead): cross_matrix[bead][bead] = 0
-	"""
+	for bead in range(n_bead): vdw_matrix[bead][bead] = 0
+
 	for fibre in range(n_fibre):
 		for bead in range(1, l_fibre):
 			n = fibre * l_fibre + bead
@@ -554,7 +616,8 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 
 	for bead in range(l_fibre):
 		init_pos = grow_fibre(bead, bead, n_dim, n_bead, init_pos, 
-				bond_matrix[[slice(0, l_fibre) for _ in bond_matrix.shape]], 
+				bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]],
+				vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]], 
 				vdw_param, bond_param, angle_param, rc, 1E2)
 
 	pos[range(l_fibre)] += init_pos
@@ -575,10 +638,10 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 
 	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0]])
 
-	return pos, cell_dim, bond_matrix
+	return pos, cell_dim, bond_matrix, vdw_matrix
 
 
-def setup(pos, cell_dim, bond_matrix, mass, vdw_param, bond_param, angle_param, rc, kBT=1.0):
+def setup(pos, cell_dim, bond_matrix, vdw_matrix, mass, vdw_param, bond_param, angle_param, rc, kBT=1.0):
 	"""
 	setup(cell_dim, nchain, lchain, mass, kBT, vdw_param, bond_param, angle_param, rc)
 	
@@ -640,22 +703,22 @@ def setup(pos, cell_dim, bond_matrix, mass, vdw_param, bond_param, angle_param, 
 
 	n_bead = pos.shape[0]
 	vel = (np.random.random((n_bead, 2)) - 0.5) * 2 * kBT
-	dx, dy = get_dxyz(pos, cell_dim)
+	dx, dy = get_dx_dy(pos, cell_dim)
 	r2 = dx**2 + dy**2
 
 	verlet_list = check_cutoff(r2, rc**2)
 
 	bond_beads, dxy_index, r_index = update_bond_lists(bond_matrix)
-	_, frc = calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
+	_, frc = calc_energy_forces(dx, dy, r2, bond_matrix, vdw_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 
 	return vel, frc, verlet_list, bond_beads, dxy_index, r_index
 
 
-def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, verlet_list, bond_beads, dxy_index, 
+def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list, bond_beads, dxy_index, 
 					r_index, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, 
 					Langevin=False, gamma=0, sigma=1.0, xi = 0, theta = 0):
 	"""
-	velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, verlet_list, bond_beads, dxy_index, 
+	velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list, bond_beads, dxy_index, 
 					r_index, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, 
 					Langevin=False, gamma=0, sigma=1.0, xi = 0, theta = 0)
 
@@ -763,11 +826,11 @@ def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, verlet_list, bo
 	cell = np.tile(cell_dim, (n_bead, 1)) 
 	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
  
-	dx, dy = get_dxyz(pos, cell_dim)
+	dx, dy = get_dx_dy(pos, cell_dim)
 	r2 = dx**2 + dy**2
 
 	verlet_list = check_cutoff(r2, rc**2)
-	pot_energy, new_frc = calc_energy_forces(dx, dy, r2, bond_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
+	pot_energy, new_frc = calc_energy_forces(dx, dy, r2, bond_matrix, vdw_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 	vel += 0.5 * dt * new_frc / mass
 
 	if Langevin: vel += 0.5 * dt * frc / mass - gamma * (dt * vel + C) + sigma * xi * np.sqrt(dt)

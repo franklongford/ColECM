@@ -104,7 +104,7 @@ if not os.path.exists(gif_dir): os.mkdir(gif_dir)
 fig_dir = current_dir + '/fig'
 if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
-skip = 5
+skip = 1
 n_image = int(n_frame/skip)
 
 tot_pos = np.moveaxis(tot_pos, 2, 1)

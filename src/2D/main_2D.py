@@ -50,19 +50,19 @@ n_dim = 2
 traj_steps = 100
 dt = 0.002
 
-pos, cell_dim, l_conv, bond_matrix, params = sim.import_files(n_dim, param_file_name, pos_file_name)
+pos, cell_dim, l_conv, bond_matrix, vdw_matrix, params = sim.import_files(n_dim, param_file_name, pos_file_name)
 if len(params) == 7: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin = params
 else: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin, thermo_gamma, thermo_sigma = params
 
 n_bead = pos.shape[0]
 
-vel, frc, verlet_list, bond_beads, dxdy_index, r_index = sim.setup(pos, cell_dim, bond_matrix, mass, vdw_param, bond_param, angle_param, rc, kBT)
+vel, frc, verlet_list, bond_beads, dxdy_index, r_index = sim.setup(pos, cell_dim, bond_matrix, vdw_matrix, mass, vdw_param, bond_param, angle_param, rc, kBT)
 
 tot_pos = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
 tot_vel = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
 tot_frc = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
 
-#energy_array = np.zeros(n_steps)
+energy_array = np.zeros(n_steps)
 
 init_time_stop = time.time()
 
@@ -70,8 +70,8 @@ print("\nSetup complete: {:5.3f} s \nBead radius = {} um, Simulation cell dimens
 
 sim_time_start = time.time()
 
-dxy = sim.get_dxyz(pos, cell_dim)
-r2 = np.sum(dxy**2, axis=1)
+dx, dy = sim.get_dx_dy(pos, cell_dim)
+r2 = dx**2 + dy**2
 verlet_list = sim.check_cutoff(r2, rc**2)
 
 print("\nRunning Simulation")
@@ -83,11 +83,11 @@ for step in range(n_steps):
 	thermo_xi = np.random.normal(0, 1, (n_bead, n_dim))
 	thermo_theta = np.random.normal(0, 1, (n_bead, n_dim))
 
-	pos, vel, frc, verlet_list, energy = sim.velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, verlet_list,
+	pos, vel, frc, verlet_list, energy = sim.velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list,
 						bond_beads, dxdy_index, r_index, dt, cell_dim, vdw_param, bond_param,
 						angle_param, rc, kBT, Langevin, thermo_gamma, thermo_sigma, thermo_xi, thermo_theta)
 
-	#energy_array[step] += energy
+	energy_array[step] += energy
 
 	if step % traj_steps == 0:
 		i = int(step / traj_steps)
@@ -97,7 +97,7 @@ for step in range(n_steps):
 
 	if np.sum(np.abs(vel)) >= kBT * 1E5: 
 		print("velocity exceeded, step ={}".format(step))
-		dx, dy = sim.get_dxyz(pos, cell_dim)
+		dx, dy = sim.get_dx_dy(pos, cell_dim)
 		r2 = dx**2 + dy**2
 		n_steps = step
 		break 
@@ -115,8 +115,9 @@ ut.save_npy(restart_file_name, tot_pos[-1])
 print("Saving trajectory file {}".format(traj_file_name))
 ut.save_npy(traj_file_name, tot_pos)
 
-#CMA = ut.cum_mov_average(energy_array[:n_steps]) / n_bead
-#plt.plot(CMA)
-#plt.show()
+import matplotlib.pyplot as plt
+CMA = ut.cum_mov_average(energy_array[:n_steps]) / n_bead
+plt.plot(CMA)
+plt.show()
 
 
