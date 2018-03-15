@@ -248,7 +248,6 @@ def create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero):
 	for i, index in enumerate(indices):
 	
 		r_cut_shift = move_2D_array_centre(r_cut, index)
-
 		non_zero_shift = move_2D_array_centre(non_zero, index)
 		image[np.where(non_zero_shift)] += gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, sigma) * intensity[i]
 
