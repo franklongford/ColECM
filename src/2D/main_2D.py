@@ -48,6 +48,7 @@ init_time_start = time.time()
 
 n_dim = 2
 traj_steps = 100
+n_frames = int(n_steps / traj_steps)
 dt = 0.002
 
 pos, cell_dim, l_conv, bond_matrix, vdw_matrix, params = sim.import_files(n_dim, param_file_name, pos_file_name)
@@ -58,9 +59,9 @@ n_bead = pos.shape[0]
 
 vel, frc, verlet_list, bond_beads, dxdy_index, r_index = sim.setup(pos, cell_dim, bond_matrix, vdw_matrix, mass, vdw_param, bond_param, angle_param, rc, kBT)
 
-tot_pos = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
-tot_vel = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
-tot_frc = np.zeros((int(n_steps/traj_steps), n_bead, n_dim))
+tot_pos = np.zeros((n_frames, n_bead, n_dim))
+tot_vel = np.zeros((n_frames, n_bead, n_dim))
+tot_frc = np.zeros((n_frames, n_bead, n_dim))
 
 energy_array = np.zeros(n_steps)
 
@@ -115,9 +116,25 @@ ut.save_npy(restart_file_name, tot_pos[-1])
 print("Saving trajectory file {}".format(traj_file_name))
 ut.save_npy(traj_file_name, tot_pos)
 
+"""
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
 CMA = ut.cum_mov_average(energy_array[:n_steps]) / n_bead
 plt.plot(CMA)
 plt.show()
 
+def animate(n):
+	plt.title('Frame {}'.format(n))
+	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
+
+tot_pos = np.moveaxis(tot_pos, 2, 1)
+
+fig, ax = plt.subplots()
+sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
+plt.xlim(0, cell_dim[0])
+plt.ylim(0, cell_dim[1])
+ani = animation.FuncAnimation(fig, animate, frames=n_frames, interval=100, repeat=False)
+plt.show()
+"""
 

@@ -97,7 +97,6 @@ def import_files(n_dim, param_file_name, pos_file_name):
 		l_conv = 10. / (l_fibre * 2 * vdw_param[0])
 
 		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc)
-		cell_dim = np.array([20, 20])
 		print("Saving input pos file {}.npy".format(pos_file_name))
 		ut.save_npy(pos_file_name, pos)
 
@@ -255,7 +254,7 @@ def update_bond_lists(bond_matrix):
 
 		if slice_full.shape[0] > 1:
 			bond_beads.append(np.unique(bond_index_full[slice_full].flatten()))
-			dxdy_index.append(bond_index_full[slice_full])
+			dxdy_index.append(bond_index_full[slice_full][::-1])
 
 	bond_beads = np.array(bond_beads)
 	dxdy_index = np.reshape(dxdy_index, (2 * len(dxdy_index), 2))
@@ -264,11 +263,15 @@ def update_bond_lists(bond_matrix):
 	return bond_beads, dxdy_index, r_index
 
 
-def cos_theta(vector, r_vector):
+def cos_sin_theta(vector, r_vector):
+	"""
+	cos_sin_theta(vector, r_vector)
+
+	Returns cosine and sine of angles of intersecting vectors betwen even and odd indicies
+	"""
 
 	n_vector = int(vector.shape[0])
 	temp_vector = np.reshape(vector, (int(n_vector/2), 2, 2))
-	split_vector = np.hsplit(np.reshape(vector, (int(n_vector/2), 4)), 2)
 
 	"Calculate |rij||rjk| product for each pair of vectors"
 	r_prod = np.prod(np.reshape(r_vector, (int(n_vector/2), 2)), axis = 1)
@@ -277,8 +280,7 @@ def cos_theta(vector, r_vector):
 	dot_prod = np.sum(np.prod(temp_vector, axis=1), axis=1)
 
 	"Form pseudo-cross product of each vector pair rij*rjk in vector array corresponding to an angle"
-	cross_prod = (split_vector[0] * np.flip(split_vector[1], 1)).T
-	cross_prod = cross_prod[0] - cross_prod[1]
+	cross_prod = np.linalg.det(temp_vector)
 
 	"Calculate cos(theta) for each angle"
 	cos_the = dot_prod / r_prod
@@ -388,11 +390,8 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, vdw_matrix, verlet_list, vdw_par
 
 			"Find |rij| values for each vector"
 			r_vector = r_half[r_index]
-			cos_the, sin_the, r_prod = cos_theta(vector, r_vector)
+			cos_the, sin_the, r_prod = cos_sin_theta(vector, r_vector)
 			pot_energy += angle_param[1] * np.sum(cos_the + 1)
-
-			print(cos_the, np.arccos(cos_the) * 180 / np.pi)
-			print(sin_the, np.arcsin(sin_the) * 180 / np.pi)
 
 			"Form arrays of |rij| vales, cos(theta) and |rij||rjk| terms same shape as vector array"
 			r_array = np.reshape(np.repeat(r_vector, 2), vector.shape)
@@ -412,38 +411,16 @@ def calc_energy_forces(dx, dy, r2, bond_matrix, vdw_matrix, verlet_list, vdw_par
 		
 			"Calculate forces upon beads i, j and k"
 			frc_angle_ij = angle_param[1] * r_left
-			frc_angle_k = -np.sum(np.reshape(frc_angle_ij, (int(n_vector/2), 2, 2)), axis=1) 
-
-			"""
-			"Form arrays of |rij| vales, cos(theta) and |rij||rjk| terms same shape as vector array"
-			r_array = np.reshape(np.repeat(r_vector, 2), vector.shape)
-			cos_the_array = np.reshape(np.repeat(cos_the, 4), vector.shape)
-			r_prod_array = np.reshape(np.repeat(r_prod, 4), vector.shape)
-
-			"Form left and right hand side terms of (cos(theta) rij / |rij|^2 - rjk / |rij||rjk|)"
-			r_left = cos_the_array * vector / r_array**2
-			r_right = vector / r_prod_array
-
-			ij_indices = np.arange(0, vector.shape[0], 2)
-			jk_indices = np.arange(1, vector.shape[0], 2)
-
-			"Perfrom right hand - left hand term for every rij rkj pair"
-			r_left[ij_indices] -= r_right[jk_indices]
-			r_left[jk_indices] -= r_right[ij_indices] 
-		
-			"Calculate forces upon beads i, j and k"
-			frc_angle_ij = angle_param[1] * r_left
-			frc_angle_k = -np.sum(np.reshape(frc_angle_ij, (int(n_vector/2), 2, 2)), axis=1) 
-			"""
+			frc_angle_k = -np.sum(np.reshape(frc_angle_ij, (int(n_vector/2), 2, 2)), axis=1)
 
 			"Add angular forces to force array" 
-			f_beads_x[bond_beads.T[0]] -= frc_angle_ij[ij_indices].T[0]
-			f_beads_x[bond_beads.T[1]] -= frc_angle_k.T[0]
-			f_beads_x[bond_beads.T[2]] -= frc_angle_ij[jk_indices].T[0]
+			f_beads_x[bond_beads.T[0]] += frc_angle_ij[ij_indices].T[0]
+			f_beads_x[bond_beads.T[1]] += frc_angle_k.T[0]
+			f_beads_x[bond_beads.T[2]] += frc_angle_ij[jk_indices].T[0]
 
-			f_beads_y[bond_beads.T[0]] -= frc_angle_ij[ij_indices].T[1]
-			f_beads_y[bond_beads.T[1]] -= frc_angle_k.T[1]
-			f_beads_y[bond_beads.T[2]] -= frc_angle_ij[jk_indices].T[1]
+			f_beads_y[bond_beads.T[0]] += frc_angle_ij[ij_indices].T[1]
+			f_beads_y[bond_beads.T[1]] += frc_angle_k.T[1]
+			f_beads_y[bond_beads.T[2]] += frc_angle_ij[jk_indices].T[1]
 
 		except IndexError: pass
 
@@ -539,9 +516,23 @@ def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_matrix, vdw_param, 
 			dx, dy = get_dx_dy(pos[:bead+1], cell_dim)
 			r2 = dx**2 + dy**2
 
+			"""
+			print(bead, '\n')
+
+			import matplotlib.pyplot as plt
+
+			print(pos)
+			plt.figure(0)
+			if bead >1: 
+				plt.scatter(pos.T[0][:bead+1], pos.T[1][:bead+1])
+				plt.plot(pos.T[0][:bead+1], pos.T[1][:bead+1])
+				plt.show()
+			"""
 			energy, _ = calc_energy_forces(dx, dy, r2, bond_matrix, vdw_matrix, check_cutoff(r2, rc**2), 
 						vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
-			
+
+		#if bead == 3: sys.exit()
+
 	return pos
 
 
@@ -596,8 +587,8 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 	vdw_matrix = np.zeros(n_bead, dtype=int)
 
 	for bead in range(n_bead):
-		if bead % l_fibre == 0: vdw_matrix[bead] += 4
-		elif bead % l_fibre == l_fibre-1: vdw_matrix[bead] += 4
+		if bead % l_fibre == 0: vdw_matrix[bead] += 8
+		elif bead % l_fibre == l_fibre-1: vdw_matrix[bead] += 8
 		else: vdw_matrix[bead] += 1
 
 	vdw_matrix = np.reshape(np.tile(vdw_matrix, (1, n_bead)), (n_bead, n_bead))
