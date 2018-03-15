@@ -516,18 +516,6 @@ def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_matrix, vdw_param, 
 			dx, dy = get_dx_dy(pos[:bead+1], cell_dim)
 			r2 = dx**2 + dy**2
 
-			"""
-			print(bead, '\n')
-
-			import matplotlib.pyplot as plt
-
-			print(pos)
-			plt.figure(0)
-			if bead >1: 
-				plt.scatter(pos.T[0][:bead+1], pos.T[1][:bead+1])
-				plt.plot(pos.T[0][:bead+1], pos.T[1][:bead+1])
-				plt.show()
-			"""
 			energy, _ = calc_energy_forces(dx, dy, r2, bond_matrix, vdw_matrix, check_cutoff(r2, rc**2), 
 						vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 
