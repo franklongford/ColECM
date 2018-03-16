@@ -110,7 +110,7 @@ n_image = int(n_frame/skip)
 tot_pos = np.moveaxis(tot_pos, 2, 1)
 image_md = [tot_pos[n] for n in range(0, n_frame, skip)]
 
-image_shg = ut.images_for_gif(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, n_image)
+image_shg = ut.shg_images(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, sigma * 2)
 
 make_gif(gif_file_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
 

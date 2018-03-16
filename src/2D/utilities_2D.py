@@ -189,18 +189,58 @@ def create_index(array):
 
 
 def move_2D_array_centre(array, centre):
+	"""
+	move_2D_array_centre(array, centre)
+
+	Move top left corner of 2D array to centre index
+	"""
 
 	for i, ax in enumerate([1, 0]): array = np.roll(array, centre[i], axis=ax)
 
 	return array
 
 
-def gaussian(x, mean, std): return np.exp(-(x-mean)**2 / (2 * std**2)) / (SQRT2 * std * SQRTPI)
+def gaussian(x, mean, std):
+	"""
+	Return value at position x from Gaussian distribution with centre mean and standard deviation std
+	"""
+
+	return np.exp(-(x-mean)**2 / (2 * std**2)) / (SQRT2 * std * SQRTPI)
 
 
 
-def images_for_gif(traj, sigma, n_x, n_y, n_image):
+def shg_images(traj, sigma, n_x, n_y, cut):
+	"""
+	shg_images(traj, sigma, n_x, n_y)
 
+	Form a set of imitation SHG images from Gaussian convolution of a set of trajectories
+
+	Parameters
+	----------
+
+	traj:  array_like (float); shape=(n_images, n_bead, n_dim)
+		Array of sampled configurations from a simulation
+
+	sigma:  float
+		Parameter to determine variance of Guassian distribution
+
+	n_x:  int
+		Number of pixels in image x dimension
+
+	n_y:  int
+		Number of pixels in image y dimension
+
+	cut:  float
+		Cutoff radius for convolution
+
+	Returns
+	-------
+
+	image_shg:  array_like (float); shape=(n_images, n_x, n_y)
+		Array of images corresponding to each trajectory configuration
+	"""
+
+	n_image = traj.shape[0]
 	image_shg = np.zeros((n_image, n_y, n_x))
 
 	"Calculate distances between grid points"
@@ -215,7 +255,7 @@ def images_for_gif(traj, sigma, n_x, n_y, n_image):
 	r2 = dx**2 + dy**2
 
 	"Find indicies within cutoff radius"
-	cutoff = np.where(r2 <= (sigma * 2)**2)
+	cutoff = np.where(r2 <= cut**2)
 
 	"Form a filter for cutoff radius"
 	non_zero = np.zeros((n_x, n_y))
@@ -232,15 +272,54 @@ def images_for_gif(traj, sigma, n_x, n_y, n_image):
 	return image_shg
 
 
-def create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero):
+def create_image(pos_x, pos_y, std, n_x, n_y, r_cut, non_zero):
+	"""
+	create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero)
+
+	Create Gaussian convoluted image from a set of bead positions
+
+	Parameter
+	---------
+
+	pos_x:  array_like (float), shape=(n_bead)
+		Bead position along x dimension
+
+	pos_y:  array_like (float), shape=(n_bead)
+		Bead position along y dimension
+
+	std:  float
+		Standard deviation of Gaussian distribution
+
+	n_x:  int
+		Number of pixels in image x dimension
+
+	n_y:  int
+		Number of pixels in image y dimension
+
+	r_cut:  array_like (float); shape=(n_x, n_y)
+		Matrix of radial distances between pixels with cutoff radius applied
+
+	non_zero:  array_like (float); shape=(n_x, n_y)
+		Filter representing indicies to use in convolution
+
+	Returns
+	-------
+
+	histogram:  array_like (int); shape=(n_x, n_y)
+		Discretised distribution of pos_x and pos_y
+
+	image:  array_like (float); shape=(n_x, n_y)
+		Convoluted SHG imitation image
+
+	"""
 
 	"Discretise data"
-	histogram, xedges, yedges = np.histogram2d(pos_x, pos_y, bins=[n_x, n_y])#, range=[[0, 0], [cell_dim[0], cell_dim[1]]])
-	H = histogram.T
+	histogram, xedges, yedges = np.histogram2d(pos_x, pos_y, bins=[n_x, n_y])
+	histogram = histogram.T
 
 	"Get indicies and intensity of non-zero histogram grid points"
-	indices = np.argwhere(H)
-	intensity = H[np.where(H)]
+	indices = np.argwhere(histogram)
+	intensity = histogram[np.where(histogram)]
 
 	"Generate blank image"
 	image = np.zeros((n_x, n_y))
@@ -249,7 +328,7 @@ def create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero):
 	
 		r_cut_shift = move_2D_array_centre(r_cut, index)
 		non_zero_shift = move_2D_array_centre(non_zero, index)
-		image[np.where(non_zero_shift)] += gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, sigma) * intensity[i]
+		image[np.where(non_zero_shift)] += gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * intensity[i]
 
 		#"Performs the full mapping for comparison"
 		#r_shift = move_2D_array_centre(r, index)
@@ -257,6 +336,7 @@ def create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero):
 		#				(n_x, n_y)) * intensity[i]
 		#image += gauss_map
 
+	image = image.T
 
-	return histogram.T, image.T
+	return histogram, image
 

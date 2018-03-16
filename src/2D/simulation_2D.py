@@ -268,6 +268,27 @@ def cos_sin_theta(vector, r_vector):
 	cos_sin_theta(vector, r_vector)
 
 	Returns cosine and sine of angles of intersecting vectors betwen even and odd indicies
+
+	Parameters
+	----------
+
+	vector:  array_like, (float); shape=(n_vector, n_dim)
+		Array of displacement vectors between connecting beads
+
+	r_vector: array_like, (float); shape=(n_vector)
+		Array of radial distances between connecting beads
+
+	Returns
+	-------
+
+	cos_the:  array_like (float); shape=(n_vector/2)
+		Cosine of the angle between each pair of displacement vectors
+
+	sin_the: array_like (float); shape=(n_vector/2)
+		Sine of the angle between each pair of displacement vectors
+
+	r_prod: array_like (float); shape=(n_vector/2)
+		Product of radial distance between each pair of displacement vectors
 	"""
 
 	n_vector = int(vector.shape[0])
