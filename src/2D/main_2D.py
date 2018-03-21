@@ -107,8 +107,11 @@ for step in range(n_steps):
 sim_time_stop = time.time()
 
 sim_time = sim_time_stop - sim_time_start
+time_hour = int(sim_time / 60**2)
+time_min = int((sim_time - (time_hour * 60)) / 60)
+time_sec = int(sim_time) % 60
 
-print("\nSimulation complete: {:10d} min {:2d} s ({:5.3f} s)".format(int(sim_time / 60), int(sim_time) % 60, sim_time))
+print("\nSimulation complete: {:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, sim_time))
 
 print("Saving restart file {}".format(restart_file_name))
 ut.save_npy(restart_file_name, tot_pos[-1])
