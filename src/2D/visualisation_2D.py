@@ -4,7 +4,7 @@ COLLAGEN FIBRE SIMULATION 2D VISULISATION
 Created by: Frank Longford
 Created on: 01/11/15
 
-Last Modified: 06/03/2018
+Last Modified: 21/03/2018
 """
 
 import numpy as np
@@ -47,21 +47,12 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 	file_name_gif = '{}_{}_{}_{}'.format(file_name, res, sharp, n_frame)
 	file_path_name = '{}/{}.gif'.format(gif_dir, file_name_gif)
 
-	"""
-	images = []
-	for filename in image_list:
-	       images.append(imageio.imread(filename))
-	imageio.mimsave(file_path_name, images)
-	"""
-
 	with imageio.get_writer(file_path_name, mode='I', duration=0.3, format='GIF') as writer:
 		for filename in image_list:
 			image = imageio.imread(filename)
 			writer.append_data(image)
 			#os.remove(filename)
 	
-
-
 
 def animate(n):
 	plt.title('Frame {}'.format(n))
