@@ -49,7 +49,7 @@ init_time_start = time.time()
 n_dim = 2
 traj_steps = 100
 n_frames = int(n_steps / traj_steps)
-dt = 0.002
+dt = 0.004
 
 pos, cell_dim, l_conv, bond_matrix, vdw_matrix, params = sim.import_files(n_dim, param_file_name, pos_file_name)
 if len(params) == 7: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin = params
@@ -62,6 +62,7 @@ vel, frc, verlet_list, bond_beads, dxdy_index, r_index = sim.setup(pos, cell_dim
 tot_pos = np.zeros((n_frames, n_bead, n_dim))
 tot_vel = np.zeros((n_frames, n_bead, n_dim))
 tot_frc = np.zeros((n_frames, n_bead, n_dim))
+tot_temp = np.zeros((n_frames))
 
 energy_array = np.zeros(n_steps)
 
@@ -95,20 +96,23 @@ for step in range(n_steps):
 		tot_pos[i] += pos
 		tot_vel[i] += vel
 		tot_frc[i] += frc
+		tot_temp[i] += np.mean(vel**2)
 
 	if np.sum(np.abs(vel)) >= kBT * 1E5: 
 		print("velocity exceeded, step ={}".format(step))
-		dx, dy = sim.get_dx_dy(pos, cell_dim)
-		r2 = dx**2 + dy**2
 		n_steps = step
-		break 
-	
+		sys.exit() 
+
+print("Min Velocity: {:4.5f}".format(np.min(abs(tot_vel))))
+print("Max Velocity:  {:4.5f}".format(np.max(abs(tot_vel))))
+print("Average Velocity: {:4.5f}".format(np.mean(abs(tot_vel))))
+print("Average Temperature: {:4.5f}".format(np.mean(tot_temp)))	
 
 sim_time_stop = time.time()
 
 sim_time = sim_time_stop - sim_time_start
 time_hour = int(sim_time / 60**2)
-time_min = int((sim_time - (time_hour * 60)) / 60)
+time_min = int((sim_time / 60) % 60)
 time_sec = int(sim_time) % 60
 
 print("\nSimulation complete: {:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, sim_time))
