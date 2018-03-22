@@ -249,14 +249,6 @@ make_gif(gif_file_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, shar
 make_gif(gif_file_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
 """
-hist, image = ut.create_image(tot_pos[-1], 2 * vdw_param[0] * sharp, n_x, n_y)
-
-fig = plt.figure(figsize=(cell_dim[0]/4, cell_dim[1]/4))
-plt.scatter(tot_pos[-1].T[0], tot_pos[-1].T[1])
-plt.axis([0, cell_dim[0], 0, cell_dim[1]])
-plt.savefig('{}/{}_pos_sample.png'.format(gif_dir, gif_file_name), bbox_inches='tight')
-plt.close()
-
 fig, ax = plt.subplots()
 plt.imshow(hist, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
 #plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))

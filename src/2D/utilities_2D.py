@@ -351,7 +351,7 @@ def create_image(pos_x, pos_y, std, n_x, n_y, r_cut, filter_):
 		#				(n_x, n_y)) * intensity[i]
 		#image += gauss_map
 
-	image= image.T
+	image = image.T
 
 	return histogram, image
 
@@ -392,7 +392,11 @@ def fibre_align(histogram, std, n_x, n_y, dx, dy, r_cut, non_zero):
 	Returns
 	-------
 
-	
+	dx_grid:  array_like (float); shape=(n_y, n_x)
+		Matrix of derivative of image inensity with respect to x axis in pixels with cutoff radius applied
+
+	dy_grid:  array_like (float); shape=(n_y, n_x)
+		Matrix of derivative of image inensity with respect to y axis in pixels with cutoff radius applied
 
 	"""
 
