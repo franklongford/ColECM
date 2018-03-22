@@ -64,15 +64,33 @@ def form_n_vector(dx_shg, dy_shg):
 	indicies = np.where(r_xy_2 > 0)
 	r_xy[indicies] += np.sqrt(r_xy_2[indicies].flatten())
 
-	tx[indicies] += dx_shg[indicies] / r_xy[indicies]
-	ty[indicies] -= dy_shg[indicies] / r_xy[indicies]
+	ty[indicies] -= dx_shg[indicies] / r_xy[indicies]
+	tx[indicies] += dy_shg[indicies] / r_xy[indicies]
+
+	"""
+	plt.figure(0)
+	plt.imshow(tx[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+	plt.figure(1)
+	plt.imshow(ty[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+	plt.show()
+	"""
 
 	nxx = tx**2
 	nyy = ty**2
 	nxy = tx*ty
 
+	"""
+	plt.figure(0)
+	plt.imshow(nxx[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+	plt.figure(1)
+	plt.imshow(nyy[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+	plt.figure(2)
+	plt.imshow(nxy[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+	plt.show()
+	"""
+
 	n_vector = np.array((nxx, nxy, nxy, nyy))
-	n_vector = np.moveaxis(n_vector, (1, 3, 2, 0), (0, 1, 2, 3))
+	n_vector = np.moveaxis(n_vector, (1, 0, 2, 3), (0, 1, 2, 3))
 
 	return n_vector
 
@@ -80,29 +98,77 @@ def form_n_vector(dx_shg, dy_shg):
 def alignment_analysis(n_vector, area):
 
 	n_frame = n_vector.shape[0]
-	n_x = n_vector.shape[1]
 	n_y = n_vector.shape[2]
-	pixel_xy = np.array((n_x / area, n_y / area), dtype=int)
-	print(n_x, n_y, pixel_xy*area)
-	av_n1 = np.zeros((n_frame, area, area))
-	av_n2 = np.zeros((n_frame, area, area))
-	av_n_vec = np.zeros((n_frame, area, area, 2, 2))
+	n_x = n_vector.shape[3]
 
-	for x in range(area):
-		for y in range(area):
-			cut_n_vector = n_vector[:, pixel_xy[0] * x: pixel_xy[0] * (x+1), 
-									pixel_xy[1] * y: pixel_xy[1] * (y+1), :]
-			cut_n_vector = np.moveaxis(cut_n_vector, (0, 3, 1, 2), (0, 1, 2, 3))
+	pixel_xy = np.array((n_x / area, n_y / area), dtype=int)
+	av_eigval = np.zeros((n_frame, area, area, 2))
+	av_eigvec = np.zeros((n_frame, area, area, 2, 2))
+
+	for y in range(area):
+		for x in range(area):
+
+			cut_image = image_shg[0, pixel_xy[1] * y: pixel_xy[1] * (y+1), 
+						pixel_xy[0] * x: pixel_xy[0] * (x+1)]
+		
+			cut_n_vector = n_vector[:, :, pixel_xy[1] * y: pixel_xy[1] * (y+1), 
+						pixel_xy[0] * x: pixel_xy[0] * (x+1)]
+			
+			"""
+			plt.figure(0)
+			plt.scatter(tot_pos[0][0], tot_pos[0][1])
+			plt.axis([0, cell_dim[0], 0, cell_dim[1]])
+			plt.figure(1)
+			plt.imshow(image_shg[0], cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+						
+			plt.figure(1)
+			plt.imshow(cut_n_vector[0][0], cmap='Reds', extent=[x * pixel_xy[0] / res, (x+1) * pixel_xy[0] / res,
+								   	    y * pixel_xy[1] / res, (y+1) * pixel_xy[1] / res], origin='lower')
+			plt.figure(2)
+			plt.imshow(cut_n_vector[0][1], cmap='coolwarm', extent=[x * pixel_xy[0] / res, (x+1) * pixel_xy[0] / res,
+								   	    y * pixel_xy[1] / res, (y+1) * pixel_xy[1] / res], origin='lower')
+			plt.figure(3)
+			plt.imshow(cut_n_vector[0][3], cmap='Reds', extent=[x * pixel_xy[0] / res, (x+1) * pixel_xy[0] / res,
+								   	    y * pixel_xy[1] / res, (y+1) * pixel_xy[1] / res], origin='lower')
+			fig = plt.figure(4)
+			plt.imshow(image_shg[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+			ax = fig.gca()
+			ax.set_yticks(np.arange(area) * pixel_xy[1] / res)
+			ax.set_xticks(np.arange(area) * pixel_xy[0] / res)
+			plt.grid(True, color='black', linestyle='dashed')
+			plt.figure(5)
+			plt.imshow(cut_image, cmap='Reds', extent=[x * pixel_xy[0] / res, (x+1) * pixel_xy[0] / res,
+								   y * pixel_xy[1] / res, (y+1) * pixel_xy[1] / res], origin='lower')
+			"""
+			
 			av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
 
 			for frame in range(n_frame):
-				eig_val, eig_vec = np.linalg.eig(av_n[frame])
+				eig_val, eig_vec = np.linalg.eigh(av_n[frame])
 
-				av_n1[frame][y][x] += eig_val[0]
-				av_n2[frame][y][x] += eig_val[1]
-				av_n_vec[frame][y][x] += eig_vec
+				av_eigval[frame][y][x] += eig_val
+				av_eigvec[frame][y][x] += eig_vec
 
-	return av_n1, av_n2, av_n_vec
+				"""
+				if frame == 0: 
+
+					eig1 = np.argmax(eig_val)
+					eig2 = np.argmin(eig_val)
+
+					centre_x = (x + 0.5) * pixel_xy[0] / res
+					centre_y = (y + 0.5) * pixel_xy[1] / res
+
+					#plt.arrow(centre_x, centre_y, av_eigvec[0][y][x][eig1][0] * av_eigval[0][y][x][eig1], av_eigvec[0][y][x][eig1][1] * av_eigval[0][y][x][eig1])
+					#plt.arrow(centre_x, centre_y, av_eigvec[0][y][x][eig2][0] * av_eigval[0][y][x][eig2], av_eigvec[0][y][x][eig2][1] * av_eigval[0][y][x][eig2], linestyle='dashed')
+
+					plt.arrow(centre_x, centre_y, eig_vec[0][eig1] * eig_val[eig1], eig_vec[1][eig1] * eig_val[eig1], lw='5.0')
+					plt.arrow(centre_x, centre_y, eig_vec[0][eig2] * eig_val[eig2], eig_vec[1][eig2] * eig_val[eig2], lw='5.0', linestyle='dashed')
+					plt.title('anisotropy = {}'.format(eig_val[eig1] - eig_val[eig2]))
+
+					plt.show()
+				"""
+
+	return av_eigval, av_eigvec
 	
 
 def animate(n):
@@ -149,22 +215,35 @@ if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
 skip = 10
 n_image = int(n_frame/skip)
+area = 5
 
 tot_pos = np.moveaxis(tot_pos, 2, 1)
+
 image_md = np.array([tot_pos[n] for n in range(0, n_frame, skip)])
 
-image_shg, dx_shg, dy_shg = ut.shg_images(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, rc * sharp)
-n_vector = form_n_vector(dx_shg, dy_shg)
-area = 5
-n1_shg, n2_shg, n_shg = alignment_analysis(n_vector, area)
+"""
+test_dist = np.argwhere(np.eye(n_x, M=n_y, k=-1) + np.eye(n_x, M=n_y) + np.eye(n_x, M=n_y, k=1))
+test_image, test_dx, test_dy = ut.shg_images(np.array((test_dist.T, test_dist.T)), 2 * vdw_param[0] * sharp, n_x, n_y, rc * sharp)
 
 plt.figure(0)
-plt.imshow(image_shg[-1], cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+plt.imshow(test_image[0], cmap='Reds', extent=[0, n_x, 0, n_y], origin='lower')
 plt.figure(1)
-plt.imshow(dx_shg[-1], cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+plt.imshow(test_dx[0], cmap='coolwarm', extent=[0, n_x, 0, n_y], origin='lower')
 plt.figure(2)
-plt.imshow(abs(n1_shg - n2_shg)[-1], cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+plt.imshow(test_dy[0], cmap='coolwarm', extent=[0, n_x, 0, n_y], origin='lower')
 plt.show()
+
+test_n_vector = form_n_vector(test_dx, test_dy)
+test_eigval, test_eigvec = alignment_analysis(test_n_vector, area)
+"""
+image_shg, dx_shg, dy_shg = ut.shg_images(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, rc * sharp)
+n_vector = form_n_vector(dx_shg, dy_shg)
+eigval_shg, eigvec_shg = alignment_analysis(n_vector, area)
+
+q = np.moveaxis(eigval_shg, (3, 0, 1, 2), (0, 1, 2, 3))
+q = q[1] - q[0]
+
+print('Mean anistoropy = {}'.format(np.mean(q)))
 
 make_gif(gif_file_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
 make_gif(gif_file_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')

@@ -351,7 +351,7 @@ def create_image(pos_x, pos_y, std, n_x, n_y, r_cut, filter_):
 		#				(n_x, n_y)) * intensity[i]
 		#image += gauss_map
 
-	image = image.T
+	image= image.T
 
 	return histogram, image
 
@@ -411,10 +411,10 @@ def fibre_align(histogram, std, n_x, n_y, dx, dy, r_cut, non_zero):
 		dy_shift = move_2D_array_centre(dy, index)
 		non_zero_shift = move_2D_array_centre(non_zero, index)
 
-		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
-										intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
-		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
-										intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
+		dx_grid[np.where(non_zero_shift)] -= (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
+		dy_grid[np.where(non_zero_shift)] -= (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
 
 	dx_grid = dx_grid.T
 	dy_grid = dy_grid.T
