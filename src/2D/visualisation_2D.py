@@ -52,6 +52,57 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 			image = imageio.imread(filename)
 			writer.append_data(image)
 			#os.remove(filename)
+
+
+def form_n_vector(dx_shg, dy_shg):
+
+	r_xy = np.zeros(dx_shg.shape)
+	tx = np.zeros(dx_shg.shape)
+	ty = np.zeros(dx_shg.shape)
+
+	r_xy_2 = (dx_shg**2 + dy_shg**2)
+	indicies = np.where(r_xy_2 > 0)
+	r_xy[indicies] += np.sqrt(r_xy_2[indicies].flatten())
+
+	tx[indicies] += dx_shg[indicies] / r_xy[indicies]
+	ty[indicies] -= dy_shg[indicies] / r_xy[indicies]
+
+	nxx = tx**2
+	nyy = ty**2
+	nxy = tx*ty
+
+	n_vector = np.array((nxx, nxy, nxy, nyy))
+	n_vector = np.moveaxis(n_vector, (1, 3, 2, 0), (0, 1, 2, 3))
+
+	return n_vector
+
+
+def alignment_analysis(n_vector, area):
+
+	n_frame = n_vector.shape[0]
+	n_x = n_vector.shape[1]
+	n_y = n_vector.shape[2]
+	pixel_xy = np.array((n_x / area, n_y / area), dtype=int)
+	print(n_x, n_y, pixel_xy*area)
+	av_n1 = np.zeros((n_frame, area, area))
+	av_n2 = np.zeros((n_frame, area, area))
+	av_n_vec = np.zeros((n_frame, area, area, 2, 2))
+
+	for x in range(area):
+		for y in range(area):
+			cut_n_vector = n_vector[:, pixel_xy[0] * x: pixel_xy[0] * (x+1), 
+									pixel_xy[1] * y: pixel_xy[1] * (y+1), :]
+			cut_n_vector = np.moveaxis(cut_n_vector, (0, 3, 1, 2), (0, 1, 2, 3))
+			av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
+
+			for frame in range(n_frame):
+				eig_val, eig_vec = np.linalg.eig(av_n[frame])
+
+				av_n1[frame][y][x] += eig_val[0]
+				av_n2[frame][y][x] += eig_val[1]
+				av_n_vec[frame][y][x] += eig_vec
+
+	return av_n1, av_n2, av_n_vec
 	
 
 def animate(n):
@@ -80,6 +131,7 @@ else: gif_file_name = input("Enter gif_file name: ")
 param_file = ut.read_param_file(param_file_name)
 cell_dim = param_file['cell_dim']
 vdw_param = param_file['vdw_param']
+rc = param_file['rc']
 
 tot_pos = ut.load_npy(traj_file_name)
 n_frame = tot_pos.shape[0]
@@ -99,12 +151,22 @@ skip = 10
 n_image = int(n_frame/skip)
 
 tot_pos = np.moveaxis(tot_pos, 2, 1)
-image_md = [tot_pos[n] for n in range(0, n_frame, skip)]
+image_md = np.array([tot_pos[n] for n in range(0, n_frame, skip)])
 
-image_shg = ut.shg_images(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, sigma * 2)
+image_shg, dx_shg, dy_shg = ut.shg_images(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, rc * sharp)
+n_vector = form_n_vector(dx_shg, dy_shg)
+area = 5
+n1_shg, n2_shg, n_shg = alignment_analysis(n_vector, area)
+
+plt.figure(0)
+plt.imshow(image_shg[-1], cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+plt.figure(1)
+plt.imshow(dx_shg[-1], cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+plt.figure(2)
+plt.imshow(abs(n1_shg - n2_shg)[-1], cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+plt.show()
 
 make_gif(gif_file_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
-
 make_gif(gif_file_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
 """

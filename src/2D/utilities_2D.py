@@ -208,6 +208,13 @@ def gaussian(x, mean, std):
 	return np.exp(-(x-mean)**2 / (2 * std**2)) / (SQRT2 * std * SQRTPI)
 
 
+def dx_gaussian(x, mean, std):
+	"""
+	Return derivative of value at position x from Gaussian distribution with centre mean and standard deviation std
+	"""
+
+	return (x - mean) / std**2 * gaussian(x, mean, std)
+
 
 def shg_images(traj, sigma, n_x, n_y, cut):
 	"""
@@ -242,6 +249,8 @@ def shg_images(traj, sigma, n_x, n_y, cut):
 
 	n_image = traj.shape[0]
 	image_shg = np.zeros((n_image, n_y, n_x))
+	dx_shg = np.zeros((n_image, n_y, n_x))
+	dy_shg = np.zeros((n_image, n_y, n_x))
 
 	"Calculate distances between grid points"
 	dx = np.tile(np.arange(n_x), (n_y, 1)).T
@@ -258,21 +267,26 @@ def shg_images(traj, sigma, n_x, n_y, cut):
 	cutoff = np.where(r2 <= cut**2)
 
 	"Form a filter for cutoff radius"
+	filter_ = np.zeros((n_x, n_y))
+	filter_[cutoff] += 1
+
+	"Get all non-zero radii"
 	non_zero = np.zeros((n_x, n_y))
 	non_zero[cutoff] += 1
-	non_zero[0][0] = 1
+	non_zero[0][0] = 0
 
 	"Form a matrix of radial distances corresponding to filter" 
 	r_cut = np.zeros((n_x, n_y))
 	r_cut[cutoff] += np.sqrt(r2[cutoff])
 
 	for i, image in enumerate(range(n_image)):
-		_, image_shg[i] = create_image(traj[image][0], traj[image][1], sigma, n_x, n_y, r_cut, non_zero)
+		hist, image_shg[i] = create_image(traj[image][0], traj[image][1], sigma, n_x, n_y, r_cut, filter_)
+		dx_shg[i], dy_shg[i] = fibre_align(hist, sigma, n_x, n_y, dx, dy, r_cut, non_zero)
 
-	return image_shg
+	return image_shg, dx_shg, dy_shg
 
 
-def create_image(pos_x, pos_y, std, n_x, n_y, r_cut, non_zero):
+def create_image(pos_x, pos_y, std, n_x, n_y, r_cut, filter_):
 	"""
 	create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero)
 
@@ -299,7 +313,7 @@ def create_image(pos_x, pos_y, std, n_x, n_y, r_cut, non_zero):
 	r_cut:  array_like (float); shape=(n_x, n_y)
 		Matrix of radial distances between pixels with cutoff radius applied
 
-	non_zero:  array_like (float); shape=(n_x, n_y)
+	filter_:  array_like (float); shape=(n_x, n_y)
 		Filter representing indicies to use in convolution
 
 	Returns
@@ -327,8 +341,9 @@ def create_image(pos_x, pos_y, std, n_x, n_y, r_cut, non_zero):
 	for i, index in enumerate(indices):
 	
 		r_cut_shift = move_2D_array_centre(r_cut, index)
-		non_zero_shift = move_2D_array_centre(non_zero, index)
-		image[np.where(non_zero_shift)] += gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * intensity[i]
+		filter_shift = move_2D_array_centre(filter_, index)
+
+		image[np.where(filter_shift)] += gaussian(r_cut_shift[np.where(filter_shift)].flatten(), 0, std) * intensity[i]
 
 		#"Performs the full mapping for comparison"
 		#r_shift = move_2D_array_centre(r, index)
@@ -340,3 +355,68 @@ def create_image(pos_x, pos_y, std, n_x, n_y, r_cut, non_zero):
 
 	return histogram, image
 
+
+def fibre_align(histogram, std, n_x, n_y, dx, dy, r_cut, non_zero):
+	"""
+	create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero)
+
+	Create Gaussian convoluted image from a set of bead positions
+
+	Parameter
+	---------
+
+	histogram:  array_like (int); shape=(n_x, n_y)
+		Discretised distribution of pos_x and pos_y
+
+	std:  float
+		Standard deviation of Gaussian distribution
+
+	n_x:  int
+		Number of pixels in image x dimension
+
+	n_y:  int
+		Number of pixels in image y dimension
+
+	dx:  array_like (float); shape=(n_x, n_y)
+		Matrix of distances along x axis in pixels with cutoff radius applied
+
+	dy:  array_like (float); shape=(n_x, n_y)
+		Matrix of distances along y axis in pixels with cutoff radius applied
+
+	r_cut:  array_like (float); shape=(n_x, n_y)
+		Matrix of radial distances between pixels with cutoff radius applied
+
+	non_zero:  array_like (float); shape=(n_x, n_y)
+		Filter representing indicies to use in convolution
+
+	Returns
+	-------
+
+	
+
+	"""
+
+	"Get indicies and intensity of non-zero histogram grid points"
+	indices = np.argwhere(histogram)
+	intensity = histogram[np.where(histogram)]
+
+	"Generate blank image"
+	dx_grid = np.zeros((n_x, n_y))
+	dy_grid = np.zeros((n_x, n_y))
+
+	for i, index in enumerate(indices):
+	
+		r_cut_shift = move_2D_array_centre(r_cut, index)
+		dx_shift = move_2D_array_centre(dx, index)
+		dy_shift = move_2D_array_centre(dy, index)
+		non_zero_shift = move_2D_array_centre(non_zero, index)
+
+		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+										intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
+		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+										intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
+
+	dx_grid = dx_grid.T
+	dy_grid = dy_grid.T
+
+	return dx_grid, dy_grid
