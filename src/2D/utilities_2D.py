@@ -393,10 +393,10 @@ def fibre_align(histogram, std, n_x, n_y, dx, dy, r_cut, non_zero):
 	-------
 
 	dx_grid:  array_like (float); shape=(n_y, n_x)
-		Matrix of derivative of image inensity with respect to x axis in pixels with cutoff radius applied
+		Matrix of derivative of image intensity with respect to x axis for each pixel
 
 	dy_grid:  array_like (float); shape=(n_y, n_x)
-		Matrix of derivative of image inensity with respect to y axis in pixels with cutoff radius applied
+		Matrix of derivative of image intensity with respect to y axis for each pixel
 
 	"""
 

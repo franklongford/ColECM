@@ -17,6 +17,24 @@ import os
 import utilities_2D as ut
 
 
+def make_png(file_name, fig_dir, gif_dir, image, res, sharp, cell_dim, itype='MD'):
+
+	if itype.upper() == 'MD': 
+		fig, ax = plt.subplots(figsize=(cell_dim[0]/4, cell_dim[1]/4))
+		plt.scatter(image[0], image[1])
+		plt.xlim(0, cell_dim[0])
+		plt.ylim(0, cell_dim[1])
+	elif itype.upper() == 'SHG':
+		fig = plt.figure()
+		plt.imshow(image, cmap='viridis', interpolation='nearest', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+		#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
+		#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
+		#plt.gca().set_xticklabels(real_x)
+		#plt.gca().set_yticklabels(real_y)
+	plt.savefig('{}/{}_ISM.png'.format(fig_dir, file_name), bbox_inches='tight')
+	plt.close()
+
+
 def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD'):
 
 	import imageio
@@ -25,24 +43,9 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 	file_name_plot = '{}_{}_{}'.format(file_name, res, sharp)
 
 	for frame in range(n_frame):
-
-		if not os.path.exists('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame)):
-			if itype.upper() == 'MD': 
-				fig, ax = plt.subplots(figsize=(cell_dim[0]/4, cell_dim[1]/4))
-				plt.scatter(images[frame][0], images[frame][1])
-				plt.xlim(0, cell_dim[0])
-				plt.ylim(0, cell_dim[1])
-			elif itype.upper() == 'SHG':
-				fig = plt.figure()
-				plt.imshow(images[frame], cmap='viridis', interpolation='nearest', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-				#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
-				#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
-				#plt.gca().set_xticklabels(real_x)
-				#plt.gca().set_yticklabels(real_y)
-			plt.savefig('{}/{}_{}_heat.png'.format(fig_dir, file_name_plot, frame), bbox_inches='tight')
-			plt.close()
-
-		image_list.append('{}/{}_{}_heat.png'.format(fig_dir, file_name_plot, frame))
+		#if not os.path.exists('{}/{}_{}_heat.png'.format(fig_dir, file_name_plot, frame)):
+		make_png("{}_{}".format(file_name_plot, frame), fig_dir, gif_dir, images[frame], res, sharp, cell_dim, itype)
+		image_list.append('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame))
 
 	file_name_gif = '{}_{}_{}_{}'.format(file_name, res, sharp, n_frame)
 	file_path_name = '{}/{}.gif'.format(gif_dir, file_name_gif)
@@ -55,6 +58,28 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 
 
 def form_n_vector(dx_shg, dy_shg):
+	"""
+	form_n_vector(dx_shg, dy_shg)
+
+	Create local nematic tensor n for each pixel in dx_shg, dy_shg
+
+	Parameters
+	----------
+
+	dx_grid:  array_like (float); shape=(n_frame, n_y, n_x)
+		Matrix of derivative of image intensity with respect to x axis for each pixel
+
+	dy_grid:  array_like (float); shape=(n_frame, n_y, n_x)
+		Matrix of derivative of image intensity with respect to y axis for each pixel
+
+	Returns
+	-------
+
+	n_vector:  array_like (float); shape(n_frame, n_y, n_x, 4)
+		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)	
+
+	"""
+
 
 	r_xy = np.zeros(dx_shg.shape)
 	tx = np.zeros(dx_shg.shape)
@@ -67,27 +92,9 @@ def form_n_vector(dx_shg, dy_shg):
 	ty[indicies] -= dx_shg[indicies] / r_xy[indicies]
 	tx[indicies] += dy_shg[indicies] / r_xy[indicies]
 
-	"""
-	plt.figure(0)
-	plt.imshow(tx[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-	plt.figure(1)
-	plt.imshow(ty[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-	plt.show()
-	"""
-
 	nxx = tx**2
 	nyy = ty**2
 	nxy = tx*ty
-
-	"""
-	plt.figure(0)
-	plt.imshow(nxx[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-	plt.figure(1)
-	plt.imshow(nyy[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-	plt.figure(2)
-	plt.imshow(nxy[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-	plt.show()
-	"""
 
 	n_vector = np.array((nxx, nxy, nxy, nyy))
 	n_vector = np.moveaxis(n_vector, (1, 0, 2, 3), (0, 1, 2, 3))
@@ -95,78 +102,61 @@ def form_n_vector(dx_shg, dy_shg):
 	return n_vector
 
 
-def alignment_analysis(n_vector, area):
+def alignment_analysis(n_vector, area, n_sample):
+	"""
+	alignment_analysis(n_vector, area, n_sample)
+
+	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
+
+	Parameters
+	----------
+
+	n_vector:  array_like (float); shape(n_frame, n_y, n_x, 4)
+		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)
+
+	area:  int
+		Unit length of sample area
+
+	n_sample:  int
+		Number of randomly selected areas to sample
+
+	Returns
+	-------
+
+	av_eigval:  array_like (float); shape=(n_frame, n_sample, 2)
+		Eigenvalues of average nematic tensors for n_sample areas
+
+	av_eigvec:  array_like (float); shape=(n_frame, n_sample, 2, 2)
+		Eigenvectors of average nematic tensors for n_sample areas
+
+	"""
 
 	n_frame = n_vector.shape[0]
 	n_y = n_vector.shape[2]
 	n_x = n_vector.shape[3]
 
-	pixel_xy = np.array((n_x / area, n_y / area), dtype=int)
-	av_eigval = np.zeros((n_frame, area, area, 2))
-	av_eigvec = np.zeros((n_frame, area, area, 2, 2))
+	av_eigval = np.zeros((n_frame, n_sample, 2))
+	av_eigvec = np.zeros((n_frame, n_sample, 2, 2))
 
-	for y in range(area):
-		for x in range(area):
+	pad = int(area/2)
 
-			cut_image = image_shg[0, pixel_xy[1] * y: pixel_xy[1] * (y+1), 
-						pixel_xy[0] * x: pixel_xy[0] * (x+1)]
+	for n in range(n_sample):
+		start_x = np.random.randint(pad, n_x - pad)
+		start_y = np.random.randint(pad, n_y - pad) 
+
+		cut_image = image_shg[0, start_y-pad: start_y+pad, 
+					 start_x-pad: start_x+pad]
 		
-			cut_n_vector = n_vector[:, :, pixel_xy[1] * y: pixel_xy[1] * (y+1), 
-						pixel_xy[0] * x: pixel_xy[0] * (x+1)]
-			
-			"""
-			plt.figure(0)
-			plt.scatter(tot_pos[0][0], tot_pos[0][1])
-			plt.axis([0, cell_dim[0], 0, cell_dim[1]])
-			plt.figure(1)
-			plt.imshow(image_shg[0], cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-						
-			plt.figure(1)
-			plt.imshow(cut_n_vector[0][0], cmap='Reds', extent=[x * pixel_xy[0] / res, (x+1) * pixel_xy[0] / res,
-								   	    y * pixel_xy[1] / res, (y+1) * pixel_xy[1] / res], origin='lower')
-			plt.figure(2)
-			plt.imshow(cut_n_vector[0][1], cmap='coolwarm', extent=[x * pixel_xy[0] / res, (x+1) * pixel_xy[0] / res,
-								   	    y * pixel_xy[1] / res, (y+1) * pixel_xy[1] / res], origin='lower')
-			plt.figure(3)
-			plt.imshow(cut_n_vector[0][3], cmap='Reds', extent=[x * pixel_xy[0] / res, (x+1) * pixel_xy[0] / res,
-								   	    y * pixel_xy[1] / res, (y+1) * pixel_xy[1] / res], origin='lower')
-			fig = plt.figure(4)
-			plt.imshow(image_shg[0], cmap='Reds', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-			ax = fig.gca()
-			ax.set_yticks(np.arange(area) * pixel_xy[1] / res)
-			ax.set_xticks(np.arange(area) * pixel_xy[0] / res)
-			plt.grid(True, color='black', linestyle='dashed')
-			plt.figure(5)
-			plt.imshow(cut_image, cmap='Reds', extent=[x * pixel_xy[0] / res, (x+1) * pixel_xy[0] / res,
-								   y * pixel_xy[1] / res, (y+1) * pixel_xy[1] / res], origin='lower')
-			"""
-			
-			av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
+		cut_n_vector = n_vector[:, :, start_y-pad: start_y+pad, 
+					      start_x-pad: start_x+pad]
 
-			for frame in range(n_frame):
-				eig_val, eig_vec = np.linalg.eigh(av_n[frame])
+		av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
 
-				av_eigval[frame][y][x] += eig_val
-				av_eigvec[frame][y][x] += eig_vec
+		for frame in range(n_frame):
+			eig_val, eig_vec = np.linalg.eigh(av_n[frame])
 
-				"""
-				if frame == 0: 
-
-					eig1 = np.argmax(eig_val)
-					eig2 = np.argmin(eig_val)
-
-					centre_x = (x + 0.5) * pixel_xy[0] / res
-					centre_y = (y + 0.5) * pixel_xy[1] / res
-
-					#plt.arrow(centre_x, centre_y, av_eigvec[0][y][x][eig1][0] * av_eigval[0][y][x][eig1], av_eigvec[0][y][x][eig1][1] * av_eigval[0][y][x][eig1])
-					#plt.arrow(centre_x, centre_y, av_eigvec[0][y][x][eig2][0] * av_eigval[0][y][x][eig2], av_eigvec[0][y][x][eig2][1] * av_eigval[0][y][x][eig2], linestyle='dashed')
-
-					plt.arrow(centre_x, centre_y, eig_vec[0][eig1] * eig_val[eig1], eig_vec[1][eig1] * eig_val[eig1], lw='5.0')
-					plt.arrow(centre_x, centre_y, eig_vec[0][eig2] * eig_val[eig2], eig_vec[1][eig2] * eig_val[eig2], lw='5.0', linestyle='dashed')
-					plt.title('anisotropy = {}'.format(eig_val[eig1] - eig_val[eig2]))
-
-					plt.show()
-				"""
+			av_eigval[frame][n] += eig_val
+			av_eigvec[frame][n] += eig_vec
 
 	return av_eigval, av_eigvec
 	
@@ -198,6 +188,7 @@ param_file = ut.read_param_file(param_file_name)
 cell_dim = param_file['cell_dim']
 vdw_param = param_file['vdw_param']
 rc = param_file['rc']
+l_conv = param_file['l_conv']
 
 tot_pos = ut.load_npy(traj_file_name)
 n_frame = tot_pos.shape[0]
@@ -215,7 +206,9 @@ if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
 skip = 10
 n_image = int(n_frame/skip)
-area = 5
+sample_l = 50
+n_sample = 20
+area = int(np.min([sample_l, cell_dim[0], cell_dim[1]]) / l_conv * res)
 
 tot_pos = np.moveaxis(tot_pos, 2, 1)
 
@@ -236,11 +229,15 @@ plt.show()
 test_n_vector = form_n_vector(test_dx, test_dy)
 test_eigval, test_eigvec = alignment_analysis(test_n_vector, area)
 """
-image_shg, dx_shg, dy_shg = ut.shg_images(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, rc * sharp)
-n_vector = form_n_vector(dx_shg, dy_shg)
-eigval_shg, eigvec_shg = alignment_analysis(n_vector, area)
 
-q = np.moveaxis(eigval_shg, (3, 0, 1, 2), (0, 1, 2, 3))
+"Generate Gaussian convoluted images and intensity derivatives"
+image_shg, dx_shg, dy_shg = ut.shg_images(image_md, 2 * vdw_param[0] * sharp, n_x, n_y, rc * sharp)
+"Calculate intensity orientational vector n for each pixel"
+n_vector = form_n_vector(dx_shg, dy_shg)
+"Sample average orientational anisotopy"
+eigval_shg, eigvec_shg = alignment_analysis(n_vector, area, n_sample)
+
+q = np.moveaxis(eigval_shg, (2, 0, 1), (0, 1, 2))
 q = q[1] - q[0]
 
 print('Mean anistoropy = {}'.format(np.mean(q)))

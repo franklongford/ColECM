@@ -96,7 +96,7 @@ for step in range(n_steps):
 		tot_pos[i] += pos
 		tot_vel[i] += vel
 		tot_frc[i] += frc
-		tot_temp[i] += np.mean(vel**2)
+		tot_temp[i] += sim.kin_energy(vel, mass, n_dim) * 2
 
 	if np.sum(np.abs(vel)) >= kBT * 1E5: 
 		print("velocity exceeded, step ={}".format(step))

@@ -218,14 +218,16 @@ def force_vdw(r2, sigma, epsilon):
 	return - 24 * epsilon * (2 * (sigma**2 / r2)**6 - (sigma**6 / r2**3))
 
 
-def kin_energy(vel):
+def kin_energy(vel, mass, n_dim):
 	"""
 	kin_energy(vel)
 
 	Returns kinetic energy of simulation in reduced units
 	"""
 
-	return np.mean(vel**2)
+	n_f = n_dim * (vel.shape[0] - 1) 
+
+	return 0.5 * np.sum(mass * vel**2) / n_f
 
 
 def update_bond_lists(bond_matrix):
@@ -836,7 +838,7 @@ def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, ver
 	if Langevin: vel += 0.5 * dt * frc / mass - gamma * (dt * vel + C) + sigma * xi * np.sqrt(dt)
 	
 	frc = new_frc
-	tot_energy = pot_energy + kin_energy(vel)
+	tot_energy = pot_energy + kin_energy(vel, mass, n_dim)
 
 	return pos, vel, frc, verlet_list, tot_energy
 
