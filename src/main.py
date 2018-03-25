@@ -23,7 +23,7 @@ print( '|'+ '_' * 54 + '|' + '  v1.0.0.dev1')
 print( "\n          ECM Collagen Fibre Simulation\n")
 
 
-if ('-n_dim' in sys.argv): n_dim = int(sys.argv[sys.argv.index('-param') + 1])
+if ('-n_dim' in sys.argv): n_dim = int(sys.argv[sys.argv.index('-n_dim') + 1])
 else: n_dim = int(input("Number of dimensions: "))
 
 if n_dim == 2: import simulation_2D as sim
