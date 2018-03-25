@@ -188,7 +188,7 @@ def create_image(pos, std, n_xyz, r_cut, filter_):
 
 		if n_dim == 3:
 			r_cut_shift = take_slice(r_cut_shift, 0)
-			filter_shift = filter_shift(r_cut_shift, 0)
+			filter_shift = take_slice(filter_shift, 0)
 
 		image[np.where(filter_shift)] += gaussian(r_cut_shift[np.where(filter_shift)].flatten(), 0, std) * intensity[i]
 
@@ -440,6 +440,8 @@ else: traj_file_name = current_dir + '/' + input("Enter traj_file name: ")
 if ('-gif' in sys.argv): gif_file_name = sys.argv[sys.argv.index('-gif') + 1]
 else: gif_file_name = input("Enter gif_file name: ")
 
+param_file_name = param_file_name + '_param'
+traj_file_name = traj_file_name + '_traj'
 
 param_file = ut.read_param_file(param_file_name)
 cell_dim = param_file['cell_dim']
