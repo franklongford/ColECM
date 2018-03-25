@@ -19,6 +19,17 @@ import utilities as ut
 SQRT2 = np.sqrt(2)
 SQRTPI = np.sqrt(np.pi)
 
+
+def take_slice(array, slice_):
+	"""
+	take_slice(array, slice_)
+
+	Inverts array so that outer loop is along z axis and selects 'slice_' element
+	"""
+
+	return np.moveaxis(array, (2, 0, 1), (0, 1, 2))[slice_]
+
+
 def move_array_centre(array, centre):
 	"""
 	move_2D_array_centre(array, centre)
@@ -176,8 +187,8 @@ def create_image(pos, std, n_xyz, r_cut, filter_):
 		filter_shift = move_array_centre(filter_, index)
 
 		if n_dim == 3:
-			r_cut_shift = np.moveaxis(r_cut_shift, (2, 0, 1), (0, 1, 2))[0]
-			filter_shift = np.moveaxis(filter_shift, (2, 0, 1), (0, 1, 2))[0]
+			r_cut_shift = take_slice(r_cut_shift, 0)
+			filter_shift = filter_shift(r_cut_shift, 0)
 
 		image[np.where(filter_shift)] += gaussian(r_cut_shift[np.where(filter_shift)].flatten(), 0, std) * intensity[i]
 
@@ -247,10 +258,10 @@ def fibre_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 		dy_shift = move_array_centre(dxdydz[1], index)
 
 		if n_dim == 3:
-			r_cut_shift = np.moveaxis(r_cut_shift, (2, 0, 1), (0, 1, 2))[0]
-			non_zero_shift = np.moveaxis(non_zero_shift, (2, 0, 1), (0, 1, 2))[0]
-			dx_shift = np.moveaxis(dx_shift, (2, 0, 1), (0, 1, 2))[0]
-			dy_shift = np.moveaxis(dy_shift, (2, 0, 1), (0, 1, 2))[0]
+			r_cut_shift = take_slice(r_cut_shift, 0)
+			non_zero_shift = take_slice(non_zero_shift, 0)
+			dx_shift = take_slice(dx_shift, 0)
+			dy_shift = take_slice(dy_shift, 0)
 
 		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
 							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
