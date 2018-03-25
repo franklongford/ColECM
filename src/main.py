@@ -8,11 +8,10 @@ Last Modified: 09/03/2018
 """
 
 import numpy as np
-
 import sys, os, time
 
-import utilities_2D as ut
-import simulation_2D as sim
+import utilities as ut
+import setup
 
 print(' '+ '_' * 54)
 print( "|   ___   ___                        ___   ___         |")
@@ -23,9 +22,15 @@ print( "|  \___  \___/  |___ |___ /      \  \___/ |___ |   \|  |")
 print( '|'+ '_' * 54 + '|' + '  v1.0.0.dev1')
 print( "\n          ECM Collagen Fibre Simulation\n")
 
+
+if ('-n_dim' in sys.argv): n_dim = int(sys.argv[sys.argv.index('-param') + 1])
+else: n_dim = int(input("Number of dimensions: "))
+
+if n_dim == 2: import simulation_2D as sim
+elif n_dim == 3: import simulation_3D as sim
+
 current_dir = os.getcwd()
 dir_path = os.path.dirname(os.path.realpath(__file__))
-
 
 if ('-n' in sys.argv): n_steps = int(sys.argv[sys.argv.index('-n') + 1])
 else: n_steps = 10000
@@ -46,18 +51,19 @@ restart_file_name = output_file_name + '_rst'
 print("\nEntering Setup\n")
 init_time_start = time.time()
 
-n_dim = 2
 traj_steps = 100
 n_frames = int(n_steps / traj_steps)
 dt = 0.004
 
-pos, cell_dim, l_conv, bond_matrix, vdw_matrix, params = sim.import_files(n_dim, param_file_name, pos_file_name)
+pos, cell_dim, l_conv, bond_matrix, vdw_matrix, params = setup.import_files(n_dim, param_file_name, pos_file_name)
+
 if len(params) == 7: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin = params
 else: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin, thermo_gamma, thermo_sigma = params
 
 n_bead = pos.shape[0]
 
-vel, frc, verlet_list, bond_beads, dxdy_index, r_index = sim.setup(pos, cell_dim, bond_matrix, vdw_matrix, mass, vdw_param, bond_param, angle_param, rc, kBT)
+vel, frc, verlet_list, bond_beads, dxdy_index, r_index = setup.initial_state(n_dim, pos, cell_dim, bond_matrix, vdw_matrix,
+																 vdw_param, bond_param, angle_param, rc, kBT)
 
 tot_pos = np.zeros((n_frames, n_bead, n_dim))
 tot_vel = np.zeros((n_frames, n_bead, n_dim))
@@ -68,13 +74,14 @@ energy_array = np.zeros(n_steps)
 
 init_time_stop = time.time()
 
-print("\nSetup complete: {:5.3f} s \nBead radius = {} um, Simulation cell dimensions = {} um".format(init_time_stop - init_time_start, l_conv, cell_dim * l_conv))
+print("\nSetup complete: {:5.3f} s \nBead radius = {} um, Simulation cell dimensions = {} um".format(
+	init_time_stop - init_time_start, l_conv, cell_dim * l_conv))
 
 sim_time_start = time.time()
 
-dx, dy = sim.get_dx_dy(pos, cell_dim)
-r2 = dx**2 + dy**2
-verlet_list = sim.check_cutoff(r2, rc**2)
+distances = ut.get_distances(pos, cell_dim)
+r2 = np.sum(distances**2, axis=0)
+verlet_list = ut.check_cutoff(r2, rc**2)
 
 print("\nRunning Simulation")
 
@@ -96,7 +103,7 @@ for step in range(n_steps):
 		tot_pos[i] += pos
 		tot_vel[i] += vel
 		tot_frc[i] += frc
-		tot_temp[i] += sim.kin_energy(vel, mass, n_dim) * 2
+		tot_temp[i] += ut.kin_energy(vel, mass, n_dim) * 2
 
 	if np.sum(np.abs(vel)) >= kBT * 1E5: 
 		print("velocity exceeded, step ={}".format(step))
@@ -123,26 +130,3 @@ ut.save_npy(restart_file_name, tot_pos[-1])
 
 print("Saving trajectory file {}".format(traj_file_name))
 ut.save_npy(traj_file_name, tot_pos)
-
-"""
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-
-CMA = ut.cum_mov_average(energy_array[:n_steps]) / n_bead
-plt.plot(CMA)
-plt.show()
-
-def animate(n):
-	plt.title('Frame {}'.format(n))
-	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
-
-tot_pos = np.moveaxis(tot_pos, 2, 1)
-
-fig, ax = plt.subplots()
-sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
-plt.xlim(0, cell_dim[0])
-plt.ylim(0, cell_dim[1])
-ani = animation.FuncAnimation(fig, animate, frames=n_frames, interval=100, repeat=False)
-plt.show()
-"""
-

@@ -213,7 +213,7 @@ def dx_gaussian(x, mean, std):
 	Return derivative of value at position x from Gaussian distribution with centre mean and standard deviation std
 	"""
 
-	return (x - mean) / std**2 * gaussian(x, mean, std)
+	return (mean - x) / std**2 * gaussian(x, mean, std)
 
 
 def shg_images(traj, sigma, n_x, n_y, cut):
@@ -415,9 +415,9 @@ def fibre_align(histogram, std, n_x, n_y, dx, dy, r_cut, non_zero):
 		dy_shift = move_2D_array_centre(dy, index)
 		non_zero_shift = move_2D_array_centre(non_zero, index)
 
-		dx_grid[np.where(non_zero_shift)] -= (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
 							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
-		dy_grid[np.where(non_zero_shift)] -= (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
 							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
 
 	dx_grid = dx_grid.T

@@ -11,8 +11,8 @@ import numpy as np
 
 import sys, os, time
 
-import utilities_2D as ut
-import simulation_2D as sim
+import utilities_3D as ut
+import simulation_3D as sim
 
 print(' '+ '_' * 54)
 print( "|   ___   ___                        ___   ___         |")
@@ -46,7 +46,7 @@ restart_file_name = output_file_name + '_rst'
 print("\nEntering Setup\n")
 init_time_start = time.time()
 
-n_dim = 2
+n_dim = 3
 traj_steps = 100
 n_frames = int(n_steps / traj_steps)
 dt = 0.004
@@ -72,8 +72,8 @@ print("\nSetup complete: {:5.3f} s \nBead radius = {} um, Simulation cell dimens
 
 sim_time_start = time.time()
 
-dx, dy = sim.get_dx_dy(pos, cell_dim)
-r2 = dx**2 + dy**2
+distances = sim.get_distances(pos, cell_dim)
+r2 = np.sum(distances**2, axis=1)
 verlet_list = sim.check_cutoff(r2, rc**2)
 
 print("\nRunning Simulation")
@@ -123,26 +123,3 @@ ut.save_npy(restart_file_name, tot_pos[-1])
 
 print("Saving trajectory file {}".format(traj_file_name))
 ut.save_npy(traj_file_name, tot_pos)
-
-"""
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-
-CMA = ut.cum_mov_average(energy_array[:n_steps]) / n_bead
-plt.plot(CMA)
-plt.show()
-
-def animate(n):
-	plt.title('Frame {}'.format(n))
-	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
-
-tot_pos = np.moveaxis(tot_pos, 2, 1)
-
-fig, ax = plt.subplots()
-sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
-plt.xlim(0, cell_dim[0])
-plt.ylim(0, cell_dim[1])
-ani = animation.FuncAnimation(fig, animate, frames=n_frames, interval=100, repeat=False)
-plt.show()
-"""
-
