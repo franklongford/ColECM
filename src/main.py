@@ -1,5 +1,5 @@
 """
-COLLAGEN FIBRE SIMULATION 2D
+COLLAGEN FIBRE SIMULATION
 
 Created by: Frank Longford
 Created on: 01/11/2015

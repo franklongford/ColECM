@@ -1,5 +1,5 @@
 """
-COLLAGEN FIBRE SIMULATION 2D VISULISATION
+COLLAGEN FIBRE SIMULATION VISULISATION
 
 Created by: Frank Longford
 Created on: 01/11/15
@@ -63,11 +63,8 @@ def shg_images(traj, sigma, n_xyz, cut):
 	sigma:  float
 		Parameter to determine variance of Guassian distribution
 
-	n_x:  int
-		Number of pixels in image x dimension
-
-	n_y:  int
-		Number of pixels in image y dimension
+	n_xyz:  tuple (int); shape(n_dim)
+		Number of pixels in each image dimension
 
 	cut:  float
 		Cutoff radius for convolution
@@ -137,11 +134,11 @@ def create_image(pos, std, n_xyz, r_cut, filter_):
 	std:  float
 		Standard deviation of Gaussian distribution
 
-	n_x:  int
-		Number of pixels in image x dimension
+	n_xyz:  tuple (int); shape(n_dim)
+		Number of pixels in each image dimension
 
-	n_y:  int
-		Number of pixels in image y dimension
+	dxdydz:  array_like (float); shape=(n_x, n_y, n_z)
+		Matrix of distances along x y and z axis in pixels with cutoff radius applied
 
 	r_cut:  array_like (float); shape=(n_x, n_y)
 		Matrix of radial distances between pixels with cutoff radius applied
@@ -210,17 +207,11 @@ def fibre_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 	std:  float
 		Standard deviation of Gaussian distribution
 
-	n_x:  int
-		Number of pixels in image x dimension
+	n_xyz:  tuple (int); shape(n_dim)
+		Number of pixels in each image dimension
 
-	n_y:  int
-		Number of pixels in image y dimension
-
-	dx:  array_like (float); shape=(n_x, n_y)
-		Matrix of distances along x axis in pixels with cutoff radius applied
-
-	dy:  array_like (float); shape=(n_x, n_y)
-		Matrix of distances along y axis in pixels with cutoff radius applied
+	dxdydz:  array_like (float); shape=(n_x, n_y, n_z)
+		Matrix of distances along x y and z axis in pixels with cutoff radius applied
 
 	r_cut:  array_like (float); shape=(n_x, n_y)
 		Matrix of radial distances between pixels with cutoff radius applied
@@ -298,7 +289,7 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 	file_name_plot = '{}_{}_{}'.format(file_name, res, sharp)
 
 	for frame in range(n_frame):
-		#if not os.path.exists('{}/{}_{}_heat.png'.format(fig_dir, file_name_plot, frame)):
+		#if not os.path.exists('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame)):
 		make_png("{}_{}".format(file_name_plot, frame), fig_dir, gif_dir, images[frame], res, sharp, cell_dim, itype)
 		image_list.append('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame))
 
