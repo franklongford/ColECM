@@ -23,13 +23,15 @@ Main program and analysis can be run via the following commands:
 	Flags are optional and can be entered in the command line or selected later during the setup process. 
 	All input and output files will be created in the user's current working directory.
 
-		-pos		Name of input position file (will create a new one if does not exist)
-		-param		Name of parameter file (will create a new one if does not exist)
+		-pos		Name of input position file 
+				(will create a new one if does not exist)
+		-param		Name of parameter file 
+				(will create a new one if does not exist)
 		-out		Name of output files (restart and trajectory)
 		-ndim		Number of dimensions (must be 2 or 3)
 		-nstep		Number of timesteps in simulation (default=10000)
 		-vdw_sigma	Van de Waals radius of collagen beads in red. units
-		-vdw_epsilon	Van de Waals minimul energy in red. units
+		-vdw_epsilon	Van de Waals energy in red. units
 		-bond_k		Harmonic bond energy in red. units
 		-angle_k	Sigmoidal angle energy in red. units
 		-kBT		Temperature constant in red. units
