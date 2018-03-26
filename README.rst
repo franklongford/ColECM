@@ -20,7 +20,8 @@ Main program and analysis can be run via the following commands:
 
 1) ``python3 src/main.py [flags]``
 
-	Flags are optional and can be entered in the command line or selected later during the setup process.
+	Flags are optional and can be entered in the command line or selected later during the setup process. 
+	All input and output files will be created in the user's current working directory.
 
 		-pos		Name of input position file (will create a new one if does not exist)
 		-param		Name of parameter file (will create a new one if does not exist)
