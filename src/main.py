@@ -26,14 +26,16 @@ print( "\n          ECM Collagen Fibre Simulation\n")
 if ('-n_dim' in sys.argv): n_dim = int(sys.argv[sys.argv.index('-n_dim') + 1])
 else: n_dim = int(input("Number of dimensions: "))
 
+assert n_dim in [2, 3]
+
 if n_dim == 2: import simulation_2D as sim
 elif n_dim == 3: import simulation_3D as sim
 
 current_dir = os.getcwd()
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-if ('-n' in sys.argv): n_steps = int(sys.argv[sys.argv.index('-n') + 1])
-else: n_steps = 10000
+if ('-n_step' in sys.argv): n_steps = int(sys.argv[sys.argv.index('-n_step') + 1])
+else: n_step = 10000
 
 if ('-param' in sys.argv): param_file_name = current_dir + '/' + sys.argv[sys.argv.index('-param') + 1]
 else: param_file_name = current_dir + '/' + input("Enter param_file name: ")
@@ -52,7 +54,7 @@ print("\nEntering Setup\n")
 init_time_start = time.time()
 
 traj_steps = 100
-n_frames = int(n_steps / traj_steps)
+n_frames = int(n_step / traj_steps)
 dt = 0.004
 
 pos, cell_dim, l_conv, bond_matrix, vdw_matrix, params = setup.import_files(n_dim, param_file_name, pos_file_name)
@@ -70,7 +72,7 @@ tot_vel = np.zeros((n_frames, n_bead, n_dim))
 tot_frc = np.zeros((n_frames, n_bead, n_dim))
 tot_temp = np.zeros((n_frames))
 
-energy_array = np.zeros(n_steps)
+energy_array = np.zeros(n_step)
 
 init_time_stop = time.time()
 
@@ -85,7 +87,7 @@ verlet_list = ut.check_cutoff(r2, rc**2)
 
 print("\nRunning Simulation")
 
-for step in range(n_steps):
+for step in range(n_step):
 	sys.stdout.write("STEP {}\r".format(step))
 	sys.stdout.flush()
 
@@ -107,7 +109,7 @@ for step in range(n_steps):
 
 	if np.sum(np.abs(vel)) >= kBT * 1E5: 
 		print("velocity exceeded, step ={}".format(step))
-		n_steps = step
+		n_step = step
 		sys.exit() 
 
 print("Min Velocity: {:4.5f}".format(np.min(abs(tot_vel))))
