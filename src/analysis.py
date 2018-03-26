@@ -20,28 +20,29 @@ SQRT2 = np.sqrt(2)
 SQRTPI = np.sqrt(np.pi)
 
 
-def take_slice(array, slice_):
+def reorder_array(array):
 	"""
-	take_slice(array, slice_)
+	reorder_array(array)
 
-	Inverts array so that outer loop is along z axis and selects 'slice_' element
+	Inverts 3D array so that outer loop is along z axis
 	"""
 
-	return np.moveaxis(array, (2, 0, 1), (0, 1, 2))[slice_]
+	return np.moveaxis(array, (2, 0, 1), (0, 1, 2))
 
 
 def move_array_centre(array, centre):
 	"""
-	move_2D_array_centre(array, centre)
+	move_array_centre(array, centre)
 
-	Move top left corner of 2D array to centre index
+	Move top left corner of ND array to centre index
 	"""
 
 	n_dim = centre.shape[0]
 
-	for i, ax in enumerate(np.arange(n_dim)[::-1]): array = np.roll(array, centre[i], axis=ax)
+	for i, ax in enumerate(range(n_dim)): array = np.roll(array, centre[i], axis=ax)
 
 	return array
+
 
 def gaussian(x, mean, std):
 	"""
@@ -121,6 +122,9 @@ def shg_images(traj, sigma, n_xyz, cut):
 	r_cut[cutoff] += np.sqrt(r2[cutoff])
 
 	for i, image in enumerate(range(n_image)):
+		sys.stdout.write("Processing image {} out of {}\r".format(i, n_image))
+		sys.stdout.flush()
+
 		hist, image_shg[i] = create_image(traj[image], sigma, n_xyz, r_cut, filter_)
 		dx_shg[i], dy_shg[i] = fibre_align(hist, sigma, n_xyz, dxdydz, r_cut, non_zero)
 
@@ -172,7 +176,13 @@ def create_image(pos, std, n_xyz, r_cut, filter_):
 
 	"Discretise data"
 	histogram, edges = np.histogramdd(pos.T, bins=n_xyz)
-	histogram = histogram.T
+
+	if n_dim == 2: 
+		histogram = histogram.T
+	elif n_dim == 3: 
+		histogram = reorder_array(histogram)
+		r_cut = reorder_array(r_cut)
+		filter_ = reorder_array(filter_)
 
 	"Get indicies and intensity of non-zero histogram grid points"
 	indices = np.argwhere(histogram)
@@ -183,12 +193,13 @@ def create_image(pos, std, n_xyz, r_cut, filter_):
 
 	for i, index in enumerate(indices):
 
-		r_cut_shift = move_array_centre(r_cut, index)
-		filter_shift = move_array_centre(filter_, index)
+		if n_dim == 2:
+			r_cut_shift = move_array_centre(r_cut, index[::-1])
+			filter_shift = move_array_centre(filter_, index[::-1])
 
 		if n_dim == 3:
-			r_cut_shift = take_slice(r_cut_shift, 0)
-			filter_shift = take_slice(filter_shift, 0)
+			r_cut_shift = move_array_centre(r_cut[-index[0]], index[1:])
+			filter_shift = move_array_centre(filter_[-index[0]], index[1:])
 
 		image[np.where(filter_shift)] += gaussian(r_cut_shift[np.where(filter_shift)].flatten(), 0, std) * intensity[i]
 
@@ -244,6 +255,12 @@ def fibre_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 	"Get indicies and intensity of non-zero histogram grid points"
 	indices = np.argwhere(histogram)
 	intensity = histogram[np.where(histogram)]
+	n_dim = len(n_xyz)
+
+	if n_dim == 3: 
+		r_cut = reorder_array(r_cut)
+		non_zero = reorder_array(non_zero)
+		dxdydz = np.moveaxis(dxdydz, (0, 3, 1, 2), (0, 1, 2, 3))
 
 	n_dim = len(n_xyz)
 	"Generate blank image"
@@ -252,17 +269,19 @@ def fibre_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 
 	for i, index in enumerate(indices):
 	
-		r_cut_shift = move_array_centre(r_cut, index)
-		non_zero_shift = move_array_centre(non_zero, index)
-		dx_shift = move_array_centre(dxdydz[0], index)
-		dy_shift = move_array_centre(dxdydz[1], index)
+		if n_dim == 2:
+			r_cut_shift = move_array_centre(r_cut, index)
+			non_zero_shift = move_array_centre(non_zero, index)
+			dx_shift = move_array_centre(dxdydz[0], index)
+			dy_shift = move_array_centre(dxdydz[1], index)
 
-		if n_dim == 3:
-			r_cut_shift = take_slice(r_cut_shift, 0)
-			non_zero_shift = take_slice(non_zero_shift, 0)
-			dx_shift = take_slice(dx_shift, 0)
-			dy_shift = take_slice(dy_shift, 0)
+		elif n_dim == 3:
 
+			r_cut_shift = move_array_centre(r_cut[-index[0]], index[1:])
+			non_zero_shift = move_array_centre(non_zero[-index[0]], index[1:])
+			dx_shift = move_array_centre(dxdydz[0][-index[0]], index[1:])
+			dy_shift = move_array_centre(dxdydz[1][-index[0]], index[1:])
+			
 		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
 							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
 		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
@@ -274,7 +293,37 @@ def fibre_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 	return dx_grid, dy_grid
 
 
-def make_png(file_name, fig_dir, gif_dir, image, res, sharp, cell_dim, itype='MD'):
+def make_png(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD'):
+	"""
+	make_gif(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD')
+
+	Create a png out of image data
+
+	Parameters
+	----------
+
+	file_name:  str
+		Name of gif file to be created
+
+	fig_dir:  str
+		Directory of figure pngs to use in gif
+
+	image:  array_like (float); shape=(n_y, n_x)
+		SHG image to be converted into png
+
+	res:  float
+		Parameter determining resolution of SHG images
+
+	sharp:  float
+		Parameter determining sharpness of SHG images
+
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
+
+	itype:  str (optional)
+		Type of figure to make, scatter plot ('MD') or imshow ('SHG')
+
+	"""
 
 	if itype.upper() == 'MD': 
 		fig, ax = plt.subplots(figsize=(cell_dim[0]/4, cell_dim[1]/4))
@@ -293,6 +342,42 @@ def make_png(file_name, fig_dir, gif_dir, image, res, sharp, cell_dim, itype='MD
 
 
 def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD'):
+	"""
+	make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD')
+
+	Create a gif out of a series n_frame png figures
+
+	Parameters
+	----------
+
+	file_name:  str
+		Name of gif file to be created
+
+	fig_dir:  str
+		Directory of figure pngs to use in gif
+
+	gif_dir:  str
+		Directory of gif to be created
+
+	n_frame:  int
+		Number of frames to include in gif
+
+	images:  array_like (float); shape=(n_frame, n_y, n_x)
+		SHG images to be converted into pngs
+
+	res:  float
+		Parameter determining resolution of SHG images
+
+	sharp:  float
+		Parameter determining sharpness of SHG images
+
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
+
+	itype:  str (optional)
+		Type of figure to make, scatter plot ('MD') or imshow ('SHG')
+
+	"""
 
 	import imageio
 
@@ -301,7 +386,7 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 
 	for frame in range(n_frame):
 		#if not os.path.exists('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame)):
-		make_png("{}_{}".format(file_name_plot, frame), fig_dir, gif_dir, images[frame], res, sharp, cell_dim, itype)
+		make_png("{}_{}".format(file_name_plot, frame), fig_dir, images[frame], res, sharp, cell_dim, itype)
 		image_list.append('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame))
 
 	file_name_gif = '{}_{}_{}_{}'.format(file_name, res, sharp, n_frame)
@@ -440,6 +525,12 @@ else: traj_file_name = current_dir + '/' + input("Enter traj_file name: ")
 if ('-gif' in sys.argv): gif_file_name = sys.argv[sys.argv.index('-gif') + 1]
 else: gif_file_name = input("Enter gif_file name: ")
 
+if ('-res' in sys.argv): res = int(sys.argv[sys.argv.index('-res') + 1])
+else: res = int(input("Enter resolution (1-10): "))
+
+if ('-sharp' in sys.argv): sharp = int(sys.argv[sys.argv.index('-sharp') + 1])
+else: sharp = int(input("Enter sharpness (1-10): "))
+
 param_file_name = param_file_name + '_param'
 traj_file_name = traj_file_name + '_traj'
 
@@ -451,9 +542,6 @@ l_conv = param_file['l_conv']
 
 tot_pos = ut.load_npy(traj_file_name)
 n_frame = tot_pos.shape[0]
-
-res = 5
-sharp = 2
 
 n_xyz = tuple(np.array(cell_dim * res, dtype=int))
 
@@ -472,22 +560,6 @@ tot_pos = np.moveaxis(tot_pos, 2, 1)
 
 image_md = np.array([tot_pos[n] for n in range(0, n_frame, skip)])
 
-"""
-test_dist = np.argwhere(np.eye(n_x, M=n_y, k=-1) + np.eye(n_x, M=n_y) + np.eye(n_x, M=n_y, k=1))
-test_image, test_dx, test_dy = ut.shg_images(np.array((test_dist.T, test_dist.T)), 2 * vdw_param[0] * sharp, n_x, n_y, rc * sharp)
-
-plt.figure(0)
-plt.imshow(test_image[0], cmap='Reds', extent=[0, n_x, 0, n_y], origin='lower')
-plt.figure(1)
-plt.imshow(test_dx[0], cmap='coolwarm', extent=[0, n_x, 0, n_y], origin='lower')
-plt.figure(2)
-plt.imshow(test_dy[0], cmap='coolwarm', extent=[0, n_x, 0, n_y], origin='lower')
-plt.show()
-
-test_n_vector = form_n_vector(test_dx, test_dy)
-test_eigval, test_eigvec = alignment_analysis(test_n_vector, area)
-"""
-
 "Generate Gaussian convoluted images and intensity derivatives"
 image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] / (l_conv * sharp) * res, n_xyz, rc / (l_conv * sharp) * res)
 "Calculate intensity orientational vector n for each pixel"
@@ -495,7 +567,7 @@ n_vector = form_n_vector(dx_shg, dy_shg)
 "Sample average orientational anisotopy"
 eigval_shg, eigvec_shg = alignment_analysis(n_vector, area, n_sample)
 
-q = np.moveaxis(eigval_shg, (2, 0, 1), (0, 1, 2))
+q = reorder_array(eigval_shg)
 q = q[1] - q[0]
 
 print('Mean anistoropy = {}'.format(np.mean(q)))

@@ -227,9 +227,9 @@ def calc_energy_forces(dxdydz, r2, bond_matrix, vdw_matrix, verlet_list, vdw_par
 	return pot_energy, frc_beads
 
 
-def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc):
+def create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_param, rc):
 	"""
-	create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc)
+	create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_param, rc)
 
 	Form initial positional array of beads
 
@@ -239,10 +239,10 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 	n_dim:  int
 		Number of dimensions in simulation
 
-	n_fibre:  int
+	n_fibril:  int
 		Number of fibres in simulation
 
-	l_fibre:  int
+	l_fibril:  int
 		Length of each fibre in simulation
 
 	vdw_param: array_like (float); shape=(2)
@@ -272,52 +272,62 @@ def create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param
 
 	"""
 
-	n_bead = n_fibre * l_fibre
+	if ('-n_layer' in sys.argv): n_layer = int(sys.argv[sys.argv.index('-n_layer') + 1])
+	else: n_layer = int(input("Enter number of repeating units in z dimension: "))
+
+	n_bead = n_fibril * l_fibril * n_layer
 	pos = np.zeros((n_bead, n_dim), dtype=float)
 	bond_matrix = np.zeros((n_bead, n_bead), dtype=int)
 	vdw_matrix = np.zeros(n_bead, dtype=int)
 
 	for bead in range(n_bead):
-		if bead % l_fibre == 0: vdw_matrix[bead] += 8
-		elif bead % l_fibre == l_fibre-1: vdw_matrix[bead] += 8
+		if bead % l_fibril == 0: vdw_matrix[bead] += 8
+		elif bead % l_fibril == l_fibril-1: vdw_matrix[bead] += 8
 		else: vdw_matrix[bead] += 1
 
 	vdw_matrix = np.reshape(np.tile(vdw_matrix, (1, n_bead)), (n_bead, n_bead))
 
 	for bead in range(n_bead): vdw_matrix[bead][bead] = 0
 
-	for fibre in range(n_fibre):
-		for bead in range(1, l_fibre):
-			n = fibre * l_fibre + bead
+	for fibril in range(n_fibril):
+		for bead in range(1, l_fibril):
+			n = fibril * l_fibril + bead
 			bond_matrix[n][n-1] = 1
 			bond_matrix[n-1][n] = 1
 
-	init_pos = np.zeros((l_fibre, n_dim), dtype=float)
+	init_pos = np.zeros((l_fibril, n_dim), dtype=float)
 
-	print("Creating fibre template containing {} beads".format(l_fibre))
+	print("Creating fibril template containing {} beads".format(l_fibril))
 
-	for bead in range(l_fibre):
+	for bead in range(l_fibril):
 		init_pos = grow_fibre(bead, bead, n_dim, n_bead, init_pos, 
 				bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]],
 				vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]], 
 				vdw_param, bond_param, angle_param, rc, 1E2)
 
-	pos[range(l_fibre)] += init_pos
+	pos[range(l_fibril)] += init_pos
 	pos -= np.min(pos)
 
-	size_x = np.max(pos.T[0]) + vdw_param[0] * 2
-	size_y = np.max(pos.T[1]) + vdw_param[0] * 2
-	bead_list = np.arange(0, l_fibre)
+	size_x = np.max(pos.T[0]) + vdw_param[0] 
+	size_y = np.max(pos.T[1]) + vdw_param[0] 
+	size_z = np.max(pos.T[2]) + vdw_param[0] 
+	bead_list = np.arange(0, l_fibril)
 
-	for fibre in range(1, n_fibre):
-		sys.stdout.write("Teselating {} fibres containing {} beads\r".format(fibre, l_fibre))
+	tot_fibril = n_layer * n_fibril
+
+	for fibril in range(1, tot_fibril):
+		sys.stdout.write("Teselating {} fibres containing {} beads\r".format(fibril, l_fibril))
 		sys.stdout.flush()
 
-		pos_x = pos.T[0][bead_list] + size_x * int(fibre / np.sqrt(n_fibre))
-		pos_y = pos.T[1][bead_list] + size_y * int(fibre % np.sqrt(n_fibre))
-		pos_z = pos.T[2][bead_list]
+		i = int(int(fibril / np.sqrt(n_fibril)) % np.sqrt(n_fibril))
+		j = int(fibril % np.sqrt(n_fibril))
+		k = int(fibril / n_fibril)
 
-		pos[bead_list + l_fibre * fibre] += np.array((pos_x, pos_y, pos_z)).T
+		pos_x = pos.T[0][bead_list] + size_x * i
+		pos_y = pos.T[1][bead_list] + size_y * j
+		pos_z = pos.T[2][bead_list] + size_z * k
+
+		pos[bead_list + l_fibril * fibril] += np.array((pos_x, pos_y, pos_z)).T
 
 	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0], np.max(pos.T[2]) + vdw_param[0]])
 

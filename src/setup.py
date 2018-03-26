@@ -30,51 +30,59 @@ def import_files(n_dim, param_file_name, pos_file_name):
 
 	try: mass = param_file['mass']
 	except:
-		mass = float(input("Enter bead mass: "))
+		if ('-mass' in sys.argv): mass = float(sys.argv[sys.argv.index('-mass') + 1])
+		else: mass = float(input("Enter bead mass: "))
 		param_file = ut.update_param_file(param_file_name, 'mass', mass)
 
 	try: vdw_param = param_file['vdw_param']
 	except:
-		vdw_sigma = float(input("Enter vdw sigma radius: "))
-		vdw_epsilon = float(input("Enter vdw epsilon energy: "))
+		if ('-vdw_sigma' in sys.argv): vdw_sigma = float(sys.argv[sys.argv.index('-vdw_sigma') + 1])
+		else: vdw_sigma = float(input("Enter vdw sigma radius: "))
+		if ('-vdw_epsilon' in sys.argv): vdw_epsilon = float(sys.argv[sys.argv.index('-vdw_epsilon') + 1])
+		else: vdw_epsilon = float(input("Enter vdw epsilon energy: "))
 		vdw_param = [vdw_sigma, vdw_epsilon]
 		param_file = ut.update_param_file(param_file_name, 'vdw_param', vdw_param)
 
 	try: bond_param = param_file['bond_param']
 	except:
-		bond_r0 = 2.**(1./6.) * vdw_sigma
-		bond_k = float(input("Enter bond k energy: "))
+		bond_r0 = 2.**(1./6.) * vdw_param[0]
+		if ('-bond_k' in sys.argv): bond_k = float(sys.argv[sys.argv.index('-bond_k') + 1])
+		else: bond_k = float(input("Enter bond k energy: "))
 		bond_param = [bond_r0, bond_k]
 		param_file = ut.update_param_file(param_file_name, 'bond_param', bond_param)
 
 	try: angle_param = param_file['angle_param']
 	except:
 		angle_theta0 = np.pi
-		angle_k = float(input("Enter angle k energy: "))
+		if ('-angle_k' in sys.argv): angle_k = float(sys.argv[sys.argv.index('-angle_k') + 1])
+		else: angle_k = float(input("Enter angle k energy: "))
 		angle_param = [angle_theta0, angle_k]
 		param_file = ut.update_param_file(param_file_name, 'angle_param', angle_param)
 
 	try: rc = param_file['rc']
 	except: 
-		rc = 4 * vdw_sigma
+		rc = 3.25 * vdw_param[0]
 		param_file = ut.update_param_file(param_file_name, 'rc', rc)
 
 	try: kBT = param_file['kBT']
 	except: 
-		kBT = float(input("Enter kBT constant: "))
+		if ('-kBT' in sys.argv): kBT = float(sys.argv[sys.argv.index('-kBT') + 1])
+		else: kBT = float(input("Enter kBT constant: "))
 		param_file = ut.update_param_file(param_file_name, 'kBT', kBT)
 
 	try: Langevin = param_file['Langevin']
-	except: 
-		Langevin = bool(input("Langevin thermostat? (Y/N) ").upper() == 'Y')
+	except:
+		if ('-Langevin' in sys.argv): Langevin = bool(sys.argv[sys.argv.index('-Langevin') + 1].upper() == 'Y')
+		else: Langevin = bool(input("Langevin thermostat? (Y/N) ").upper() == 'Y')
 		param_file = ut.update_param_file(param_file_name, 'Langevin', Langevin)
 
 	params = (mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin)
 
 	if Langevin: 
 		try: thermo_gamma = param_file['thermo_gamma']
-		except: 
-			thermo_gamma = float(input("Enter Langevin gamma constant: "))
+		except:
+			if ('-thermo_gamma' in sys.argv): thermo_gamma = float(sys.argv[sys.argv.index('-thermo_gamma') + 1])
+			else: thermo_gamma = float(input("Enter Langevin gamma constant: "))
 			param_file = ut.update_param_file(param_file_name, 'thermo_gamma', thermo_gamma)
 
 		try: thermo_sigma = param_file['thermo_sigma']
@@ -89,13 +97,15 @@ def import_files(n_dim, param_file_name, pos_file_name):
 
 		print("Creating input pos file {}.npy".format(pos_file_name))
 
-		n_fibre = int(input("Enter square root of number of fibrils: "))
-		n_fibre *= n_fibre
-		l_fibre = int(input("Enter length of fibril (no. of beads): "))
+		if ('-n_fibril' in sys.argv): n_fibril = int(sys.argv[sys.argv.index('-n_fibril') + 1])
+		else: n_fibril = int(input("Enter square root of number of fibrils: "))
+		n_fibril *= n_fibril
+		if ('-l_fibril' in sys.argv): l_fibril = int(sys.argv[sys.argv.index('-l_fibril') + 1])
+		else: l_fibril = int(input("Enter length of fibril (no. of beads): "))
 
-		l_conv = 10. / (l_fibre * 2 * vdw_param[0])
+		l_conv = 10. / (l_fibril * 2 * vdw_param[0])
 
-		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(n_dim, n_fibre, l_fibre, vdw_param, bond_param, angle_param, rc)
+		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_param, rc)
 		print("Saving input pos file {}.npy".format(pos_file_name))
 		ut.save_npy(pos_file_name, pos)
 

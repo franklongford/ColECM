@@ -114,7 +114,7 @@ print("Min Velocity: {:4.5f}".format(np.min(abs(tot_vel))))
 print("Max Velocity:  {:4.5f}".format(np.max(abs(tot_vel))))
 print("Average Velocity: {:4.5f}".format(np.mean(abs(tot_vel))))
 print("Average Temperature: {:4.5f}".format(np.mean(tot_temp)))
-print("Average Energy: {:4.5f}".format(np.mean(energy_array)))	
+print("Average Energy: {:4.5f} per bead".format(np.mean(energy_array) / n_bead))	
 
 sim_time_stop = time.time()
 
