@@ -55,7 +55,8 @@ init_time_start = time.time()
 
 traj_steps = 100
 n_frames = int(n_step / traj_steps)
-dt = 0.004
+if n_dim == 2: dt = 0.004
+elif n_dim == 3: dt = 0.003
 
 pos, cell_dim, l_conv, bond_matrix, vdw_matrix, params = setup.import_files(n_dim, param_file_name, pos_file_name)
 
