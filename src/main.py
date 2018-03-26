@@ -34,7 +34,7 @@ elif n_dim == 3: import simulation_3D as sim
 current_dir = os.getcwd()
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-if ('-nstep' in sys.argv): n_steps = int(sys.argv[sys.argv.index('-nstep') + 1])
+if ('-nstep' in sys.argv): n_step = int(sys.argv[sys.argv.index('-nstep') + 1])
 else: n_step = 10000
 
 if ('-param' in sys.argv): param_file_name = current_dir + '/' + sys.argv[sys.argv.index('-param') + 1]

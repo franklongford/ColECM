@@ -60,8 +60,6 @@ def cos_sin_theta(vector, r_vector):
 
 	"Form pseudo-cross product of each vector pair rij*rjk in vector array corresponding to an angle"
 	cross_prod = np.linalg.det(temp_vector)
-	temp_vector = np.moveaxis(temp_vector, (1, 0, 2), (0, 1, 2))
-	cross_prod = np.cross(temp_vector[0], temp_vector[1])
 
 	"Calculate cos(theta) for each angle"
 	cos_the = dot_prod / r_prod
@@ -309,9 +307,6 @@ def create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_par
 
 		pos_x = pos.T[0][bead_list] + size_x * i
 		pos_y = pos.T[1][bead_list] + size_y * j
-
-		#pos_x = pos.T[0][bead_list] * i 
-		#pos_y = pos.T[1][bead_list] * j
 
 		pos[bead_list + l_fibril * fibril] += np.array((pos_x, pos_y)).T
 

@@ -12,22 +12,37 @@ import random
 
 import sys, os, time
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src/2D/')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-import utilities_2D as ut
-import simulation_2D as sim
+import utilities as ut
+import simulation_2D as sim_2D
+import simulation_3D as sim_3D
 
 
-THRESH = 1E-8
-cell_dim = np.array([60, 60])
+THRESH = 1E-7
+cell_dim_2D = np.array([60, 60])
+cell_dim_3D = np.array([60, 60, 60])
 
-pos = np.array([[20.3155606, 29.0287238],
-		[20.3657056, 28.0910350],
-		[19.7335474, 29.3759130]])
+pos_2D = np.array([[20.3155606, 29.0287238],
+		   [20.3657056, 28.0910350],
+		   [19.7335474, 29.3759130]])
+
+pos_3D = np.array([[20.3155606, 29.0287238, 58.6756206],
+	           [20.3657056, 28.0910350, 58.8612466],
+		   [19.7335474, 29.3759130, 59.3516029]])
+
 bond_matrix = np.array([[0, 1, 0],
 			[1, 0, 1],
 			[0, 1, 0]])
 
+vdw_matrix = np.array([[0, 8, 1],
+		       [8, 0, 8],
+		       [1, 8, 0]])
+
+vdw_param = [1., 2.]
+bond_param = [2.**(1./6.) * vdw_param[0], 10.]
+angle_param = [np.pi, 10.]
+rc = 3.25 * vdw_param[0]
 
 def test_unit_vector():
 
@@ -96,18 +111,11 @@ def test_get_dxyz():
 			     [28.0910350 - 29.0287238, 0, 28.0910350 - 29.3759130],
 			     [29.3759130 - 29.0287238, 29.3759130 - 28.0910350, 0]])
 
-	dx, dy = sim.get_dx_dy(pos, cell_dim)
+	dx, dy = ut.get_distances(pos_2D, cell_dim_2D)
 
 	assert abs(np.sum(dx - dx_check)) <= THRESH
 	assert abs(np.sum(dy - dy_check)) <= THRESH
 
-
-	"""
-	cell_dim = np.array([60, 60, 60])
-
-	pos = np.array([[20.3155606, 29.0287238, 58.6756206],
-			[20.3657056, 28.0910350, 58.8612466],
-			[19.7335474, 29.3759130, 59.3516029]])
 
 	dx_check = np.array([[0, 20.3155606 - 20.3657056, 20.3155606 - 19.7335474],
 			     [20.3657056 - 20.3155606, 0, 20.3657056 - 19.7335474],
@@ -119,17 +127,17 @@ def test_get_dxyz():
 			     [58.8612466 - 58.6756206, 0, 58.8612466 - 59.3516029],
 			     [59.3516029 - 58.6756206, 59.3516029 - 58.8612466, 0]])
 
-	dx, dy, dz = sim.get_dxyz(pos, cell_dim)
+	dx, dy, dz = ut.get_distances(pos_3D, cell_dim_3D)
 
 	assert abs(np.sum(dx - dx_check)) <= THRESH
 	assert abs(np.sum(dy - dy_check)) <= THRESH
 	assert abs(np.sum(dz - dz_check)) <= THRESH
-	"""
+	
 
 def test_cos_sin_theta():
 
-	dx, dy = sim.get_dx_dy(pos, cell_dim)
-	bond_beads, dxdy_index, r_index = sim.update_bond_lists(bond_matrix)
+	dx, dy = ut.get_distances(pos_2D, cell_dim_2D)
+	bond_beads, dxdy_index, r_index = ut.update_bond_lists(bond_matrix)
 	indices_dxy = ut.create_index(dxdy_index)
 
 	vector = np.stack((dx[indices_dxy], dy[indices_dxy]), axis=1)
@@ -138,11 +146,61 @@ def test_cos_sin_theta():
 	"Find |rij| values for each vector"
 	r_vector = np.sqrt(np.sum(vector**2, axis=1))
 
-	cos_the, sin_the, _ = sim.cos_theta(vector, r_vector)
-	cos = np.arccos(cos_the)
+	cos_the, sin_the, _ = sim_2D.cos_sin_theta(vector, r_vector)
+	check_sin_the = np.array([-0.39291528])
 
 	assert abs(np.sum(cos_the - 0.91957468)) <= THRESH
-	assert abs(np.sum(sin_the - np.sin(cos))) <= THRESH
+	assert abs(np.sum(sin_the - check_sin_the)) <= THRESH
+
+	dx, dy, dz = ut.get_distances(pos_3D, cell_dim_3D)
+	bond_beads, dxdydz_index, r_index = ut.update_bond_lists(bond_matrix)
+	indices_dxyz = ut.create_index(dxdy_index)
+
+	vector = np.stack((dx[indices_dxyz], dy[indices_dxyz], dz[indices_dxyz]), axis=1)
+	n_vector = int(vector.shape[0])
+
+	"Find |rij| values for each vector"
+	r_vector = np.sqrt(np.sum(vector**2, axis=1))
+
+	cos_the, sin_the, _ = sim_3D.cos_sin_theta(vector, r_vector)
+	check_sin_the = np.array([[-0.48198494, -0.09796533, -0.36466797]])
+
+	assert abs(np.sum(cos_the - 0.79063936)) <= THRESH
+	assert abs(np.sum(sin_the - check_sin_the)) <= THRESH
 	
+
+def test_pot_energy_frc():
+
+	distances = ut.get_distances(pos_2D, cell_dim_2D)
+	bond_beads, dxdy_index, r_index = ut.update_bond_lists(bond_matrix)
+	r2 = np.sum(distances**2, axis=0)
+	verlet_list = ut.check_cutoff(r2, rc**2)
 	
+	pot_energy, new_frc = sim_2D.calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, 
+					verlet_list, vdw_param, bond_param, angle_param, rc, 
+					bond_beads, dxdy_index, r_index)
+
+	check_frc = np.array([[ 12277.59052347,  -6225.74404829],
+ 			      [ 41.48708925,  -1095.43380772],
+ 			      [-12319.07761272,   7321.17785601]])
+
+	assert abs(pot_energy - 826.54499140268899) <= THRESH
+	assert abs(np.sum(new_frc - check_frc)) <= THRESH
+
+	distances = ut.get_distances(pos_3D, cell_dim_3D)
+	bond_beads, dxdydz_index, r_index = ut.update_bond_lists(bond_matrix)
+	r2 = np.sum(distances**2, axis=0)
+	verlet_list = ut.check_cutoff(r2, rc**2)
+	
+	pot_energy, new_frc = sim_3D.calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, 
+					verlet_list, vdw_param, bond_param, angle_param, rc, 
+					bond_beads, dxdydz_index, r_index)
+
+	check_frc = np.array([[  23.97941507,  770.44703468, -238.8615784 ],
+ 			      [  27.2045763,  -777.5797729,   172.30544761],
+			      [ -51.18399136,    7.13273822,   66.55613079]])
+
+	assert abs(pot_energy - 42.943893873262496) <= THRESH
+	assert abs(np.sum(new_frc - check_frc)) <= THRESH
+
 
