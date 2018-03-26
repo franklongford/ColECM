@@ -66,7 +66,7 @@ else: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin, thermo_gamma,
 n_bead = pos.shape[0]
 
 vel, frc, verlet_list, bond_beads, dxdy_index, r_index = setup.initial_state(n_dim, pos, cell_dim, bond_matrix, vdw_matrix,
-																 vdw_param, bond_param, angle_param, rc, kBT)
+									vdw_param, bond_param, angle_param, rc, kBT)
 
 tot_pos = np.zeros((n_frames, n_bead, n_dim))
 tot_vel = np.zeros((n_frames, n_bead, n_dim))
@@ -129,7 +129,7 @@ time_sec = int(sim_time) % 60
 print("\nSimulation complete: {:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, sim_time))
 
 print("Saving restart file {}".format(restart_file_name))
-ut.save_npy(restart_file_name, tot_pos[-1])
+ut.save_npy(restart_file_name, np.vstack((tot_pos[-1], cell_dim)))
 
 print("Saving trajectory file {}".format(traj_file_name))
 ut.save_npy(traj_file_name, tot_pos)
