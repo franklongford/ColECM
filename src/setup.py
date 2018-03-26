@@ -97,10 +97,10 @@ def import_files(n_dim, param_file_name, pos_file_name):
 
 		print("Creating input pos file {}.npy".format(pos_file_name))
 
-		if ('-n_fibril' in sys.argv): n_fibril = int(sys.argv[sys.argv.index('-n_fibril') + 1])
+		if ('-nfibril' in sys.argv): n_fibril = int(sys.argv[sys.argv.index('-n_fibril') + 1])
 		else: n_fibril = int(input("Enter square root of number of fibrils: "))
 		n_fibril *= n_fibril
-		if ('-l_fibril' in sys.argv): l_fibril = int(sys.argv[sys.argv.index('-l_fibril') + 1])
+		if ('-lfibril' in sys.argv): l_fibril = int(sys.argv[sys.argv.index('-l_fibril') + 1])
 		else: l_fibril = int(input("Enter length of fibril (no. of beads): "))
 
 		l_conv = 10. / (l_fibril * 2 * vdw_param[0])

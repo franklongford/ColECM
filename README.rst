@@ -26,8 +26,8 @@ Main program and analysis can be run via the following commands:
 		-pos		Name of input position file (will create a new one if does not exist)
 		-param		Name of parameter file (will create a new one if does not exist)
 		-out		Name of output files (restart and trajectory)
-		- n_dim		Number of dimensions (must be 2 or 3)
-		- n_step		Number of timesteps in simulation (default=10000)
+		-ndim		Number of dimensions (must be 2 or 3)
+		-nstep		Number of timesteps in simulation (default=10000)
 		-vdw_sigma	Van de Waals radius of collagen beads in red. units
 		-vdw_epsilon	Van de Waals minimul energy in red. units
 		-bond_k		Harmonic bond energy in red. units
@@ -35,9 +35,9 @@ Main program and analysis can be run via the following commands:
 		-kBT		Temperature constant in red. units
 		-Langevin	Whether to use Langevin dynamics (Y/N)
 		-thermo_gamma	Value of Langevin collision rate gamma in red. units
-		- n_fibril	Number of collagen fibrils accross one axis
-		- l_fibril	Length of collagen fibrils in beads
-		- n_layer	Number of repeating unit cells along z axis (3D only)
+		-nfibril	Number of collagen fibrils accross one axis
+		-lfibril	Length of collagen fibrils in beads
+		-nlayer		Number of repeating unit cells along z axis (3D only)
 
 2) ``python3 src/analysis.py [flags]``
 

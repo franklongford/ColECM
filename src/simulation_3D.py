@@ -272,7 +272,7 @@ def create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_par
 
 	"""
 
-	if ('-n_layer' in sys.argv): n_layer = int(sys.argv[sys.argv.index('-n_layer') + 1])
+	if ('-nlayer' in sys.argv): n_layer = int(sys.argv[sys.argv.index('-nlayer') + 1])
 	else: n_layer = int(input("Enter number of repeating units in z dimension: "))
 
 	n_bead = n_fibril * l_fibril * n_layer

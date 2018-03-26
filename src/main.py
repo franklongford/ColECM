@@ -23,7 +23,7 @@ print( '|'+ '_' * 54 + '|' + '  v1.0.0.dev1')
 print( "\n          ECM Collagen Fibre Simulation\n")
 
 
-if ('-n_dim' in sys.argv): n_dim = int(sys.argv[sys.argv.index('-n_dim') + 1])
+if ('-ndim' in sys.argv): n_dim = int(sys.argv[sys.argv.index('-ndim') + 1])
 else: n_dim = int(input("Number of dimensions: "))
 
 assert n_dim in [2, 3]
@@ -34,7 +34,7 @@ elif n_dim == 3: import simulation_3D as sim
 current_dir = os.getcwd()
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-if ('-n_step' in sys.argv): n_steps = int(sys.argv[sys.argv.index('-n_step') + 1])
+if ('-nstep' in sys.argv): n_steps = int(sys.argv[sys.argv.index('-nstep') + 1])
 else: n_step = 10000
 
 if ('-param' in sys.argv): param_file_name = current_dir + '/' + sys.argv[sys.argv.index('-param') + 1]
