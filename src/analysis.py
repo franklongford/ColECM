@@ -198,8 +198,8 @@ def create_image(pos, std, n_xyz, r_cut, filter_):
 			filter_shift = move_array_centre(filter_, index[::-1])
 
 		if n_dim == 3:
-			r_cut_shift = move_array_centre(r_cut[-index[0]], index[1:])
-			filter_shift = move_array_centre(filter_[-index[0]], index[1:])
+			r_cut_shift = move_array_centre(r_cut[index[0]], index[1:])
+			filter_shift = move_array_centre(filter_[index[0]], index[1:])
 
 		image[np.where(filter_shift)] += gaussian(r_cut_shift[np.where(filter_shift)].flatten(), 0, std) * intensity[i]
 
@@ -531,17 +531,20 @@ else: res = int(input("Enter resolution (1-10): "))
 if ('-sharp' in sys.argv): sharp = int(sys.argv[sys.argv.index('-sharp') + 1])
 else: sharp = int(input("Enter sharpness (1-10): "))
 
+if ('-skip' in sys.argv): skip = int(sys.argv[sys.argv.index('-skip') + 1])
+else: skip = int(input("Enter number of sampled frames between each png: "))
+
 param_file_name = param_file_name + '_param'
 traj_file_name = traj_file_name + '_traj'
 
 param_file = ut.read_param_file(param_file_name)
-cell_dim = param_file['cell_dim']
 vdw_param = param_file['vdw_param']
 rc = param_file['rc']
 l_conv = param_file['l_conv']
 
 tot_pos = ut.load_npy(traj_file_name)
 n_frame = tot_pos.shape[0]
+cell_dim = tot_pos[0][-1]
 
 n_xyz = tuple(np.array(cell_dim * res, dtype=int))
 
@@ -550,15 +553,12 @@ if not os.path.exists(gif_dir): os.mkdir(gif_dir)
 fig_dir = current_dir + '/fig'
 if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
-skip = 10
 n_image = int(n_frame/skip)
 sample_l = 50
 n_sample = 20
 area = int(np.min([sample_l, np.min(cell_dim[:2])]) / l_conv * res)
 
-tot_pos = np.moveaxis(tot_pos, 2, 1)
-
-image_md = np.array([tot_pos[n] for n in range(0, n_frame, skip)])
+image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
 
 "Generate Gaussian convoluted images and intensity derivatives"
 image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] / (l_conv * sharp) * res, n_xyz, rc / (l_conv * sharp) * res)

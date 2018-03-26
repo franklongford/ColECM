@@ -68,7 +68,7 @@ n_bead = pos.shape[0]
 vel, frc, verlet_list, bond_beads, dxdy_index, r_index = setup.initial_state(n_dim, pos, cell_dim, bond_matrix, vdw_matrix,
 									vdw_param, bond_param, angle_param, rc, kBT)
 
-tot_pos = np.zeros((n_frames, n_bead, n_dim))
+tot_pos = np.zeros((n_frames, n_bead + 1, n_dim))
 tot_vel = np.zeros((n_frames, n_bead, n_dim))
 tot_frc = np.zeros((n_frames, n_bead, n_dim))
 tot_temp = np.zeros((n_frames))
@@ -103,7 +103,7 @@ for step in range(n_step):
 
 	if step % traj_steps == 0:
 		i = int(step / traj_steps)
-		tot_pos[i] += pos
+		tot_pos[i] += np.vstack((pos, cell_dim))
 		tot_vel[i] += vel
 		tot_frc[i] += frc
 		tot_temp[i] += ut.kin_energy(vel, mass, n_dim) * 2
@@ -129,7 +129,7 @@ time_sec = int(sim_time) % 60
 print("\nSimulation complete: {:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, sim_time))
 
 print("Saving restart file {}".format(restart_file_name))
-ut.save_npy(restart_file_name, np.vstack((tot_pos[-1], cell_dim)))
+ut.save_npy(restart_file_name, tot_pos[-1])
 
 print("Saving trajectory file {}".format(traj_file_name))
 ut.save_npy(traj_file_name, tot_pos)

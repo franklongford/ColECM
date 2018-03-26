@@ -118,6 +118,7 @@ def import_files(n_dim, param_file_name, pos_file_name):
 
 		print("Loading input pos file {}.npy".format(pos_file_name))
 		pos = ut.load_npy(pos_file_name)
+		print(pos.shape)
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 
