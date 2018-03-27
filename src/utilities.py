@@ -18,6 +18,29 @@ SQRT2 = np.sqrt(2)
 SQRTPI = np.sqrt(np.pi)
 
 
+def check_string(string, pos, sep, word):
+
+	if sep in string: 
+		temp_string = string.split(sep)
+		if temp_string[pos] == word: temp_string.pop(pos)
+		string = sep.join(temp_string)
+
+	return string
+
+
+def check_file_name(file_name, file_type="", extension=""):
+	"""
+	check_file_name(file_name, file_type="", extension="")
+	
+	Checks file_name for file_type or extension
+
+	"""
+
+	file_name = check_string(file_name, -1, '.', extension)
+	file_name = check_string(file_name, -1, '_', file_type)
+	
+	return file_name
+
 
 def make_param_file(param_file_name):
 	"""

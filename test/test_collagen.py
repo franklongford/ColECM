@@ -72,7 +72,21 @@ def test_remove():
 
 def test_param_file():
 
-	param_file_name = 'test_param_file'
+	param_file_name = 'test_param_file_param.pkl'
+	param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl')
+
+	assert param_file_name == 'test_param_file'
+
+	param_file_name = 'test_param_file.pkl'
+	param_file_name = ut.check_file_name(param_file_name, extension='pkl')
+
+	assert param_file_name == 'test_param_file'
+
+	param_file_name = 'test_param_file_param'
+	param_file_name = ut.check_file_name(param_file_name, file_type='param')
+
+	assert param_file_name == 'test_param_file'
+
 	if not os.path.exists('{}.pkl'.format(param_file_name)): ut.make_param_file(param_file_name)
 	param_file = ut.read_param_file(param_file_name)
 

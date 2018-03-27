@@ -46,9 +46,10 @@ else: pos_file_name = current_dir + '/' + input("Enter pos_file name: ")
 if ('-out' in sys.argv): output_file_name = current_dir + '/' + sys.argv[sys.argv.index('-out') + 1]
 else: output_file_name = current_dir + '/' + input("Enter output_file name: ")
 
-param_file_name = param_file_name + '_param'
-traj_file_name = output_file_name + '_traj'
-restart_file_name = output_file_name + '_rst'
+param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl') + '_param'
+pos_file_name = ut.check_file_name(pos_file_name, extension='npy')
+traj_file_name = ut.check_file_name(output_file_name, 'traj', 'npy') + '_traj'
+restart_file_name = ut.check_file_name(output_file_name, 'rst', 'npy') + '_rst'
 
 print("\nEntering Setup\n")
 init_time_start = time.time()

@@ -95,6 +95,8 @@ def import_files(n_dim, param_file_name, pos_file_name):
 
 	if not os.path.exists(pos_file_name + '.npy'):
 
+		pos_file_name = ut.check_file_name(pos_file_name, file_type='pos') + '_pos'
+
 		print("Creating input pos file {}.npy".format(pos_file_name))
 
 		if ('-nfibrilx' in sys.argv): n_fibril_x = int(sys.argv[sys.argv.index('-nfibrilx') + 1])

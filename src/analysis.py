@@ -337,10 +337,10 @@ def make_png(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD'):
 		elif n_dim == 3:
 			fig = plt.figure(figsize=(cell_dim[0]/4, cell_dim[1]/4))
 			ax = plt3d.Axes3D(fig)
-			ax.scatter(image[0], image[1], image[2], s=2*vdw_param[0])
+			ax.scatter(image[0], image[1], image[2], s=2*vdw_param[0]*res / l_conv, zdir='y')
 			ax.set_xlim3d([0.0, cell_dim[0]])
-			ax.set_ylim3d([0.0, cell_dim[1]])
-			ax.set_zlim3d([0.0, cell_dim[2]])
+			ax.set_ylim3d([0.0, cell_dim[2]])
+			ax.set_zlim3d([0.0, cell_dim[1]])
 	elif itype.upper() == 'SHG':
 		fig = plt.figure()
 		plt.imshow(image, cmap='viridis', interpolation='nearest', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
@@ -545,8 +545,8 @@ else: sharp = int(input("Enter sharpness (1-10): "))
 if ('-skip' in sys.argv): skip = int(sys.argv[sys.argv.index('-skip') + 1])
 else: skip = int(input("Enter number of sampled frames between each png: "))
 
-param_file_name = param_file_name + '_param'
-traj_file_name = traj_file_name + '_traj'
+param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl') + '_param'
+traj_file_name = ut.check_file_name(traj_file_name, 'traj', 'npy') + '_traj'
 
 print("Loading parameter file {}.pkl".format(param_file_name))
 param_file = ut.read_param_file(param_file_name)
