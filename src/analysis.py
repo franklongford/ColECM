@@ -9,6 +9,7 @@ Last Modified: 21/03/2018
 
 import numpy as np
 import matplotlib.pyplot as plt
+import mpl_toolkits.mplot3d.axes3d as plt3d
 import matplotlib.animation as animation
 
 import sys
@@ -325,11 +326,21 @@ def make_png(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD'):
 
 	"""
 
-	if itype.upper() == 'MD': 
-		fig, ax = plt.subplots(figsize=(cell_dim[0]/4, cell_dim[1]/4))
-		plt.scatter(image[0], image[1])
-		plt.xlim(0, cell_dim[0])
-		plt.ylim(0, cell_dim[1])
+	n_dim = cell_dim.shape[0]
+
+	if itype.upper() == 'MD':
+		if n_dim == 2:
+			fig, ax = plt.subplots(figsize=(cell_dim[0]/4, cell_dim[1]/4))
+			plt.scatter(image[0], image[1])
+			plt.xlim(0, cell_dim[0])
+			plt.ylim(0, cell_dim[1])
+		elif n_dim == 3:
+			fig = plt.figure(figsize=(cell_dim[0]/4, cell_dim[1]/4))
+			ax = plt3d.Axes3D(fig)
+			ax.scatter(image[0], image[1], image[2], s=2*vdw_param[0])
+			ax.set_xlim3d([0.0, cell_dim[0]])
+			ax.set_ylim3d([0.0, cell_dim[1]])
+			ax.set_zlim3d([0.0, cell_dim[2]])
 	elif itype.upper() == 'SHG':
 		fig = plt.figure()
 		plt.imshow(image, cmap='viridis', interpolation='nearest', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
@@ -542,6 +553,7 @@ param_file = ut.read_param_file(param_file_name)
 vdw_param = param_file['vdw_param']
 rc = param_file['rc']
 l_conv = param_file['l_conv']
+bond_matrix = param_file['bond_matrix']
 
 print("Loading trajectory file {}.npy".format(traj_file_name))
 tot_pos = ut.load_npy(traj_file_name)

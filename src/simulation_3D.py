@@ -312,9 +312,9 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 	pos[range(l_fibril)] += init_pos
 	pos -= np.min(pos)
 
-	size_x = np.max(pos.T[0]) + vdw_param[0] 
-	size_y = np.max(pos.T[1]) + vdw_param[0] 
-	size_z = np.max(pos.T[2]) + vdw_param[0] 
+	size_x = np.max(pos.T[0]) + vdw_param[0] / 2
+	size_y = np.max(pos.T[1]) + vdw_param[0] / 2
+	size_z = np.max(pos.T[2]) + vdw_param[0] / 2
 	bead_list = np.arange(0, l_fibril)
 
 	for k in range(n_fibril_z):
@@ -332,7 +332,7 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 
 				pos[bead_list + l_fibril * fibril] += np.array((pos_x, pos_y, pos_z)).T
 
-	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0], np.max(pos.T[2]) + vdw_param[0]])
+	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0] / 2, np.max(pos.T[1]) + vdw_param[0] / 2, np.max(pos.T[2]) + vdw_param[0] / 2])
 
 	return pos, cell_dim, bond_matrix, vdw_matrix
 
