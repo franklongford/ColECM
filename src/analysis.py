@@ -533,6 +533,9 @@ else: param_file_name = current_dir + '/' + input("Enter param_file name: ")
 if ('-traj' in sys.argv): traj_file_name = current_dir + '/' + sys.argv[sys.argv.index('-traj') + 1]
 else: traj_file_name = current_dir + '/' + input("Enter traj_file name: ")
 
+if ('-out' in sys.argv): output_file_name = current_dir + '/' + sys.argv[sys.argv.index('-out') + 1]
+else: output_file_name = current_dir + '/' + input("Enter output_file name: ")
+
 if ('-gif' in sys.argv): gif_file_name = sys.argv[sys.argv.index('-gif') + 1]
 else: gif_file_name = input("Enter gif_file name: ")
 
@@ -547,6 +550,7 @@ else: skip = int(input("Enter number of sampled frames between each png: "))
 
 param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl') + '_param'
 traj_file_name = ut.check_file_name(traj_file_name, 'traj', 'npy') + '_traj'
+output_file_name = ut.check_file_name(output_file_name, 'out', 'npy') + '_out'
 
 print("Loading parameter file {}.pkl".format(param_file_name))
 param_file = ut.read_param_file(param_file_name)
@@ -554,10 +558,15 @@ vdw_param = param_file['vdw_param']
 rc = param_file['rc']
 l_conv = param_file['l_conv']
 bond_matrix = param_file['bond_matrix']
+kBT = param_file['kBT']
+
+print("Loading output file {}".format(output_file_name))
+tot_energy, tot_temp = ut.load_npy(output_file_name)
 
 print("Loading trajectory file {}.npy".format(traj_file_name))
 tot_pos = ut.load_npy(traj_file_name)
 n_frame = tot_pos.shape[0]
+n_bead = tot_pos.shape[1]
 cell_dim = tot_pos[0][-1]
 
 n_xyz = tuple(np.array(cell_dim * res, dtype=int))
@@ -566,6 +575,19 @@ gif_dir = current_dir + '/gif'
 if not os.path.exists(gif_dir): os.mkdir(gif_dir)
 fig_dir = current_dir + '/fig'
 if not os.path.exists(fig_dir): os.mkdir(fig_dir)
+
+plt.figure(0)
+plt.title('Energy')
+plt.plot(tot_energy / n_bead)
+plt.xlabel(r'step')
+plt.ylabel(r'Energy / bead')
+plt.savefig('{}_energy.png'.format(traj_file_name), bbox_inches='tight')
+plt.figure(1)
+plt.title('Temperature / kBT')
+plt.plot(tot_temp / kBT)
+plt.xlabel(r'step')
+plt.ylabel(r'Temp / kBT')
+plt.savefig('{}_temp.png'.format(traj_file_name), bbox_inches='tight')
 
 n_image = int(n_frame/skip)
 sample_l = 150 / l_conv

@@ -16,7 +16,7 @@ import sys, os, pickle
 import utilities as ut
 
 
-def import_files(n_dim, param_file_name, pos_file_name):
+def import_files(n_dim, param_file_name, pos_file_name, restart_file_name):
 
 	if n_dim == 2: from simulation_2D import create_pos_array
 	elif n_dim == 3: from simulation_3D import create_pos_array
@@ -93,8 +93,31 @@ def import_files(n_dim, param_file_name, pos_file_name):
 		params += (thermo_gamma, thermo_sigma)
 
 
-	if not os.path.exists(pos_file_name + '.npy'):
+	if os.path.exists(restart_file_name + '.npy'):
+		print("Loading restart file {}.npy".format(restart_file_name))
+		restart = ut.load_npy(restart_file_name)
+		pos = restart[0]
+		vel = restart[1]
+		cell_dim = pos[-1]
+		pos = pos[:-1]
 
+		bond_matrix = param_file['bond_matrix']
+		vdw_matrix = param_file['vdw_matrix']
+		l_conv = param_file['l_conv']
+
+	elif os.path.exists(pos_file_name + '.npy'):
+		print("Loading position file {}.npy".format(pos_file_name))
+		pos = ut.load_npy(pos_file_name)
+		cell_dim = pos[-1]
+		pos = pos[:-1]
+
+		bond_matrix = param_file['bond_matrix']
+		vdw_matrix = param_file['vdw_matrix']
+		l_conv = param_file['l_conv']
+
+		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * kBT / mass)
+		
+	else:
 		pos_file_name = ut.check_file_name(pos_file_name, file_type='pos') + '_pos'
 
 		print("Creating input pos file {}.npy".format(pos_file_name))
@@ -116,19 +139,11 @@ def import_files(n_dim, param_file_name, pos_file_name):
 		param_file = ut.update_param_file(param_file_name, 'bond_matrix', bond_matrix)
 		param_file = ut.update_param_file(param_file_name, 'vdw_matrix', vdw_matrix)
 		param_file = ut.update_param_file(param_file_name, 'l_conv', l_conv)
+
+		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * kBT / mass)
 		
-	else:
 
-		print("Loading input pos file {}.npy".format(pos_file_name))
-		pos = ut.load_npy(pos_file_name)
-		cell_dim = pos[-1]
-		pos = pos[:-1]
-
-		bond_matrix = param_file['bond_matrix']
-		vdw_matrix = param_file['vdw_matrix']
-		l_conv = param_file['l_conv']
-
-	return pos, cell_dim, l_conv, bond_matrix, vdw_matrix, params
+	return pos, vel, cell_dim, l_conv, bond_matrix, vdw_matrix, params
 
 
 def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_matrix, vdw_param, bond_param, angle_param, rc, max_energy):
@@ -250,9 +265,6 @@ def initial_state(n_dim, pos, cell_dim, bond_matrix, vdw_matrix, vdw_param, bond
 	Returns
 	-------
 
-	vel: array_like, dtype=float
-		Velocity of each bead in all collagen fibres
-
 	frc: array_like, dtype=float
 		Forces acting upon each bead in all collagen fibres
 
@@ -274,7 +286,6 @@ def initial_state(n_dim, pos, cell_dim, bond_matrix, vdw_matrix, vdw_param, bond
 	elif n_dim == 3: from simulation_3D import calc_energy_forces
 
 	n_bead = pos.shape[0]
-	vel = (np.random.random((n_bead, n_dim)) - 0.5) * 2 * kBT
 	distances = ut.get_distances(pos, cell_dim)
 	r2 = np.sum(distances**2, axis=0)
 
@@ -284,4 +295,4 @@ def initial_state(n_dim, pos, cell_dim, bond_matrix, vdw_matrix, vdw_param, bond
 	_, frc = calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, 
 				vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 
-	return vel, frc, verlet_list, bond_beads, dxy_index, r_index
+	return frc, verlet_list, bond_beads, dxy_index, r_index

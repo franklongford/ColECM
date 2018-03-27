@@ -321,9 +321,7 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 		for i in range(n_fibril_x):
 			for j in range(n_fibril_y):
 				if k + j + i == 0: continue
-				sys.stdout.write("Teselating {} fibres containing {} beads\r".format(fibril, l_fibril))
-				sys.stdout.flush()
-
+				
 				fibril = (j + i * n_fibril_y + k * n_fibril_x * n_fibril_y)
 
 				pos_x = pos.T[0][bead_list] + size_x * i
@@ -338,8 +336,8 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 
 
 def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list, bond_beads, dxy_index, 
-					r_index, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, 
-					Langevin=False, gamma=0, sigma=1.0, xi = 0, theta = 0):
+					r_index, dt, sqrt_dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, 
+					gamma=0, sigma=0, xi = 0, theta = 0):
 	"""
 	velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list, bond_beads, dxy_index, 
 					r_index, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, 
@@ -439,12 +437,8 @@ def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, ver
 
 	n_bead = pos.shape[0]
 	
-	vel += 0.5 * dt * frc / mass
-	pos += dt * vel
-
-	if Langevin:
-		C = 0.5 * dt**2 * (frc / mass - gamma * vel) + sigma * dt**(3./2) * (xi + theta / SQRT3) / 2.
-		pos += C
+	C = 0.5 * (sigma * sqrt_dt**3 * (xi + theta / SQRT3) + dt**2 * (frc / mass - gamma * vel))
+	pos += dt * vel + C
 	
 	cell = np.tile(cell_dim, (n_bead, 1)) 
 	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
@@ -454,14 +448,11 @@ def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, ver
 
 	verlet_list = ut.check_cutoff(r2, rc**2)
 	pot_energy, new_frc = calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
-	vel += 0.5 * dt * new_frc / mass
-
-	if Langevin: vel += 0.5 * dt * frc / mass - gamma * (dt * vel + C) + sigma * xi * np.sqrt(dt)
 	
+	vel += 0.5 * dt * (new_frc + frc) / mass + sigma * xi * sqrt_dt - gamma * (dt * vel + C)
+
 	frc = new_frc
 	tot_energy = pot_energy + ut.kin_energy(vel, mass, n_dim)
 
 	return pos, vel, frc, verlet_list, tot_energy
-
-
 

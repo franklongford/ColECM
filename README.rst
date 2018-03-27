@@ -7,11 +7,6 @@ By Frank Longford (2018)
 
 Simulation code designed to reproduce SHG images of the colagen fibril network in the extra cellular matrix (ECM). Details on the model used can be found in documentation.pdf.
 
-Installation:
--------------
-
-``python3 setup.py install``
-
 
 Instructions:
 -------------
@@ -25,9 +20,9 @@ Main program and analysis can be run via the following commands:
 	All input and output files will be created in the user's current working directory.
 
 		-pos		Name of input position file 
-				(will create a new one if does not exist)
+				(will create a new file ending in '_pos' if does not exist)
 		-param		Name of parameter file 
-				(will create a new one if does not exist)
+				(will create a new file ending in '_param' if does not exist)
 		-out		Name of output files (restart and trajectory)
 		-ndim		Number of dimensions (must be 2 or 3)
 		-nstep		Number of timesteps in simulation (default=10000)
@@ -48,8 +43,9 @@ Main program and analysis can be run via the following commands:
 	Anisotropy analysis
 	Flags are optional and can be entered in the command line or selected later during the analysis process.
 
+		-param	Name of simulation parameter file
 		-traj	Name of trajectory file to analyse
-		-param	Name of parameter file
+		-out	Name of simulation output file to analyse
 		-gif	Name of gif file to be created
 		-res	Image resolution parameter (1-10)
 		-sharp	Image sharpness parameter (1-10)
