@@ -20,6 +20,7 @@ Main program and analysis can be run via the following commands:
 
 1) ``python3 src/main.py [flags]``
 
+	Runs the main simulation routine for collagen fibrils in the ECM. Each fibril is approximated to be 1 um long.
 	Flags are optional and can be entered in the command line or selected later during the setup process. 
 	All input and output files will be created in the user's current working directory.
 
@@ -44,6 +45,7 @@ Main program and analysis can be run via the following commands:
 
 2) ``python3 src/analysis.py [flags]``
 
+	Anisotropy analysis
 	Flags are optional and can be entered in the command line or selected later during the analysis process.
 
 		-traj	Name of trajectory file to analyse

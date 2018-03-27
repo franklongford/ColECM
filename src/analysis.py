@@ -537,11 +537,13 @@ else: skip = int(input("Enter number of sampled frames between each png: "))
 param_file_name = param_file_name + '_param'
 traj_file_name = traj_file_name + '_traj'
 
+print("Loading parameter file {}.pkl".format(param_file_name))
 param_file = ut.read_param_file(param_file_name)
 vdw_param = param_file['vdw_param']
 rc = param_file['rc']
 l_conv = param_file['l_conv']
 
+print("Loading trajectory file {}.npy".format(traj_file_name))
 tot_pos = ut.load_npy(traj_file_name)
 n_frame = tot_pos.shape[0]
 cell_dim = tot_pos[0][-1]
@@ -554,7 +556,7 @@ fig_dir = current_dir + '/fig'
 if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
 n_image = int(n_frame/skip)
-sample_l = 50
+sample_l = 150 / l_conv
 n_sample = 20
 area = int(np.min([sample_l, np.min(cell_dim[:2])]) / l_conv * res)
 
