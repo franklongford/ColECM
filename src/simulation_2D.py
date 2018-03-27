@@ -216,9 +216,9 @@ def calc_energy_forces(dxdy, r2, bond_matrix, vdw_matrix, verlet_list, vdw_param
 	return pot_energy, frc_beads
 
 
-def create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_param, rc):
+def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_param, angle_param, rc):
 	"""
-	create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_param, rc)
+	create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_param, angle_param, rc)
 
 	Form initial positional array of beads
 
@@ -228,8 +228,11 @@ def create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_par
 	n_dim:  int
 		Number of dimensions in simulation
 
-	n_fibril:  int
-		Number of fibrils in simulation
+	n_fibril_x:  int
+		Number of fibrils in x dimension
+
+	n_fibril_y:  int
+		Number of fibrils in y dimension
 
 	l_fibril:  int
 		Length of each fibril in simulation
@@ -261,6 +264,7 @@ def create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_par
 
 	"""
 
+	n_fibril = n_fibril_x * n_fibril_y
 	n_bead = n_fibril * l_fibril
 	pos = np.zeros((n_bead, n_dim), dtype=float)
 	bond_matrix = np.zeros((n_bead, n_bead), dtype=int)
@@ -298,17 +302,18 @@ def create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_par
 	size_y = np.max(pos.T[1]) + vdw_param[0] 
 	bead_list = np.arange(0, l_fibril)
 
-	for fibril in range(1, n_fibril):
-		sys.stdout.write("Teselating {} fibres containing {} beads\r".format(fibril, l_fibril))
-		sys.stdout.flush()
+	for i in range(n_fibril_x):
+		for j in range(n_fibril_y):
+			if j + i == 0: continue
+			sys.stdout.write("Teselating {} fibres containing {} beads\r".format(fibril, l_fibril))
+			sys.stdout.flush()
 
-		i = int(fibril / np.sqrt(n_fibril))
-		j = int(fibril % np.sqrt(n_fibril))
+			fibril = (j + i * n_fibril_y)
 
-		pos_x = pos.T[0][bead_list] + size_x * i
-		pos_y = pos.T[1][bead_list] + size_y * j
+			pos_x = pos.T[0][bead_list] + size_x * i
+			pos_y = pos.T[1][bead_list] + size_y * j
 
-		pos[bead_list + l_fibril * fibril] += np.array((pos_x, pos_y)).T
+			pos[bead_list + l_fibril * fibril] += np.array((pos_x, pos_y)).T
 
 	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0]])
 

@@ -37,9 +37,10 @@ Main program and analysis can be run via the following commands:
 		-kBT		Temperature constant in red. units
 		-Langevin	Whether to use Langevin dynamics (Y/N)
 		-thermo_gamma	Value of Langevin collision rate gamma in red. units
-		-nfibril	Number of collagen fibrils accross one axis
+		-nfibrilx	Number of collagen fibrils accross x axis
+		-nfibrily	Number of collagen fibrils accross y axis
+		-nfibrilz	Number of collagen fibrils accross z axis (3D only)
 		-lfibril	Length of collagen fibrils in beads
-		-nlayer		Number of repeating unit cells along z axis (3D only)
 
 2) ``python3 src/analysis.py [flags]``
 
@@ -50,3 +51,4 @@ Main program and analysis can be run via the following commands:
 		-gif	Name of gif file to be created
 		-res	Image resolution parameter (1-10)
 		-sharp	Image sharpness parameter (1-10)
+		-skip	Number of sampled frames between each png

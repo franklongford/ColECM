@@ -97,15 +97,16 @@ def import_files(n_dim, param_file_name, pos_file_name):
 
 		print("Creating input pos file {}.npy".format(pos_file_name))
 
-		if ('-nfibril' in sys.argv): n_fibril = int(sys.argv[sys.argv.index('-nfibril') + 1])
-		else: n_fibril = int(input("Enter square root of number of fibrils: "))
-		n_fibril *= n_fibril
+		if ('-nfibrilx' in sys.argv): n_fibril_x = int(sys.argv[sys.argv.index('-nfibrilx') + 1])
+		else: n_fibril_x = int(input("Enter number of fibrils in x dimension: "))
+		if ('-nfibrily' in sys.argv): n_fibril_y = int(sys.argv[sys.argv.index('-nfibrily') + 1])
+		else: n_fibril_y = int(input("Enter number of fibrils in y dimension: "))
 		if ('-lfibril' in sys.argv): l_fibril = int(sys.argv[sys.argv.index('-lfibril') + 1])
 		else: l_fibril = int(input("Enter length of fibril (no. of beads): "))
 
 		l_conv = 10. / (l_fibril * 2 * vdw_param[0])
 
-		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(n_dim, n_fibril, l_fibril, vdw_param, bond_param, angle_param, rc)
+		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_param, angle_param, rc)
 		print("Saving input pos file {}.npy".format(pos_file_name))
 
 		ut.save_npy(pos_file_name, np.vstack((pos, cell_dim)))
