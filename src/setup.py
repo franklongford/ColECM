@@ -85,12 +85,7 @@ def import_files(n_dim, param_file_name, pos_file_name, restart_file_name):
 			else: thermo_gamma = float(input("Enter Langevin gamma constant: "))
 			param_file = ut.update_param_file(param_file_name, 'thermo_gamma', thermo_gamma)
 
-		try: thermo_sigma = param_file['thermo_sigma']
-		except: 
-			thermo_sigma =  np.sqrt(2 * kBT * thermo_gamma / mass)
-			param_file = ut.update_param_file(param_file_name, 'thermo_sigma', thermo_sigma)
-
-		params += (thermo_gamma, thermo_sigma)
+		params += (thermo_gamma,)
 
 
 	if os.path.exists(restart_file_name + '.npy'):

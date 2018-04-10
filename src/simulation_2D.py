@@ -317,14 +317,13 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 
 	return pos, cell_dim, bond_matrix, vdw_matrix
 
-
 def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list, bond_beads, dxy_index, 
-					r_index, dt, sqrt_dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, 
-					gamma=0, sigma=1.0, xi = 0, theta = 0):
+					r_index, dt, sqrt_dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, gamma=1.0, 
+					thermo_sigma = 1.0):
 	"""
 	velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list, bond_beads, dxy_index, 
-					r_index, dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, 
-					Langevin=False, gamma=0, sigma=1.0, xi = 0, theta = 0)
+					r_index, dt, sqrt_dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, gamma=1.0, 
+					thermo_sigma = 1.0)
 
 	Integrate positions and velocities through time using verlocity verlet algorithm
 
@@ -420,9 +419,12 @@ def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, ver
 
 	n_bead = pos.shape[0]
 	
-	C = 0.5 * (sigma * sqrt_dt**3 * (xi + theta / SQRT3) + dt**2 * (frc / mass - gamma * vel))
-	pos += dt * vel + C
-	
+	beta = np.random.normal(0, 1, (n_bead, n_dim))
+	vel += frc / mass * dt
+	d_vel = thermo_sigma * beta - gamma * vel
+	pos += (vel + 0.5 * d_vel) * dt
+	vel += d_vel
+
 	cell = np.tile(cell_dim, (n_bead, 1)) 
 	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
  
@@ -431,11 +433,8 @@ def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, ver
 
 	verlet_list = ut.check_cutoff(r2, rc**2)
 	pot_energy, new_frc = calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
-	
-	vel += 0.5 * dt * (new_frc + frc) / mass + sigma * xi * sqrt_dt - gamma * (dt * vel + C)
 
 	frc = new_frc
 	tot_energy = pot_energy + ut.kin_energy(vel, mass, n_dim)
 
 	return pos, vel, frc, verlet_list, tot_energy
-

@@ -609,7 +609,7 @@ q = q[1] - q[0]
 print('Mean anistoropy = {}'.format(np.mean(q)))
 
 make_gif(gif_file_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
-make_gif(gif_file_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
+#make_gif(gif_file_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
 """
 fig, ax = plt.subplots()

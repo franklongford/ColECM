@@ -1,5 +1,5 @@
 ==================================================
-CollECM - Collagen Extracellular Matrix Simulation
+ColECM - Collagen Extracellular Matrix Simulation
 ==================================================
 
 By Frank Longford (2018)
