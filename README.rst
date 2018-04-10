@@ -1,11 +1,11 @@
-===============================================
-Collagen - Pythonic collagen fibril simulation
-===============================================
+==================================================
+CollECM - Collagen Extracellular Matrix Simulation
+==================================================
 
 By Frank Longford (2018)
 ------------------------
 
-Simulation code designed to reproduce SHG images of the colagen fibril network in the extra cellular matrix (ECM). Details on the model used can be found in documentation.pdf.
+Simulation code designed to reproduce second harmonic generation (SHG) images of the collagen fibril network in the extra cellular matrix (ECM). Details on the model used can be found in documentation.pdf.
 
 
 Instructions:

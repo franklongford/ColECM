@@ -14,13 +14,13 @@ import utilities as ut
 import setup
 
 print(' '+ '_' * 54)
-print( "|   ___   ___                        ___   ___         |")
-print( "|  /     /   \  |    |       /\     /     |    |\   |  |")
-print( "| |     |     | |    |      /  \   |  __  |___ | \  |  |")
-print( "| |     |     | |    |     /----\  |    | |    |  \ |  |")
-print( "|  \___  \___/  |___ |___ /      \  \___/ |___ |   \|  |")
+print( "|   ___   ___              ___   ___          |")
+print( "|  /     /   \  |    |    |     /    |\    /| |")
+print( "| |     |     | |    |    |___ |     | \  / | |")
+print( "| |     |     | |    |    |    |     |  \/  | |")
+print( "|  \___  \___/  |___ |___ |___  \___ |      | |")
 print( '|'+ '_' * 54 + '|' + '  v1.0.0.dev1')
-print( "\n          ECM Collagen Fibre Simulation\n")
+print( "\n          Collagen ECM Simulation\n")
 
 
 if ('-ndim' in sys.argv): n_dim = int(sys.argv[sys.argv.index('-ndim') + 1])
