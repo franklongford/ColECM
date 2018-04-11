@@ -9,7 +9,6 @@ Last Modified: 09/03/2018
 
 import numpy as np
 import scipy as sp
-import random
 
 import sys, os, pickle
 

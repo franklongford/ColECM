@@ -105,7 +105,6 @@ def shg_images(traj, sigma, n_xyz, cut):
 
 	"Calculate radial distances"
 	r2 = np.sum(dxdydz**2, axis=0)
-
 	
 	"Find indicies within cutoff radius"
 	cutoff = np.where(r2 <= cut**2)
