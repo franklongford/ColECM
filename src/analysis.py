@@ -106,35 +106,38 @@ def shg_images(traj, sigma, n_xyz, cut):
 	"Calculate radial distances"
 	r2 = np.sum(dxdydz**2, axis=0)
 
+	
 	"Find indicies within cutoff radius"
 	cutoff = np.where(r2 <= cut**2)
-
+	"""
 	"Form a filter for cutoff radius"
 	filter_ = np.zeros(n_xyz)
 	filter_[cutoff] += 1
-
+	"""
 	"Get all non-zero radii"
 	non_zero = np.zeros(n_xyz)
 	non_zero[cutoff] += 1
 	non_zero[0][0] = 0
 
-	"Form a matrix of radial distances corresponding to filter" 
+	"Form a matrix of radial distances corresponding to filter"
+	r = np.sqrt(r2)
 	r_cut = np.zeros(n_xyz)
 	r_cut[cutoff] += np.sqrt(r2[cutoff])
+	
 
 	for i, image in enumerate(range(n_image)):
 		sys.stdout.write("Processing image {} out of {}\r".format(i, n_image))
 		sys.stdout.flush()
 
-		hist, image_shg[i] = create_image(traj[image], sigma, n_xyz, r_cut, filter_)
+		hist, image_shg[i] = create_image(traj[image], sigma, n_xyz, r)
 		dx_shg[i], dy_shg[i] = fibre_align(hist, sigma, n_xyz, dxdydz, r_cut, non_zero)
 
 	return image_shg, dx_shg, dy_shg
 
 
-def create_image(pos, std, n_xyz, r_cut, filter_):
+def create_image(pos, std, n_xyz, r):
 	"""
-	create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero)
+	create_image(pos_x, pos_y, sigma, n_xyz, r)
 
 	Create Gaussian convoluted image from a set of bead positions
 
@@ -153,14 +156,8 @@ def create_image(pos, std, n_xyz, r_cut, filter_):
 	n_xyz:  tuple (int); shape(n_dim)
 		Number of pixels in each image dimension
 
-	dxdydz:  array_like (float); shape=(n_x, n_y, n_z)
-		Matrix of distances along x y and z axis in pixels with cutoff radius applied
-
-	r_cut:  array_like (float); shape=(n_x, n_y)
-		Matrix of radial distances between pixels with cutoff radius applied
-
-	filter_:  array_like (float); shape=(n_x, n_y)
-		Filter representing indicies to use in convolution
+	r:  array_like (float); shape=(n_x, n_y)
+		Matrix of radial distances between pixels
 
 	Returns
 	-------
@@ -182,8 +179,7 @@ def create_image(pos, std, n_xyz, r_cut, filter_):
 		histogram = histogram.T
 	elif n_dim == 3: 
 		histogram = reorder_array(histogram)
-		r_cut = reorder_array(r_cut)
-		filter_ = reorder_array(filter_)
+		r = reorder_array(r)
 
 	"Get indicies and intensity of non-zero histogram grid points"
 	indices = np.argwhere(histogram)
@@ -194,21 +190,22 @@ def create_image(pos, std, n_xyz, r_cut, filter_):
 
 	for i, index in enumerate(indices):
 
+		"""
+		"Performs filtered mapping"
 		if n_dim == 2:
 			r_cut_shift = move_array_centre(r_cut, index[::-1])
 			filter_shift = move_array_centre(filter_, index[::-1])
-
-		if n_dim == 3:
+		elif n_dim == 3:
 			r_cut_shift = move_array_centre(r_cut[index[0]], index[1:])
 			filter_shift = move_array_centre(filter_[index[0]], index[1:])
 
-		image[np.where(filter_shift)] += gaussian(r_cut_shift[np.where(filter_shift)].flatten(), 0, std) * intensity[i]
-
-		#"Performs the full mapping for comparison"
-		#r_shift = move_2D_array_centre(r, index)
-		#gauss_map = np.reshape(gaussian(r_shift.flatten(), 0, sigma), 
-		#				(n_x, n_y)) * intensity[i]
-		#image += gauss_map
+		pixels = np.where(r_cut_shift)
+		image[pixels] += gaussian(r_cut_shift[pixels].flatten(), 0, std) * intensity[i]
+		"""		
+		"Performs the full mapping"
+		if n_dim == 2: r_shift = move_array_centre(r, index[::-1])
+		elif n_dim == 3: r_shift = move_array_centre(r[index[0]], index[1:])
+		image += np.reshape(gaussian(r_shift.flatten(), 0, std), n_xyz[:2]) * intensity[i]
 
 	image = image.T
 
@@ -407,7 +404,7 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 		for filename in image_list:
 			image = imageio.imread(filename)
 			writer.append_data(image)
-			os.remove(filename)
+			#os.remove(filename)
 
 
 def form_n_vector(dx_shg, dy_shg):
@@ -539,11 +536,11 @@ else: output_file_name = current_dir + '/' + input("Enter output_file name: ")
 if ('-gif' in sys.argv): gif_file_name = sys.argv[sys.argv.index('-gif') + 1]
 else: gif_file_name = input("Enter gif_file name: ")
 
-if ('-res' in sys.argv): res = int(sys.argv[sys.argv.index('-res') + 1])
-else: res = int(input("Enter resolution (1-10): "))
+if ('-res' in sys.argv): res = float(sys.argv[sys.argv.index('-res') + 1])
+else: res = float(input("Enter resolution (1-10): "))
 
-if ('-sharp' in sys.argv): sharp = int(sys.argv[sys.argv.index('-sharp') + 1])
-else: sharp = int(input("Enter sharpness (1-10): "))
+if ('-sharp' in sys.argv): sharp = float(sys.argv[sys.argv.index('-sharp') + 1])
+else: sharp = float(input("Enter sharpness (1-10): "))
 
 if ('-skip' in sys.argv): skip = int(sys.argv[sys.argv.index('-skip') + 1])
 else: skip = int(input("Enter number of sampled frames between each png: "))
@@ -591,6 +588,8 @@ plt.xlabel(r'step')
 plt.ylabel(r'Temp / kBT')
 plt.savefig('{}/{}_temp.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
+print('{}/{}_energy.png'.format(fig_dir, fig_name))
+
 n_image = int(n_frame/skip)
 sample_l = 150 / l_conv
 n_sample = 20
@@ -599,7 +598,7 @@ area = int(np.min([sample_l, np.min(cell_dim[:2])]) / l_conv * res)
 image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
 
 "Generate Gaussian convoluted images and intensity derivatives"
-image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] / (l_conv * sharp) * res, n_xyz, rc / (l_conv * sharp) * res)
+image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] / (l_conv * sharp) * res, n_xyz, 2 * rc / (l_conv * sharp) * res)
 "Calculate intensity orientational vector n for each pixel"
 n_vector = form_n_vector(dx_shg, dy_shg)
 "Sample average orientational anisotopy"
