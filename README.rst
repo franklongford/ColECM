@@ -24,15 +24,16 @@ Main program and analysis can be run via the following commands:
 		-param		Name of parameter file 
 				(will create a new file ending in '_param' if does not exist)
 		-out		Name of output files (restart and trajectory)
-		-ndim		Number of dimensions (must be 2 or 3)
+		-ndim		Number of dimensions (2 or 3)
 		-nstep		Number of timesteps in simulation (default=10000)
+		-mass		Mass of each of collagen bead in red. units
 		-vdw_sigma	Van de Waals radius of collagen beads in red. units
 		-vdw_epsilon	Van de Waals energy in red. units
 		-bond_k		Harmonic bond energy in red. units
 		-angle_k	Sigmoidal angle energy in red. units
+		-Langevin	Whether to use a Langevin thermostat (NVT) or not (NVE)
 		-kBT		Temperature constant in red. units
-		-Langevin	Whether to use Langevin dynamics (Y/N)
-		-thermo_gamma	Value of Langevin collision rate gamma in red. units
+		-thermo_gamma	Value of Langevin collision rate gamma in red. units (0-1)
 		-nfibrilx	Number of collagen fibrils accross x axis
 		-nfibrily	Number of collagen fibrils accross y axis
 		-nfibrilz	Number of collagen fibrils accross z axis (3D only)

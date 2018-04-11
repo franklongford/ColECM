@@ -13,15 +13,19 @@ import sys, os, time
 import utilities as ut
 import setup
 
-print(' '+ '_' * 40)
-print( "|   ___   ___         ___   ___          |")
-print( "|  /     /   \  |    |     /    |\    /| |")
-print( "| |     |     | |    |___ |     | \  / | |")
-print( "| |     |     | |    |    |     |  \/  | |")
-print( "|  \___  \___/  |___ |___  \___ |      | |")
-print( '|'+ '_' * 40 + '|' + '  v1.0.0.dev1')
-print( "\n         Collagen ECM Simulation\n")
+print(' ' + '_' * 53)
+print( "|_______|                                     |_______| ")
+print( " \\_____/   ___              ___   ___          \\_____/ ")
+print( "  | | |   /      ___   |   |     /    |\    /|  | | |")
+print( "  | | |  |      /   \  |   |___ |     | \  / |  | | |")
+print( "  | | |  |     |     | |   |    |     |  \/  |  | | |")
+print( "  | | |   \___  \___/  |__ |___  \___ |      |  | | |")
+print( " /_____\\                                       /_____\\")
+print( "|_______|" + '_' * 37 + "|_______|" + '  v1.0.0.dev1')
+print( "\n              Collagen ECM Simulation\n")
 
+current_dir = os.getcwd()
+dir_path = os.path.dirname(os.path.realpath(__file__))
 
 if ('-ndim' in sys.argv): n_dim = int(sys.argv[sys.argv.index('-ndim') + 1])
 else: n_dim = int(input("Number of dimensions: "))
@@ -30,9 +34,6 @@ assert n_dim in [2, 3]
 
 if n_dim == 2: import simulation_2D as sim
 elif n_dim == 3: import simulation_3D as sim
-
-current_dir = os.getcwd()
-dir_path = os.path.dirname(os.path.realpath(__file__))
 
 if ('-nstep' in sys.argv): n_step = int(sys.argv[sys.argv.index('-nstep') + 1])
 else: n_step = 10000
@@ -66,8 +67,7 @@ sqrt_dt = np.sqrt(dt)
 
 pos, vel, cell_dim, l_conv, bond_matrix, vdw_matrix, params = setup.import_files(n_dim, param_file_name, pos_file_name, restart_file_name)
 
-if len(params) == 7: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin = params
-else: mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin, thermo_gamma = params
+mass, vdw_param, bond_param, angle_param, rc, Langevin, kBT, thermo_gamma = params
 
 n_bead = pos.shape[0]
 
@@ -93,15 +93,12 @@ distances = ut.get_distances(pos, cell_dim)
 r2 = np.sum(distances**2, axis=0)
 verlet_list = ut.check_cutoff(r2, rc**2)
 
-thermo_sigma = np.sqrt(thermo_gamma * (2 - thermo_gamma) * (kBT / mass))
-
-print(thermo_sigma)
+if Langevin: thermo_sigma = np.sqrt(thermo_gamma * (2 - thermo_gamma) * (kBT / mass))
+else: thermo_sigma = 0
 
 print("\n----Running Simulation----")
 
 for step in range(n_step):
-	#sys.stdout.write("STEP {}\r".format(step))
-	#sys.stdout.flush()
 
 	pos, vel, frc, verlet_list, energy = sim.velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list,
 									bond_beads, dxdy_index, r_index, dt, sqrt_dt, cell_dim, vdw_param, bond_param, angle_param, 

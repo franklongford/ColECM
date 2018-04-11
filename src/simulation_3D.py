@@ -438,6 +438,7 @@ def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, ver
 	
 	beta = np.random.normal(0, 1, (n_bead, n_dim))
 	vel += frc / mass * dt
+	
 	d_vel = thermo_sigma * beta - gamma * vel
 	pos += (vel + 0.5 * d_vel) * dt
 	vel += d_vel
@@ -449,9 +450,8 @@ def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, ver
 	r2 = np.sum(distances**2, axis=0)
 
 	verlet_list = ut.check_cutoff(r2, rc**2)
-	pot_energy, new_frc = calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
+	pot_energy, frc = calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 
-	frc = new_frc
 	tot_energy = pot_energy + ut.kin_energy(vel, mass, n_dim)
 
 	return pos, vel, frc, verlet_list, tot_energy

@@ -407,7 +407,7 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 		for filename in image_list:
 			image = imageio.imread(filename)
 			writer.append_data(image)
-			#os.remove(filename)
+			os.remove(filename)
 
 
 def form_n_vector(dx_shg, dy_shg):
@@ -576,18 +576,20 @@ if not os.path.exists(gif_dir): os.mkdir(gif_dir)
 fig_dir = current_dir + '/fig'
 if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
+fig_name = traj_file_name.split('/')[-1]
+
 plt.figure(0)
 plt.title('Energy')
 plt.plot(tot_energy / n_bead)
 plt.xlabel(r'step')
 plt.ylabel(r'Energy / bead')
-plt.savefig('{}_energy.png'.format(traj_file_name), bbox_inches='tight')
+plt.savefig('{}/{}_energy.png'.format(fig_dir, fig_name), bbox_inches='tight')
 plt.figure(1)
 plt.title('Temperature / kBT')
 plt.plot(tot_temp / kBT)
 plt.xlabel(r'step')
 plt.ylabel(r'Temp / kBT')
-plt.savefig('{}_temp.png'.format(traj_file_name), bbox_inches='tight')
+plt.savefig('{}/{}_temp.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 n_image = int(n_frame/skip)
 sample_l = 150 / l_conv

@@ -64,29 +64,33 @@ def import_files(n_dim, param_file_name, pos_file_name, restart_file_name):
 		rc = 3.25 * vdw_param[0]
 		param_file = ut.update_param_file(param_file_name, 'rc', rc)
 
-	try: kBT = param_file['kBT']
-	except: 
-		if ('-kBT' in sys.argv): kBT = float(sys.argv[sys.argv.index('-kBT') + 1])
-		else: kBT = float(input("Enter kBT constant: "))
-		param_file = ut.update_param_file(param_file_name, 'kBT', kBT)
-
 	try: Langevin = param_file['Langevin']
 	except:
 		if ('-Langevin' in sys.argv): Langevin = bool(sys.argv[sys.argv.index('-Langevin') + 1].upper() == 'Y')
 		else: Langevin = bool(input("Langevin thermostat? (Y/N) ").upper() == 'Y')
 		param_file = ut.update_param_file(param_file_name, 'Langevin', Langevin)
 
-	params = (mass, vdw_param, bond_param, angle_param, rc, kBT, Langevin)
+	if Langevin:
 
-	if Langevin: 
+		try: kBT = param_file['kBT']
+		except: 
+			if ('-kBT' in sys.argv): kBT = float(sys.argv[sys.argv.index('-kBT') + 1])
+			else: kBT = float(input("Enter kBT constant: "))
+			param_file = ut.update_param_file(param_file_name, 'kBT', kBT)
+
 		try: thermo_gamma = param_file['thermo_gamma']
 		except:
 			if ('-thermo_gamma' in sys.argv): thermo_gamma = float(sys.argv[sys.argv.index('-thermo_gamma') + 1])
 			else: thermo_gamma = float(input("Enter Langevin gamma constant: "))
 			param_file = ut.update_param_file(param_file_name, 'thermo_gamma', thermo_gamma)
 
-		params += (thermo_gamma,)
+	else: 
+		kBT = 1.0
+		param_file = ut.update_param_file(param_file_name, 'kBT', kBT)
+		thermo_gamma = 0.0
+		param_file = ut.update_param_file(param_file_name, 'thermo_gamma', thermo_gamma)
 
+	params = (mass, vdw_param, bond_param, angle_param, rc, Langevin, kBT, thermo_gamma)
 
 	if os.path.exists(restart_file_name + '.npy'):
 		print("Loading restart file {}.npy".format(restart_file_name))
