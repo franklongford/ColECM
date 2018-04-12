@@ -1,10 +1,11 @@
 """
-COLLAGEN FIBRE SIMULATION 2D
+ColECM: Collagen ExtraCellular Matrix Simulation
+SIMULATION 2D ROUTINE 
 
 Created by: Frank Longford
 Created on: 09/03/2018
 
-Last Modified: 09/03/2018
+Last Modified: 12/04/2018
 """
 
 import numpy as np

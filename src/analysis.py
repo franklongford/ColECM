@@ -1,10 +1,11 @@
 """
-COLLAGEN FIBRE SIMULATION VISULISATION
+ColECM: Collagen ExtraCellular Matrix Simulation
+ANALYSIS ROUTINE 
 
 Created by: Frank Longford
-Created on: 01/11/15
+Created on: 09/03/2018
 
-Last Modified: 21/03/2018
+Last Modified: 12/04/2018
 """
 
 import numpy as np

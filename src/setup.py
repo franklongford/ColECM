@@ -1,10 +1,11 @@
 """
-COLLAGEN FIBRE SIMULATION UTILITIES
+ColECM: Collagen ExtraCellular Matrix Simulation
+SETUP ROUTINE 
 
 Created by: Frank Longford
 Created on: 01/11/2015
 
-Last Modified: 09/03/2018
+Last Modified: 12/04/2018
 """
 
 import numpy as np

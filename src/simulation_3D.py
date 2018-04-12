@@ -1,10 +1,11 @@
 """
-COLLAGEN FIBRE SIMULATION 3D
+ColECM: Collagen ExtraCellular Matrix Simulation
+SIMULATION 3D ROUTINE 
 
 Created by: Frank Longford
 Created on: 09/03/2018
 
-Last Modified: 09/03/2018
+Last Modified: 12/04/2018
 """
 
 import numpy as np
@@ -438,7 +439,7 @@ def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, ver
 	
 	beta = np.random.normal(0, 1, (n_bead, n_dim))
 	vel += frc / mass * dt
-	
+
 	d_vel = thermo_sigma * beta - gamma * vel
 	pos += (vel + 0.5 * d_vel) * dt
 	vel += d_vel
