@@ -81,7 +81,7 @@ def import_files(n_dim, param_file_name, pos_file_name, restart_file_name):
 
 		try: thermo_gamma = param_file['thermo_gamma']
 		except:
-			if ('-thermo_gamma' in sys.argv): thermo_gamma = float(sys.argv[sys.argv.index('-thermo_gamma') + 1])
+			if ('-gamma' in sys.argv): thermo_gamma = float(sys.argv[sys.argv.index('-gamma') + 1])
 			else: thermo_gamma = float(input("Enter Langevin gamma constant: "))
 			param_file = ut.update_param_file(param_file_name, 'thermo_gamma', thermo_gamma)
 
@@ -122,11 +122,11 @@ def import_files(n_dim, param_file_name, pos_file_name, restart_file_name):
 
 		print("Creating input pos file {}.npy".format(pos_file_name))
 
-		if ('-nfibrilx' in sys.argv): n_fibril_x = int(sys.argv[sys.argv.index('-nfibrilx') + 1])
+		if ('-nfibx' in sys.argv): n_fibril_x = int(sys.argv[sys.argv.index('-nfibx') + 1])
 		else: n_fibril_x = int(input("Enter number of fibrils in x dimension: "))
-		if ('-nfibrily' in sys.argv): n_fibril_y = int(sys.argv[sys.argv.index('-nfibrily') + 1])
+		if ('-nfiby' in sys.argv): n_fibril_y = int(sys.argv[sys.argv.index('-nfiby') + 1])
 		else: n_fibril_y = int(input("Enter number of fibrils in y dimension: "))
-		if ('-lfibril' in sys.argv): l_fibril = int(sys.argv[sys.argv.index('-lfibril') + 1])
+		if ('-lfib' in sys.argv): l_fibril = int(sys.argv[sys.argv.index('-lfib') + 1])
 		else: l_fibril = int(input("Enter length of fibril (no. of beads): "))
 
 		l_conv = 10. / (l_fibril * 2 * vdw_param[0])

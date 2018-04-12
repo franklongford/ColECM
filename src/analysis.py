@@ -521,6 +521,8 @@ def heatmap_animation(n):
 	ax.pcolor(image_pos[n], cmap='viridis')
 
 
+ut.logo()
+print( "\n         Simulation and SHG Image Analysis\n")
 current_dir = os.getcwd()
 dir_path = os.path.dirname(os.path.realpath(__file__))
 

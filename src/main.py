@@ -14,19 +14,8 @@ import sys, os, time
 import utilities as ut
 import setup
 
-print(' ' + '_' * 53)
-print( "|_______|" + ' ' * 14 + "|_______|" + ' ' * 14 + "|_______|")
-print( " \\_____/" + ' ' * 16 + "\\_____/"  + ' ' * 16 + "\\_____/")
-print( "  | | |    ___              ___   ___           | | |")
-print( "  | | |   /      ___   |   |     /    |\    /|  | | |")
-print( "  | | |  |      /   \  |   |___ |     | \  / |  | | |")
-print( "  | | |  |     |     | |   |    |     |  \/  |  | | |")
-print( "  | | |   \___  \___/  |__ |___  \___ |      |  | | |")
-print( "  |_|_|                  _____                  |_|_|")
-print( " /_____\\" + ' ' * 16 + "/_____\\"  + ' ' * 16 + "/_____\\")
-print( "|_______|" + '_' * 14 + "|_______|" + '_' * 14 + "|_______|" + '  v1.0.0.dev1')
+ut.logo()
 print( "\n              Collagen ECM Simulation\n")
-
 current_dir = os.getcwd()
 dir_path = os.path.dirname(os.path.realpath(__file__))
 

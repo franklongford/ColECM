@@ -20,7 +20,7 @@ Instructions:
 
 Main program and analysis can be run via the following commands:
 
-1) ``./ColECM [flags]``
+1) ``./ColECM simulation [flags]``
 
 	Runs the main simulation routine for collagen fibrils in the ECM. Each fibril is approximated to be 1 um long.
 	Flags are optional and can be entered in the command line or selected later during the setup process. 
@@ -40,13 +40,13 @@ Main program and analysis can be run via the following commands:
 		-angle_k	Sigmoidal angle energy in red. units
 		-Langevin	Whether to use a Langevin thermostat (NVT) or not (NVE)
 		-kBT		Temperature constant in red. units
-		-thermo_gamma	Value of Langevin collision rate gamma in red. units (0-1)
-		-nfibrilx	Number of collagen fibrils accross x axis
-		-nfibrily	Number of collagen fibrils accross y axis
-		-nfibrilz	Number of collagen fibrils accross z axis (3D only)
-		-lfibril	Length of collagen fibrils in beads
+		-gamma		Value of Langevin collision rate gamma in red. units (0-1)
+		-nfibx		Number of collagen fibrils accross x axis
+		-nfiby		Number of collagen fibrils accross y axis
+		-nfibz		Number of collagen fibrils accross z axis (3D only)
+		-lfib		Length of collagen fibrils in beads
 
-2) ``python3 src/analysis.py [flags]``
+2) ``./ColECM analysis [flags]``
 
 	Anisotropy analysis
 	Flags are optional and can be entered in the command line or selected later during the analysis process.

@@ -276,7 +276,7 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 
 	"""
 
-	if ('-nfibrilz' in sys.argv): n_fibril_z = int(sys.argv[sys.argv.index('-nfibrilz') + 1])
+	if ('-nfibz' in sys.argv): n_fibril_z = int(sys.argv[sys.argv.index('-nfibz') + 1])
 	else: n_fibril_z = int(input("Enter number of fibrils in z dimension: "))
 
 	n_fibril = n_fibril_x * n_fibril_y * n_fibril_z
