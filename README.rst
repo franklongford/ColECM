@@ -10,7 +10,7 @@ Simulation code designed to reproduce second harmonic generation (SHG) images of
 Installation:
 -------------
 
-run ``python install.py``
+run ``make``
 
 Note: system must have working versions of Python and pip for python >= 3.0. Installation will check for common executables (``python, python3``) - please edit ``PYTHON`` and ``PIP`` macros on Makefile if local installations are named differently.
 
