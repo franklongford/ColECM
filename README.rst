@@ -7,13 +7,20 @@ By Frank Longford (2018)
 
 Simulation code designed to reproduce second harmonic generation (SHG) images of the collagen fibril network in the extra cellular matrix (ECM). Details on the model used can be found in documentation.pdf.
 
+Installation:
+-------------
+
+run ``python install.py``
+
+Note: system must have working versions of Python and pip for python >= 3.0. Installation will check for common executables (``python, python3``) - please edit ``PYTHON`` and ``PIP`` macros on Makefile if local installations are named differently.
+
 
 Instructions:
 -------------
 
 Main program and analysis can be run via the following commands:
 
-1) ``python3 src/main.py [flags]``
+1) ``./ColECM [flags]``
 
 	Runs the main simulation routine for collagen fibrils in the ECM. Each fibril is approximated to be 1 um long.
 	Flags are optional and can be entered in the command line or selected later during the setup process. 
