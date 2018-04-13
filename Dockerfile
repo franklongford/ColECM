@@ -21,5 +21,5 @@ ENV NAME World
 # Run src/main.py when the container launches
 ENTRYPOINT ["python", "src/main.py"]
 
-CMD myinput
+CMD ["cat"]
 
