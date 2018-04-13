@@ -107,7 +107,7 @@ def simulation(current_dir, dir_path):
 			tot_vel[i] += vel
 			tot_frc[i] += frc
 
-			ut.save_npy(restart_file_name, (tot_pos[step], tot_vel[step]))
+			ut.save_npy(restart_file_name, (tot_pos[i], tot_vel[i]))
 
 			print("-" * 55)
 			print("| Step: {:{dig}d} {} |".format(step, " " * (44 - dig), dig=dig))
