@@ -1,11 +1,13 @@
 # Use an official Python runtime as a parent image
 FROM python:3.4.5-slim
 
+RUN ls
+
 # Set the working directory to /ColECM
-#WORKDIR . /ColECM
+WORKDIR . /ColECM
 
 # Copy the current directory contents into the container at /ColECM
-#ADD . /ColECM
+ADD . /ColECM
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --trusted-host pypi.python.org -r requirements.txt
