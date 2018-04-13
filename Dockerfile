@@ -4,7 +4,7 @@ FROM python:3.4.5-slim
 RUN ls
 
 # Set the working directory to /ColECM
-WORKDIR . /ColECM
+WORKDIR /ColECM
 
 # Copy the current directory contents into the container at /ColECM
 ADD . /ColECM
