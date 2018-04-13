@@ -19,5 +19,7 @@ EXPOSE 80
 ENV NAME World
 
 # Run src/main.py when the container launches
-CMD ["python", "src/main.py"]
+ENTRYPOINT ["python", "src/main.py"]
+
+CMD myinput
 
