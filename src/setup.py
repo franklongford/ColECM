@@ -19,8 +19,8 @@ import utilities as ut
 
 def import_files(n_dim, param_file_name, pos_file_name, restart_file_name):
 
-	if n_dim == 2: from simulation_2D import create_pos_array
-	elif n_dim == 3: from simulation_3D import create_pos_array
+	if n_dim == 2: from sim_tools_2D import create_pos_array
+	elif n_dim == 3: from sim_tools_3D import create_pos_array
 
 	if not os.path.exists('{}.pkl'.format(param_file_name)):
 		print("Creating parameter file {}.pkl".format(param_file_name)) 
@@ -203,8 +203,8 @@ def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_matrix, vdw_param, 
 
 	"""
 
-	if n_dim == 2: from simulation_2D import calc_energy_forces
-	elif n_dim == 3: from simulation_3D import calc_energy_forces
+	if n_dim == 2: from sim_tools_2D import calc_energy_forces
+	elif n_dim == 3: from sim_tools_3D import calc_energy_forces
 
 	cell_dim = np.array([vdw_param[0]**2 * n_bead] * n_dim)
 
@@ -282,8 +282,8 @@ def initial_state(n_dim, pos, cell_dim, bond_matrix, vdw_matrix, vdw_param, bond
 	
 	"""
 
-	if n_dim == 2: from simulation_2D import calc_energy_forces
-	elif n_dim == 3: from simulation_3D import calc_energy_forces
+	if n_dim == 2: from sim_tools_2D import calc_energy_forces
+	elif n_dim == 3: from sim_tools_3D import calc_energy_forces
 
 	n_bead = pos.shape[0]
 	distances = ut.get_distances(pos, cell_dim)

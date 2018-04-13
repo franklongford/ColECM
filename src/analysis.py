@@ -521,124 +521,121 @@ def heatmap_animation(n):
 	ax.pcolor(image_pos[n], cmap='viridis')
 
 
-ut.logo()
-print( "\n         Simulation and SHG Image Analysis\n")
-current_dir = os.getcwd()
-dir_path = os.path.dirname(os.path.realpath(__file__))
+def analysis(current_dir, dir_path):
 
-if ('-param' in sys.argv): param_file_name = current_dir + '/' + sys.argv[sys.argv.index('-param') + 1]
-else: param_file_name = current_dir + '/' + input("Enter param_file name: ")
+	if ('-param' in sys.argv): param_file_name = current_dir + '/' + sys.argv[sys.argv.index('-param') + 1]
+	else: param_file_name = current_dir + '/' + input("Enter param_file name: ")
 
-if ('-traj' in sys.argv): traj_file_name = current_dir + '/' + sys.argv[sys.argv.index('-traj') + 1]
-else: traj_file_name = current_dir + '/' + input("Enter traj_file name: ")
+	if ('-traj' in sys.argv): traj_file_name = current_dir + '/' + sys.argv[sys.argv.index('-traj') + 1]
+	else: traj_file_name = current_dir + '/' + input("Enter traj_file name: ")
 
-if ('-out' in sys.argv): output_file_name = current_dir + '/' + sys.argv[sys.argv.index('-out') + 1]
-else: output_file_name = current_dir + '/' + input("Enter output_file name: ")
+	if ('-out' in sys.argv): output_file_name = current_dir + '/' + sys.argv[sys.argv.index('-out') + 1]
+	else: output_file_name = current_dir + '/' + input("Enter output_file name: ")
 
-if ('-gif' in sys.argv): gif_file_name = sys.argv[sys.argv.index('-gif') + 1]
-else: gif_file_name = input("Enter gif_file name: ")
+	if ('-gif' in sys.argv): gif_file_name = sys.argv[sys.argv.index('-gif') + 1]
+	else: gif_file_name = input("Enter gif_file name: ")
 
-if ('-res' in sys.argv): res = float(sys.argv[sys.argv.index('-res') + 1])
-else: res = float(input("Enter resolution (1-10): "))
+	if ('-res' in sys.argv): res = float(sys.argv[sys.argv.index('-res') + 1])
+	else: res = float(input("Enter resolution (1-10): "))
 
-if ('-sharp' in sys.argv): sharp = float(sys.argv[sys.argv.index('-sharp') + 1])
-else: sharp = float(input("Enter sharpness (1-10): "))
+	if ('-sharp' in sys.argv): sharp = float(sys.argv[sys.argv.index('-sharp') + 1])
+	else: sharp = float(input("Enter sharpness (1-10): "))
 
-if ('-skip' in sys.argv): skip = int(sys.argv[sys.argv.index('-skip') + 1])
-else: skip = int(input("Enter number of sampled frames between each png: "))
+	if ('-skip' in sys.argv): skip = int(sys.argv[sys.argv.index('-skip') + 1])
+	else: skip = int(input("Enter number of sampled frames between each png: "))
 
-param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl') + '_param'
-traj_file_name = ut.check_file_name(traj_file_name, 'traj', 'npy') + '_traj'
-output_file_name = ut.check_file_name(output_file_name, 'out', 'npy') + '_out'
+	param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl') + '_param'
+	traj_file_name = ut.check_file_name(traj_file_name, 'traj', 'npy') + '_traj'
+	output_file_name = ut.check_file_name(output_file_name, 'out', 'npy') + '_out'
 
-print("Loading parameter file {}.pkl".format(param_file_name))
-param_file = ut.read_param_file(param_file_name)
-vdw_param = param_file['vdw_param']
-rc = param_file['rc']
-l_conv = param_file['l_conv']
-bond_matrix = param_file['bond_matrix']
-kBT = param_file['kBT']
+	print("Loading parameter file {}.pkl".format(param_file_name))
+	param_file = ut.read_param_file(param_file_name)
+	vdw_param = param_file['vdw_param']
+	rc = param_file['rc']
+	l_conv = param_file['l_conv']
+	bond_matrix = param_file['bond_matrix']
+	kBT = param_file['kBT']
 
-print("Loading output file {}".format(output_file_name))
-tot_energy, tot_temp = ut.load_npy(output_file_name)
+	print("Loading output file {}".format(output_file_name))
+	tot_energy, tot_temp = ut.load_npy(output_file_name)
 
-print("Loading trajectory file {}.npy".format(traj_file_name))
-tot_pos = ut.load_npy(traj_file_name)
-n_frame = tot_pos.shape[0]
-n_bead = tot_pos.shape[1]
-cell_dim = tot_pos[0][-1]
+	print("Loading trajectory file {}.npy".format(traj_file_name))
+	tot_pos = ut.load_npy(traj_file_name)
+	n_frame = tot_pos.shape[0]
+	n_bead = tot_pos.shape[1]
+	cell_dim = tot_pos[0][-1]
 
-n_xyz = tuple(np.array(cell_dim * res, dtype=int))
+	n_xyz = tuple(np.array(cell_dim * res, dtype=int))
 
-gif_dir = current_dir + '/gif'
-if not os.path.exists(gif_dir): os.mkdir(gif_dir)
-fig_dir = current_dir + '/fig'
-if not os.path.exists(fig_dir): os.mkdir(fig_dir)
+	gif_dir = current_dir + '/gif'
+	if not os.path.exists(gif_dir): os.mkdir(gif_dir)
+	fig_dir = current_dir + '/fig'
+	if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
-fig_name = traj_file_name.split('/')[-1]
+	fig_name = traj_file_name.split('/')[-1]
 
-plt.figure(0)
-plt.title('Energy')
-plt.plot(tot_energy / n_bead)
-plt.xlabel(r'step')
-plt.ylabel(r'Energy / bead')
-plt.savefig('{}/{}_energy.png'.format(fig_dir, fig_name), bbox_inches='tight')
-plt.figure(1)
-plt.title('Temperature / kBT')
-plt.plot(tot_temp / kBT)
-plt.xlabel(r'step')
-plt.ylabel(r'Temp / kBT')
-plt.savefig('{}/{}_temp.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.figure(0)
+	plt.title('Energy')
+	plt.plot(tot_energy / n_bead)
+	plt.xlabel(r'step')
+	plt.ylabel(r'Energy / bead')
+	plt.savefig('{}/{}_energy.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.figure(1)
+	plt.title('Temperature / kBT')
+	plt.plot(tot_temp / kBT)
+	plt.xlabel(r'step')
+	plt.ylabel(r'Temp / kBT')
+	plt.savefig('{}/{}_temp.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-print('{}/{}_energy.png'.format(fig_dir, fig_name))
+	print('{}/{}_energy.png'.format(fig_dir, fig_name))
 
-n_image = int(n_frame/skip)
-sample_l = 150 / l_conv
-n_sample = 20
-area = int(np.min([sample_l, np.min(cell_dim[:2])]) / l_conv * res)
+	n_image = int(n_frame/skip)
+	sample_l = 150 / l_conv
+	n_sample = 20
+	area = int(np.min([sample_l, np.min(cell_dim[:2])]) / l_conv * res)
 
-image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
+	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
 
-"Generate Gaussian convoluted images and intensity derivatives"
-image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] / (l_conv * sharp) * res, n_xyz, 2 * rc / (l_conv * sharp) * res)
-"Calculate intensity orientational vector n for each pixel"
-n_vector = form_n_vector(dx_shg, dy_shg)
-"Sample average orientational anisotopy"
-eigval_shg, eigvec_shg = alignment_analysis(n_vector, area, n_sample)
+	"Generate Gaussian convoluted images and intensity derivatives"
+	image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] / (l_conv * sharp) * res, n_xyz, 2 * rc / (l_conv * sharp) * res)
+	"Calculate intensity orientational vector n for each pixel"
+	n_vector = form_n_vector(dx_shg, dy_shg)
+	"Sample average orientational anisotopy"
+	eigval_shg, eigvec_shg = alignment_analysis(n_vector, area, n_sample)
 
-q = reorder_array(eigval_shg)
-q = q[1] - q[0]
+	q = reorder_array(eigval_shg)
+	q = q[1] - q[0]
 
-print('Mean anistoropy = {}'.format(np.mean(q)))
+	print('Mean anistoropy = {}'.format(np.mean(q)))
 
-make_gif(gif_file_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
-#make_gif(gif_file_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
+	make_gif(gif_file_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
+	#make_gif(gif_file_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
-"""
-fig, ax = plt.subplots()
-plt.imshow(hist, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
-#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
-plt.savefig('{}/{}_{}_hist_sample.png'.format(gif_dir, gif_file_name, res), bbox_inches='tight')
-plt.close()
+	"""
+	fig, ax = plt.subplots()
+	plt.imshow(hist, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+	#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
+	#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
+	plt.savefig('{}/{}_{}_hist_sample.png'.format(gif_dir, gif_file_name, res), bbox_inches='tight')
+	plt.close()
 
-fig, ax = plt.subplots()
-plt.imshow(image, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
-#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
-plt.savefig('{}/{}_{}_{}_gauss_sample.png'.format(gif_dir, gif_file_name, res, sharp), bbox_inches='tight')
-plt.close()
+	fig, ax = plt.subplots()
+	plt.imshow(image, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
+	#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
+	#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
+	plt.savefig('{}/{}_{}_{}_gauss_sample.png'.format(gif_dir, gif_file_name, res, sharp), bbox_inches='tight')
+	plt.close()
 
-fig, ax = plt.subplots()
-plt.imshow(image_pos[0], cmap='viridis', interpolation='nearest')
-ani = animation.FuncAnimation(fig, heatmap_animation, frames=n_frame, interval=100, repeat=False)
-plt.show()
+	fig, ax = plt.subplots()
+	plt.imshow(image_pos[0], cmap='viridis', interpolation='nearest')
+	ani = animation.FuncAnimation(fig, heatmap_animation, frames=n_frame, interval=100, repeat=False)
+	plt.show()
 
-fig, ax = plt.subplots()
-sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
-plt.xlim(0, cell_dim[0])
-plt.ylim(0, cell_dim[1])
-ani = animation.FuncAnimation(fig, animate, frames=n_frame, interval=100, repeat=False)
-plt.show()
-"""
+	fig, ax = plt.subplots()
+	sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
+	plt.xlim(0, cell_dim[0])
+	plt.ylim(0, cell_dim[1])
+	ani = animation.FuncAnimation(fig, animate, frames=n_frame, interval=100, repeat=False)
+	plt.show()
+	"""
 

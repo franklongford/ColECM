@@ -28,6 +28,4 @@ if python_version[0] < 3:
 
 with open(program_name, 'w') as outfile:
 	outfile.write('#!/bin/bash\n\n')
-	outfile.write('if [ $1 == \'simulation\' ]\nthen\n	{} src/main.py "$@"'.format(command))
-	outfile.write('\nelif [ $1 == \'analysis\' ]\nthen\n	{} src/analysis.py "$@"'.format(command))
-	outfile.write('\nfi')
+	outfile.write('{} src/main.py "$@"'.format(command))

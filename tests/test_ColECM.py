@@ -15,8 +15,8 @@ import sys, os, time
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 import utilities as ut
-import simulation_2D as sim_2D
-import simulation_3D as sim_3D
+import sim_tools_2D as sim_2D
+import sim_tools_3D as sim_3D
 
 
 THRESH = 1E-7

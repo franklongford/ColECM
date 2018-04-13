@@ -30,6 +30,7 @@ def logo():
 	print( "  |_|_|                  _____                  |_|_|")
 	print( " /_____\\" + ' ' * 16 + "/_____\\"  + ' ' * 16 + "/_____\\")
 	print( "|_______|" + '_' * 14 + "|_______|" + '_' * 14 + "|_______|" + '  v1.0.0.dev1')
+	print( "\n              Collagen ECM Simulation\n")
 
 
 def check_string(string, pos, sep, word):

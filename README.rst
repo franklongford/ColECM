@@ -30,7 +30,9 @@ Main program and analysis can be run via the following commands:
 				(will create a new file ending in '_pos' if does not exist)
 		-param		Name of parameter file 
 				(will create a new file ending in '_param' if does not exist)
-		-out		Name of output files (restart and trajectory)
+		-traj		Name of trajectory file
+		-rst		Name of simulation restart file
+		-out		Name of simulation output file
 		-ndim		Number of dimensions (2 or 3)
 		-nstep		Number of timesteps in simulation (default=10000)
 		-mass		Mass of each of collagen bead in red. units
@@ -58,3 +60,5 @@ Main program and analysis can be run via the following commands:
 		-res	Image resolution parameter (1-10)
 		-sharp	Image sharpness parameter (1-10)
 		-skip	Number of sampled frames between each png
+
+You can run both modules by calling ``./ColECM simulation analysis [flags]``
