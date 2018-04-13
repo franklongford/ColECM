@@ -33,3 +33,5 @@ clean:
 	@rm -f -r tests/__pycache__
 	@rm -f -r src/__pycache__
 	@rm -f src/*.pyc
+	@rm -f -r .cache/
+	@rm -f -r .DS_Store/
