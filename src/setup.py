@@ -49,7 +49,6 @@ def check_sim_param(input_list, param=False):
 	if not param: param = get_param_defaults()
 
 	if ('-ndim' in input_list): param['n_dim'] = int(input_list[input_list.index('-ndim') + 1])
-	if ('-nstep' in input_list): param['n_step'] = int(input_list[input_list.index('-nstep') + 1])
 	if ('-mass' in input_list): param['mass'] = float(input_list[input_list.index('-mass') + 1])
 	if ('-vdw_sigma' in input_list): 
 		param['vdw_sigma'] = float(input_list[input_list.index('-vdw_sigma') + 1])
@@ -89,6 +88,8 @@ def read_input_file(input_file_name, simulation=True, analysis=True, param=False
 	with open(input_file_name, 'r') as infile:
 		lines = infile.read().splitlines()
 	input_list = (' '.join(lines)).split()
+
+	if ('-nstep' in input_list): param['n_step'] = int(input_list[input_list.index('-nstep') + 1])
 
 	if simulation: param = check_sim_param(input_list, param)
 	if analysis: param = check_analysis_param(input_list, param)
@@ -172,6 +173,8 @@ def read_shell_input(current_dir, dir_path):
 		
 	assert param['n_dim'] in [2, 3]
 	assert param['rc'] >= 1.5 * param['vdw_sigma']
+
+	if ('-nstep' in sys.argv): param['n_step'] = int(sys.argv[sys.argv.index('-nstep') + 1])
 
 	if input_file_name: param = read_input_file(input_file_name, simulation=False)
 	param = check_analysis_param(sys.argv, param)	

@@ -56,6 +56,7 @@ def simulation(current_dir, dir_path):
 	print("\nSetup complete: {:5.3f} s".format(init_time_stop - init_time_start))
 	print("Number of beads = {}".format(n_bead))
 	print("Bead radius = {} um\nSimulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
+	print("Number of Simulation steps = {}".format(param['n_step']))
 
 	sim_time_start = time.time()
 
