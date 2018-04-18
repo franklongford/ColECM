@@ -26,11 +26,11 @@ Main program and analysis can be run via the following commands:
 	All flags except ``-pos`` and ``-param`` are optional and can be entered in the command line or selected later during the setup process. 
 	All input and output files will be created in the user's current working directory.
 
-		-pos		Name of input position file 
+		-pos		Name of simulation input position file 
 				(will create a new file ending in '_pos' if does not exist)
-		-param		Name of parameter file 
+		-param		Name of simulation parameter file 
 				(will create a new file ending in '_param' if does not exist)
-		-traj		Name of trajectory file
+		-traj		Name of simulation trajectory file
 		-rst		Name of simulation restart file
 		-out		Name of simulation output file
 		-ndim		Number of dimensions (2 or 3)
@@ -42,10 +42,11 @@ Main program and analysis can be run via the following commands:
 		-angle_k	Sigmoidal angle energy in red. units
 		-kBT		Temperature constant in red. units
 		-gamma		Value of Langevin collision rate gamma in red. units (0-1)
+		-lfib		Length of collagen fibrils in beads
 		-nfibx		Number of collagen fibrils accross x axis
 		-nfiby		Number of collagen fibrils accross y axis
 		-nfibz		Number of collagen fibrils accross z axis (3D only)
-		-lfib		Length of collagen fibrils in beads
+		
 
 2) ``./ColECM analysis [flags]``
 
@@ -53,7 +54,7 @@ Main program and analysis can be run via the following commands:
 	Flags are optional and can be entered in the command line or selected later during the analysis process.
 
 		-param	Name of simulation parameter file
-		-traj	Name of trajectory file to analyse
+		-traj	Name of simulation trajectory file
 		-out	Name of simulation output file to analyse
 		-gif	Name of gif file to be created
 		-res	Image resolution parameter (1-10)
@@ -67,10 +68,10 @@ Defaults
 
 Simulation defaults are listed below:
 
-	-traj		Name of position file
-	-rst		Name of position file
-	-out		Name of trajectory file
-	-gif		Name of trajectory file
+	-traj		Name of simulation input position file
+	-rst		Name of simulation input position file
+	-out		Name of simulation trajectory file
+	-gif		Name of simulation trajectory file
 	-ndim		2
 	-nstep		10000
 	-mass		1
@@ -87,3 +88,9 @@ Simulation defaults are listed below:
 	-res		5
 	-sharp		3
 	-skip		10
+
+Uninstallation:
+-------------
+
+run ``make uninstall`` and ``make clean``
+

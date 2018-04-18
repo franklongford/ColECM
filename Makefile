@@ -5,6 +5,7 @@ NAME=ColECM
 
 init: check install test
 
+
 check:
 	@echo
 	@echo "Checking default python version:"
@@ -22,14 +23,19 @@ install:
 	@chmod +x $(NAME)
 	@$(PIP) install -r requirements.txt
 
+
 test:
 	@echo
 	@echo "Running unit tests"
 	@echo
 	@pytest tests/
 
-clean:
+
+uninstall:
 	@rm -f ColECM
+
+
+clean:
 	@rm -f -r tests/__pycache__
 	@rm -f -r src/__pycache__
 	@rm -f src/*.pyc

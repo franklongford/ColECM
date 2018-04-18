@@ -44,7 +44,7 @@ def get_param_defaults():
 	return defaults
 
 
-def check_param(input_list, param=False):
+def check_sim_param(input_list, param=False):
 
 	if not param: param = get_param_defaults()
 
@@ -68,14 +68,21 @@ def check_param(input_list, param=False):
 	if ('-nfibz' in input_list): param['n_fibril_z'] = int(input_list[input_list.index('-nfibz') + 1])
 	if ('-lfib' in input_list): param['l_fibril'] = int(input_list[input_list.index('-lfib') + 1])
 
-	if ('-res' in input_list): param['res'] = int(input_list[input_list.index('-res') + 1])
-	if ('-sharp' in input_list): param['sharp'] = int(input_list[input_list.index('-sharp') + 1])
+	return param
+
+
+def check_analysis_param(input_list, param=False):
+
+	if not param: param = get_param_defaults()
+
+	if ('-res' in input_list): param['res'] = float(input_list[input_list.index('-res') + 1])
+	if ('-sharp' in input_list): param['sharp'] = float(input_list[input_list.index('-sharp') + 1])
 	if ('-skip' in input_list): param['skip'] = int(input_list[input_list.index('-skip') + 1])
 
 	return param
 
 
-def read_input_file(input_file_name, param=False):
+def read_input_file(input_file_name, simulation=True, analysis=True, param=False):
 
 	input_file_name = sys.argv[sys.argv.index('-input') + 1]
 
@@ -83,7 +90,8 @@ def read_input_file(input_file_name, param=False):
 		lines = infile.read().splitlines()
 	input_list = (' '.join(lines)).split()
 
-	param = check_param(input_list, param)
+	if simulation: param = check_sim_param(input_list, param)
+	if analysis: param = check_analysis_param(input_list, param)
 
 	return param
 
@@ -141,24 +149,21 @@ def read_shell_input(current_dir, dir_path):
 
 	file_names = (param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name, gif_file_name)
 
+	if ('-input' in sys.argv): input_file_name = current_dir + '/' + sys.argv[sys.argv.index('-input') + 1]
+	else: input_file_name = False
+
 	keys = ['mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k', 'angle_theta0', 'angle_k', 'rc', 'kBT', 
 			'gamma', 'l_fibril', 'n_fibril_x', 'n_fibril_y', 'n_fibril_z']
 
-	param = get_param_defaults()
-
 	if os.path.exists('{}.pkl'.format(param_file_name)):
+		param = get_param_defaults()
 		print("Loading parameter file {}.pkl".format(param_file_name))
 		param_file = ut.read_param_file(param_file_name)
 		for key in keys: param[key] = param_file[key]		
 
 	else:
-		param = get_param_defaults()
-
-		if ('-input' in sys.argv): 
-			input_file_name = current_dir + '/' + sys.argv[sys.argv.index('-input') + 1]
-			param = read_input_file(input_file_name)
-
-		param = check_param(sys.argv, param)
+		if input_file_name: param = read_input_file(input_file_name, analysis=False)
+		param = check_sim_param(sys.argv, param)
 
 		print("Creating parameter file {}.pkl".format(param_file_name)) 
 		ut.make_param_file(param_file_name)
@@ -167,6 +172,9 @@ def read_shell_input(current_dir, dir_path):
 		
 	assert param['n_dim'] in [2, 3]
 	assert param['rc'] >= 1.5 * param['vdw_sigma']
+
+	if input_file_name: param = read_input_file(input_file_name, simulation=False)
+	param = check_analysis_param(sys.argv, param)	
 
 	return file_names, param
 

@@ -527,13 +527,13 @@ def analysis(current_dir, dir_path):
 
 	print("Loading parameter file {}.pkl".format(param_file_name))
 	param_file = ut.read_param_file(param_file_name)
-	for key in list(param_file.keys()): param[key] = param_file[key]
 
-	vdw_param = [param['vdw_sigma'], param['vdw_epsilon']]
-	rc = param['rc']
-	l_conv = param['l_conv']
-	bond_matrix = param['bond_matrix']
-	kBT = param['kBT']
+	vdw_param = [param_file['vdw_sigma'], param_file['vdw_epsilon']]
+	rc = param_file['rc']
+	l_conv = param_file['l_conv']
+	bond_matrix = param_file['bond_matrix']
+	kBT = param_file['kBT']
+
 	res = param['res']
 	sharp = param['sharp']
 	skip = param['skip']
@@ -556,23 +556,38 @@ def analysis(current_dir, dir_path):
 
 	fig_name = gif_file_name.split('/')[-1]
 
-	print('Creating Energy figure {}/{}_energy.png'.format(fig_dir, fig_name))
+	print('Creating Energy time series figure {}/{}_energy.png'.format(fig_dir, fig_name))
 	plt.figure(0)
-	plt.title('Energy')
+	plt.title('Energy Time Series')
 	plt.plot(tot_energy / n_bead)
 	plt.xlabel(r'step')
 	plt.ylabel(r'Energy / bead')
-	plt.savefig('{}/{}_energy.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.close(0)
 
-	print('Creating Temperature figure {}/{}_temp.png'.format(fig_dir, fig_name))
+	print('Creating Energy histogram figure {}/{}_energy.png'.format(fig_dir, fig_name))
 	plt.figure(1)
-	plt.title('Temperature / kBT')
+	plt.title('Energy Histogram')
+	plt.hist(tot_energy / n_bead, bins='auto', density=True)
+	plt.xlabel(r'Energy / bead')
+	plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print('Creating Temperature time series figure {}/{}_temp.png'.format(fig_dir, fig_name))
+	plt.figure(2)
+	plt.title('Temperature Time Series')
 	plt.plot(tot_temp / kBT)
 	plt.xlabel(r'step')
 	plt.ylabel(r'Temp / kBT')
-	plt.savefig('{}/{}_temp.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.savefig('{}/{}_temp_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
+	print('Creating Temperature histogram figure {}/{}_temp.png'.format(fig_dir, fig_name))
+	plt.figure(3)
+	plt.title('Temperature Histogram')
+	plt.hist(tot_temp / kBT, bins='auto', density=True)
+	plt.xlabel(r'Temp / kBT')
+	plt.savefig('{}/{}_temp_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
+	
 	n_image = int(n_frame / param['skip'])
 	sample_l = 150 / param['l_conv']
 	n_sample = 20
