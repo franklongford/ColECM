@@ -83,6 +83,8 @@ def check_analysis_param(input_list, param=False):
 
 def read_input_file(input_file_name, simulation=True, analysis=True, param=False):
 
+	if not param: param = get_param_defaults()
+
 	input_file_name = sys.argv[sys.argv.index('-input') + 1]
 
 	with open(input_file_name, 'r') as infile:
@@ -176,7 +178,7 @@ def read_shell_input(current_dir, dir_path):
 
 	if ('-nstep' in sys.argv): param['n_step'] = int(sys.argv[sys.argv.index('-nstep') + 1])
 
-	if input_file_name: param = read_input_file(input_file_name, simulation=False)
+	if input_file_name: param = read_input_file(input_file_name, simulation=False, param=param)
 	param = check_analysis_param(sys.argv, param)	
 
 	return file_names, param
