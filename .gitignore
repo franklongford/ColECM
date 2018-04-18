@@ -1,4 +1,4 @@
-.cache/
-.DS_Store/
+*.cache/
+*.DS_Store/
 *.py[cod]     # Will match .pyc, .pyo and .pyd files.
-__pycache__/  # Exclude the whole folder
+*__pycache__/  # Exclude the whole folder
