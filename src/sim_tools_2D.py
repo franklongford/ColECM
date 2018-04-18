@@ -217,9 +217,9 @@ def calc_energy_forces(dxdy, r2, bond_matrix, vdw_matrix, verlet_list, vdw_param
 	return pot_energy, frc_beads
 
 
-def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_param, angle_param, rc):
+def create_pos_array(n_dim, fibril_param, vdw_param, bond_param, angle_param, rc):
 	"""
-	create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_param, angle_param, rc)
+	create_pos_array(n_dim, fib_param, vdw_param, bond_param, angle_param, rc)
 
 	Form initial positional array of beads
 
@@ -264,6 +264,8 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 		Matrix determining whether a bond is present between two beads
 
 	"""
+
+	l_fibril = n_fibril_x, n_fibril_y, n_fibril_z = fibril_param
 
 	n_fibril = n_fibril_x * n_fibril_y
 	n_bead = n_fibril * l_fibril
@@ -317,6 +319,7 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0], np.max(pos.T[1]) + vdw_param[0]])
 
 	return pos, cell_dim, bond_matrix, vdw_matrix
+
 
 def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list, bond_beads, dxy_index, 
 					r_index, dt, sqrt_dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, gamma=1.0, 

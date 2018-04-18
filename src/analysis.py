@@ -71,7 +71,7 @@ def shg_images(traj, sigma, n_xyz, cut):
 	Parameters
 	----------
 
-	traj:  array_like (float); shape=(n_images, n_bead, n_dim)
+	traj:  array_like (float); shape=(n_images, n_dim, n_bead)
 		Array of sampled configurations from a simulation
 
 	sigma:  float
@@ -91,7 +91,7 @@ def shg_images(traj, sigma, n_xyz, cut):
 	"""
 
 	n_image = traj.shape[0]
-	n_dim = cell_dim.shape[0]
+	n_dim = traj.shape[1]
 
 	image_shg = np.zeros((n_image,) + n_xyz[:2][::-1])
 	dx_shg = np.zeros((n_image,) + n_xyz[:2][::-1])
@@ -493,9 +493,6 @@ def alignment_analysis(n_vector, area, n_sample):
 	for n in range(n_sample):
 		start_x = np.random.randint(pad, n_x - pad)
 		start_y = np.random.randint(pad, n_y - pad) 
-
-		cut_image = image_shg[0, start_y-pad: start_y+pad, 
-					 start_x-pad: start_x+pad]
 		
 		cut_n_vector = n_vector[:, :, start_y-pad: start_y+pad, 
 					      start_x-pad: start_x+pad]
@@ -523,30 +520,10 @@ def heatmap_animation(n):
 
 def analysis(current_dir, dir_path):
 
-	if ('-param' in sys.argv): param_file_name = current_dir + '/' + sys.argv[sys.argv.index('-param') + 1]
-	else: param_file_name = current_dir + '/' + input("Enter param_file name: ")
+	n_dim, n_step, file_names, sim_param, fibril_para, analysis_param = setup.read_shell_input(current_dir, dir_path)
 
-	if ('-traj' in sys.argv): traj_file_name = current_dir + '/' + sys.argv[sys.argv.index('-traj') + 1]
-	else: traj_file_name = current_dir + '/' + input("Enter traj_file name: ")
-
-	if ('-out' in sys.argv): output_file_name = current_dir + '/' + sys.argv[sys.argv.index('-out') + 1]
-	else: output_file_name = current_dir + '/' + input("Enter output_file name: ")
-
-	if ('-gif' in sys.argv): gif_file_name = sys.argv[sys.argv.index('-gif') + 1]
-	else: gif_file_name = input("Enter gif_file name: ")
-
-	if ('-res' in sys.argv): res = float(sys.argv[sys.argv.index('-res') + 1])
-	else: res = float(input("Enter resolution (1-10): "))
-
-	if ('-sharp' in sys.argv): sharp = float(sys.argv[sys.argv.index('-sharp') + 1])
-	else: sharp = float(input("Enter sharpness (1-10): "))
-
-	if ('-skip' in sys.argv): skip = int(sys.argv[sys.argv.index('-skip') + 1])
-	else: skip = int(input("Enter number of sampled frames between each png: "))
-
-	param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl') + '_param'
-	traj_file_name = ut.check_file_name(traj_file_name, 'traj', 'npy') + '_traj'
-	output_file_name = ut.check_file_name(output_file_name, 'out', 'npy') + '_out'
+	param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name = file_names
+	gif_file_name, res, sharp, skip = analysis_param
 
 	print("Loading parameter file {}.pkl".format(param_file_name))
 	param_file = ut.read_param_file(param_file_name)
@@ -574,12 +551,15 @@ def analysis(current_dir, dir_path):
 
 	fig_name = traj_file_name.split('/')[-1]
 
+	print('Creating Energy figure {}/{}_energy.png'.format(fig_dir, fig_name))
 	plt.figure(0)
 	plt.title('Energy')
 	plt.plot(tot_energy / n_bead)
 	plt.xlabel(r'step')
 	plt.ylabel(r'Energy / bead')
 	plt.savefig('{}/{}_energy.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print('Creating Temperature figure {}/{}_temp.png'.format(fig_dir, fig_name))
 	plt.figure(1)
 	plt.title('Temperature / kBT')
 	plt.plot(tot_temp / kBT)
@@ -587,7 +567,7 @@ def analysis(current_dir, dir_path):
 	plt.ylabel(r'Temp / kBT')
 	plt.savefig('{}/{}_temp.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print('{}/{}_energy.png'.format(fig_dir, fig_name))
+	
 
 	n_image = int(n_frame/skip)
 	sample_l = 150 / l_conv

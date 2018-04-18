@@ -228,9 +228,9 @@ def calc_energy_forces(dxdydz, r2, bond_matrix, vdw_matrix, verlet_list, vdw_par
 	return pot_energy, frc_beads
 
 
-def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_param, angle_param, rc):
+def create_pos_array(n_dim, fibril_param, vdw_param, bond_param, angle_param, rc):
 	"""
-	create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_param, angle_param, rc)
+	create_pos_array(n_dim, fibril_param, vdw_param, bond_param, angle_param, rc)
 
 	Form initial positional array of beads
 
@@ -276,8 +276,9 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 
 	"""
 
-	if ('-nfibz' in sys.argv): n_fibril_z = int(sys.argv[sys.argv.index('-nfibz') + 1])
-	else: n_fibril_z = int(input("Enter number of fibrils in z dimension: "))
+	n_fibril_x, n_fibril_y, n_fibril_z, l_fibril = fibril_param
+
+	if not n_fibril_z: n_fibril_z = int(input("Enter number of fibrils in z dimension: "))
 
 	n_fibril = n_fibril_x * n_fibril_y * n_fibril_z
 	n_bead = n_fibril * l_fibril
@@ -334,6 +335,7 @@ def create_pos_array(n_dim, n_fibril_x, n_fibril_y, l_fibril, vdw_param, bond_pa
 	cell_dim = np.array([np.max(pos.T[0]) + vdw_param[0] / 2, np.max(pos.T[1]) + vdw_param[0] / 2, np.max(pos.T[2]) + vdw_param[0] / 2])
 
 	return pos, cell_dim, bond_matrix, vdw_matrix
+
 
 def velocity_verlet_alg(n_dim, pos, vel, frc, mass, bond_matrix, vdw_matrix, verlet_list, bond_beads, dxy_index, 
 					r_index, dt, sqrt_dt, cell_dim, vdw_param, bond_param, angle_param, rc, kBT=1.0, gamma=1.0, 

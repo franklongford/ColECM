@@ -18,8 +18,8 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 modules = []
 
 if ('simulation' in sys.argv): modules.append('simulation') 
-elif ('analysis' in sys.argv): modules.append('analysis')
-else: modules = (input('Please enter desired modules to run (SIMULATION and/or ANALYSIS): ').lower()).split()
+if ('analysis' in sys.argv): modules.append('analysis')
+if len(modules) == 0: modules = (input('Please enter desired modules to run (SIMULATION and/or ANALYSIS): ').lower()).split()
 
 if ('simulation' in modules):
 	from simulation import simulation
