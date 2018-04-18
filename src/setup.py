@@ -19,27 +19,27 @@ import utilities as ut
 
 def get_param_defaults():
 
-	defaults = {'n_dim' : 3,
-				'n_step' : 10000,
-				'mass' : 1.,
-				'vdw_sigma' : 1.,
-				'vdw_epsilon' : 1.,
-				'bond_r0' : 2.**(1./6.),
-				'bond_k' : 10.,
-				'angle_theta0' : np.pi,
-				'angle_k' : 10.,
-				'rc' : 3.0,
-				'kBT' : 5.,
-				'gamma' : 1.,
-				'sigma' : np.sqrt(5.),
-				'n_fibril_x' : 5,
-				'n_fibril_y' : 5,
-				'n_fibril_z' : 5,
-				'l_fibril' : 5,
-				'res' : 5.,
-				'sharp' : 3.0,
-				'skip' : 10,
-				'l_conv' : 1.}
+	defaults = {'n_dim' : 2,
+			'n_step' : 10000,
+			'mass' : 1.,
+			'vdw_sigma' : 1.,
+			'vdw_epsilon' : 1.,
+			'bond_r0' : 2.**(1./6.),
+			'bond_k' : 10.,
+			'angle_theta0' : np.pi,
+			'angle_k' : 10.,
+			'rc' : 3.0,
+			'kBT' : 5.,
+			'gamma' : 1.,
+			'sigma' : np.sqrt(5.),
+			'n_fibril_x' : 2,
+			'n_fibril_y' : 2,
+			'n_fibril_z' : 1,
+			'l_fibril' : 5,
+			'l_conv' : 1.,
+			'res' : 5.,
+			'sharp' : 3.0,
+			'skip' : 10,}
 
 	return defaults
 
@@ -112,24 +112,27 @@ def manual_input_param(param=False):
 
 def read_shell_input(current_dir, dir_path):
 
-	if ('-param' in sys.argv): param_file_name = current_dir + '/' + sys.argv[sys.argv.index('-param') + 1]
-	else: param_file_name = current_dir + '/' + input("Enter param_file name: ")
+	sim_dir = current_dir + '/sim'
+	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
+
+	if ('-param' in sys.argv): param_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-param') + 1]
+	else: param_file_name = sim_dir + '/' + input("Enter param_file name: ")
 	param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl') + '_param'
 
-	if ('-pos' in sys.argv): pos_file_name = current_dir + '/' + sys.argv[sys.argv.index('-pos') + 1]
-	else: pos_file_name = current_dir + '/' + input("Enter pos_file name: ")
+	if ('-pos' in sys.argv): pos_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-pos') + 1]
+	else: pos_file_name = sim_dir + '/' + input("Enter pos_file name: ")
 	pos_file_name = ut.check_file_name(pos_file_name, extension='npy')
 
-	if ('-traj' in sys.argv): traj_file_name = current_dir + '/' + sys.argv[sys.argv.index('-traj') + 1]
+	if ('-traj' in sys.argv): traj_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-traj') + 1]
 	else: traj_file_name = pos_file_name
 	traj_file_name = ut.check_file_name(traj_file_name, 'traj', 'npy') + '_traj'
 
-	if ('-rst' in sys.argv): restart_file_name = current_dir + '/' + sys.argv[sys.argv.index('-rst') + 1]
+	if ('-rst' in sys.argv): restart_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-rst') + 1]
 	else: restart_file_name = pos_file_name
 	restart_file_name = ut.check_file_name(restart_file_name, 'rst', 'npy') + '_rst'
 
-	if ('-out' in sys.argv): output_file_name = current_dir + '/' + sys.argv[sys.argv.index('-out') + 1]
-	else: output_file_name = param_file_name
+	if ('-out' in sys.argv): output_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-out') + 1]
+	else: output_file_name = traj_file_name
 	output_file_name = ut.check_file_name(output_file_name, 'out', 'npy') + '_out'
 
 	if ('-gif' in sys.argv): gif_file_name = sys.argv[sys.argv.index('-gif') + 1]
@@ -138,8 +141,17 @@ def read_shell_input(current_dir, dir_path):
 
 	file_names = (param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name, gif_file_name)
 
-	if not os.path.exists('{}.pkl'.format(param_file_name)):
+	keys = ['mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k', 'angle_theta0', 'angle_k', 'rc', 'kBT', 
+			'gamma', 'l_fibril', 'n_fibril_x', 'n_fibril_y', 'n_fibril_z']
 
+	param = get_param_defaults()
+
+	if os.path.exists('{}.pkl'.format(param_file_name)):
+		print("Loading parameter file {}.pkl".format(param_file_name))
+		param_file = ut.read_param_file(param_file_name)
+		for key in keys: param[key] = param_file[key]		
+
+	else:
 		param = get_param_defaults()
 
 		if ('-input' in sys.argv): 
@@ -150,13 +162,11 @@ def read_shell_input(current_dir, dir_path):
 
 		print("Creating parameter file {}.pkl".format(param_file_name)) 
 		ut.make_param_file(param_file_name)
-		ut.update_param_file(param_file_name, list(param.keys()), list(param.values()))
 
-	else:
-		print("Loading parameter file {}.pkl".format(param_file_name))
-		param = ut.read_param_file(param_file_name)
-
+		for key in keys: ut.update_param_file(param_file_name, key, param[key])
+		
 	assert param['n_dim'] in [2, 3]
+	assert param['rc'] >= 1.5 * param['vdw_sigma']
 
 	return file_names, param
 
@@ -168,6 +178,8 @@ def import_files(file_names, param):
 	if param['n_dim'] == 2: from sim_tools_2D import create_pos_array
 	elif param['n_dim'] == 3: from sim_tools_3D import create_pos_array
 
+	keys = ['bond_matrix', 'vdw_matrix', 'l_conv']
+
 	if os.path.exists(restart_file_name + '.npy'):
 		print("Loading restart file {}.npy".format(restart_file_name))
 		restart = ut.load_npy(restart_file_name)
@@ -176,28 +188,23 @@ def import_files(file_names, param):
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 
-		bond_matrix = param['bond_matrix']
-		vdw_matrix = param['vdw_matrix']
-		l_conv = param['l_conv']
+		param_file = ut.read_param_file(param_file_name)
+		for key in keys: param[key] = param_file[key]
 
 	elif os.path.exists(pos_file_name + '.npy'):
 		print("Loading position file {}.npy".format(pos_file_name))
 		pos = ut.load_npy(pos_file_name)
 		cell_dim = pos[-1]
 		pos = pos[:-1]
-
-		bond_matrix = param['bond_matrix']
-		vdw_matrix = param['vdw_matrix']
-		l_conv = param['l_conv']
-
 		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * param['kBT'] / param['mass'])
-		
+
+		param_file = ut.read_param_file(param_file_name)
+		for key in keys: param[key] = param_file[key]
+
 	else:
 		pos_file_name = ut.check_file_name(pos_file_name, file_type='pos') + '_pos'
 
 		print("Creating input pos file {}.npy".format(pos_file_name))
-
-		param['l_conv'] = 10. / (param['l_fibril'] * 2 * param['vdw_sigma'])
 
 		fibril_param = (param['l_fibril'], param['n_fibril_x'], param['n_fibril_y'], param['n_fibril_z'])
 		vdw_param = (param['vdw_sigma'], param['vdw_epsilon'])
@@ -205,17 +212,17 @@ def import_files(file_names, param):
 		angle_param = (param['angle_theta0'], param['angle_k'])
 
 		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(param['n_dim'], fibril_param, vdw_param, 
-																bond_param, angle_param, param['rc'])
+			bond_param, angle_param, param['rc'])
+		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * param['kBT'] / param['mass'])
+
+		param['bond_matrix'] = bond_matrix
+		param['vdw_matrix'] = vdw_matrix
+		param['l_conv'] = 10. / (param['l_fibril'] * 2 * param['vdw_sigma'])
+
+		for key in keys: ut.update_param_file(param_file_name, key, param[key])
 
 		print("Saving input pos file {}.npy".format(pos_file_name))
-
 		ut.save_npy(pos_file_name, np.vstack((pos, cell_dim)))
-
-		param = ut.update_param_file(param_file_name, 'bond_matrix', bond_matrix)
-		param = ut.update_param_file(param_file_name, 'vdw_matrix', vdw_matrix)
-		param = ut.update_param_file(param_file_name, 'l_conv', param['l_conv'])
-
-		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * param['kBT'] / param['mass'])
 		
 	return pos, vel, cell_dim, param
 
@@ -302,11 +309,11 @@ def grow_fibre(n, bead, n_dim, n_bead, pos, bond_matrix, vdw_matrix, vdw_param, 
 	return pos
 
 
-def initial_state(pos, cell_dim, param):
+def initial_state(pos, cell_dim, bond_matrix, vdw_matrix, vdw_param, bond_param, angle_param, rc, kBT):
 	"""
-	setup(n_dim, cell_dim, nchain, lchain, mass, kBT, vdw_param, bond_param, angle_param, rc)
+	initial_state(pos, cell_dim, bond_matrix, vdw_matrix, vdw_param, bond_param, angle_param, rc, kBT)
 	
-	Setup simulation using parameters provided
+	Calculate inital state of simulation using starting configuration and parameters provided
 
 	Parameters
 	----------
@@ -319,6 +326,9 @@ def initial_state(pos, cell_dim, param):
 
 	bond_matrix: array_like (int); shape=(n_bead, n_bead)
 		Matrix determining whether a bond is present between two beads
+
+	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a non-bonded vdw interaction is present between two beads
 
 	vdw_param: array_like, dtype=float
 		Parameters of van der Waals potential (sigma, epsilon)
@@ -356,10 +366,12 @@ def initial_state(pos, cell_dim, param):
 	
 	"""
 
+	n_bead = pos.shape[0]
+	n_dim = pos.shape[1]
+
 	if n_dim == 2: from sim_tools_2D import calc_energy_forces
 	elif n_dim == 3: from sim_tools_3D import calc_energy_forces
 
-	n_bead = pos.shape[0]
 	distances = ut.get_distances(pos, cell_dim)
 	r2 = np.sum(distances**2, axis=0)
 

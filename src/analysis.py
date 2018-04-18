@@ -17,6 +17,7 @@ import sys
 import os
 
 import utilities as ut
+import setup
 
 SQRT2 = np.sqrt(2)
 SQRTPI = np.sqrt(np.pi)
@@ -520,18 +521,22 @@ def heatmap_animation(n):
 
 def analysis(current_dir, dir_path):
 
-	n_dim, n_step, file_names, sim_param, fibril_para, analysis_param = setup.read_shell_input(current_dir, dir_path)
+	file_names, param = setup.read_shell_input(current_dir, dir_path)
 
-	param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name = file_names
-	gif_file_name, res, sharp, skip = analysis_param
+	param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name, gif_file_name = file_names
 
 	print("Loading parameter file {}.pkl".format(param_file_name))
 	param_file = ut.read_param_file(param_file_name)
-	vdw_param = param_file['vdw_param']
-	rc = param_file['rc']
-	l_conv = param_file['l_conv']
-	bond_matrix = param_file['bond_matrix']
-	kBT = param_file['kBT']
+	for key in list(param_file.keys()): param[key] = param_file[key]
+
+	vdw_param = [param['vdw_sigma'], param['vdw_epsilon']]
+	rc = param['rc']
+	l_conv = param['l_conv']
+	bond_matrix = param['bond_matrix']
+	kBT = param['kBT']
+	res = param['res']
+	sharp = param['sharp']
+	skip = param['skip']
 
 	print("Loading output file {}".format(output_file_name))
 	tot_energy, tot_temp = ut.load_npy(output_file_name)
@@ -549,7 +554,7 @@ def analysis(current_dir, dir_path):
 	fig_dir = current_dir + '/fig'
 	if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
-	fig_name = traj_file_name.split('/')[-1]
+	fig_name = gif_file_name.split('/')[-1]
 
 	print('Creating Energy figure {}/{}_energy.png'.format(fig_dir, fig_name))
 	plt.figure(0)
@@ -567,17 +572,17 @@ def analysis(current_dir, dir_path):
 	plt.ylabel(r'Temp / kBT')
 	plt.savefig('{}/{}_temp.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	
 
-	n_image = int(n_frame/skip)
-	sample_l = 150 / l_conv
+	n_image = int(n_frame / param['skip'])
+	sample_l = 150 / param['l_conv']
 	n_sample = 20
 	area = int(np.min([sample_l, np.min(cell_dim[:2])]) / l_conv * res)
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
 
 	"Generate Gaussian convoluted images and intensity derivatives"
-	image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] / (l_conv * sharp) * res, n_xyz, 2 * rc / (l_conv * sharp) * res)
+	image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] / (l_conv * sharp) * res, 
+		n_xyz, 2 * rc / (l_conv * sharp) * res)
 	"Calculate intensity orientational vector n for each pixel"
 	n_vector = form_n_vector(dx_shg, dy_shg)
 	"Sample average orientational anisotopy"
@@ -588,8 +593,8 @@ def analysis(current_dir, dir_path):
 
 	print('Mean anistoropy = {}'.format(np.mean(q)))
 
-	make_gif(gif_file_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
-	#make_gif(gif_file_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
+	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
+	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
 	"""
 	fig, ax = plt.subplots()

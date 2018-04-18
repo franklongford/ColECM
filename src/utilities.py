@@ -80,7 +80,7 @@ def read_param_file(param_file_name):
 	return param_file
 
 
-def update_param_file(param_file_name, keys, values):
+def update_param_file(param_file_name, key, value):
 	"""
 	update_paramfile(param_file_name, symb, obj)
 
@@ -102,9 +102,7 @@ def update_param_file(param_file_name, keys, values):
 	"""
 
 	param_file = pickle.load(open(param_file_name + '.pkl', 'rb'))
-	for i, key in enumerate(keys):
-		print(param_file[key], values[i]) 
-		param_file[key] = values[i]
+	param_file[key] = value
 	pickle.dump(param_file, open(param_file_name + '.pkl', 'wb'))
 
 	return param_file

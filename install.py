@@ -3,6 +3,7 @@ import sys, os, subprocess
 program_name = sys.argv[1]
 command = 'python'
 python_version = sys.version_info
+ColECM_dir = os.getcwd()
 
 print("Checking python executable version\n")
 
@@ -28,4 +29,4 @@ if python_version[0] < 3:
 
 with open(program_name, 'w') as outfile:
 	outfile.write('#!/bin/bash\n\n')
-	outfile.write('{} src/main.py "$@"'.format(command))
+	outfile.write('{} {}/src/main.py "$@"'.format(command, ColECM_dir))

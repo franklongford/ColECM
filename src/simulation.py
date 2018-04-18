@@ -41,8 +41,8 @@ def simulation(current_dir, dir_path):
 	angle_param = (param['angle_theta0'], param['angle_k'])
 
 	n_bead = pos.shape[0]
-	frc, verlet_list, bond_beads, dxdy_index, r_index = setup.initial_state(param['n_dim'], pos, cell_dim, 
-		param['bond_matrix'], param['vdw_matrix'], vdw_param, bond_param, angle_param, param['rc'], param['kBT'])
+	frc, verlet_list, bond_beads, dxdy_index, r_index = setup.initial_state(pos, cell_dim, param['bond_matrix'], 
+		param['vdw_matrix'], vdw_param, bond_param, angle_param, param['rc'], param['kBT'])
 
 	tot_pos = np.zeros((n_frames, n_bead + 1, param['n_dim']))
 	tot_vel = np.zeros((n_frames, n_bead, param['n_dim']))
@@ -61,7 +61,7 @@ def simulation(current_dir, dir_path):
 
 	distances = ut.get_distances(pos, cell_dim)
 	r2 = np.sum(distances**2, axis=0)
-	verlet_list = ut.check_cutoff(r2, rc**2)
+	verlet_list = ut.check_cutoff(r2, param['rc']**2)
 
 	print("\n----Running Simulation----")
 
@@ -72,7 +72,7 @@ def simulation(current_dir, dir_path):
 			vdw_param, bond_param, angle_param, param['rc'], param['kBT'], param['gamma'], param['sigma'])
 
 		tot_energy[step] += energy
-		tot_temp[step] += ut.kin_energy(vel, mass, n_dim) * 2
+		tot_temp[step] += ut.kin_energy(vel, param['mass'], param['n_dim']) * 2
 
 		if step % traj_steps == 0:
 			i = int(step / traj_steps)

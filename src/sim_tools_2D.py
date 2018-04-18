@@ -265,7 +265,7 @@ def create_pos_array(n_dim, fibril_param, vdw_param, bond_param, angle_param, rc
 
 	"""
 
-	l_fibril = n_fibril_x, n_fibril_y, n_fibril_z = fibril_param
+	l_fibril, n_fibril_x, n_fibril_y, n_fibril_z = fibril_param
 
 	n_fibril = n_fibril_x * n_fibril_y
 	n_bead = n_fibril * l_fibril

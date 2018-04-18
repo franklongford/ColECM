@@ -23,7 +23,7 @@ Main program and analysis can be run via the following commands:
 1) ``./ColECM simulation [flags]``
 
 	Runs the main simulation routine for collagen fibrils in the ECM. Each fibril is approximated to be 1 um long.
-	Flags are optional and can be entered in the command line or selected later during the setup process. 
+	All flags except ``-pos`` and ``-param`` are optional and can be entered in the command line or selected later during the setup process. 
 	All input and output files will be created in the user's current working directory.
 
 		-pos		Name of input position file 
@@ -34,13 +34,12 @@ Main program and analysis can be run via the following commands:
 		-rst		Name of simulation restart file
 		-out		Name of simulation output file
 		-ndim		Number of dimensions (2 or 3)
-		-nstep		Number of timesteps in simulation (default=10000)
+		-nstep		Number of timesteps in simulation
 		-mass		Mass of each of collagen bead in red. units
 		-vdw_sigma	Van de Waals radius of collagen beads in red. units
 		-vdw_epsilon	Van de Waals energy in red. units
 		-bond_k		Harmonic bond energy in red. units
 		-angle_k	Sigmoidal angle energy in red. units
-		-Langevin	Whether to use a Langevin thermostat (NVT) or not (NVE)
 		-kBT		Temperature constant in red. units
 		-gamma		Value of Langevin collision rate gamma in red. units (0-1)
 		-nfibx		Number of collagen fibrils accross x axis
@@ -62,3 +61,29 @@ Main program and analysis can be run via the following commands:
 		-skip	Number of sampled frames between each png
 
 You can run both modules by calling ``./ColECM simulation analysis [flags]``
+
+Defaults
+--------
+
+Simulation defaults are listed below:
+
+	-traj		Name of position file
+	-rst		Name of position file
+	-out		Name of trajectory file
+	-gif		Name of trajectory file
+	-ndim		2
+	-nstep		10000
+	-mass		1
+	-vdw_sigma	1
+	-vdw_epsilon	2
+	-bond_k		10
+	-angle_k	10
+	-kBT		5
+	-gamma		1
+	-lfib		5
+	-nfibx		2
+	-nfiby		2
+	-nfibz		1
+	-res		5
+	-sharp		3
+	-skip		10
