@@ -274,8 +274,8 @@ def create_pos_array(n_dim, fibril_param, vdw_param, bond_param, angle_param, rc
 	vdw_matrix = np.zeros(n_bead, dtype=int)
 
 	for bead in range(n_bead):
-		if bead % l_fibril == 0: vdw_matrix[bead] += 8
-		elif bead % l_fibril == l_fibril-1: vdw_matrix[bead] += 8
+		if bead % l_fibril == 0: vdw_matrix[bead] += 10
+		elif bead % l_fibril == l_fibril-1: vdw_matrix[bead] += 10
 		else: vdw_matrix[bead] += 1
 
 	vdw_matrix = np.reshape(np.tile(vdw_matrix, (1, n_bead)), (n_bead, n_bead))

@@ -20,7 +20,7 @@ Instructions:
 
 Main program and analysis can be run via the following commands:
 
-1) ``./ColECM simulation [flags]``
+1) ``ColECM simulation [flags]``
 
 	Runs the main simulation routine for collagen fibrils in the ECM. Each fibril is approximated to be 1 um long.
 	All flags except ``-pos`` and ``-param`` are optional and can be entered in the command line or selected later during the setup process. 
@@ -49,7 +49,7 @@ Main program and analysis can be run via the following commands:
 		-nfibz		Number of collagen fibrils accross z axis (3D only)
 		
 
-2) ``./ColECM analysis [flags]``
+2) ``ColECM analysis [flags]``
 
 	Anisotropy analysis
 	Flags are optional and can be entered in the command line or selected later during the analysis process.
@@ -62,7 +62,7 @@ Main program and analysis can be run via the following commands:
 		-sharp	Image sharpness parameter (1-10)
 		-skip	Number of sampled frames between each png
 
-You can run both modules by calling ``./ColECM simulation analysis [flags]``
+You can run both modules by calling ``ColECM simulation analysis [flags]``
 
 Defaults
 --------
@@ -126,3 +126,18 @@ Uninstallation:
 
 run ``make uninstall`` and ``make clean``
 
+
+Examples:
+--------
+
+Below are some examples:
+
+1)  ``ColECM simulation analysis -pos test_defaults -param test_defaults``
+
+	Will run and analyse a 2D simulation using the default parameter settings, usually lasing 10-20 seconds depending on system architecture.
+
+2)  ``ColECM simulation analysis -pos test_3D -param test_3D -ndim 3``
+
+	Will run and analyse a 3D simulation using the default parameter settings, usually lasing 10-20 seconds depending on system architecture.
+
+ 

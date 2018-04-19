@@ -395,8 +395,8 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 
 	for frame in range(n_frame):
 		#if not os.path.exists('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame)):
-		make_png("{}_{}".format(file_name_plot, frame), fig_dir, images[frame], res, sharp, cell_dim, itype)
-		image_list.append('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame))
+		make_png("{}_{}".format(file_name_plot, frame), gif_dir, images[frame], res, sharp, cell_dim, itype)
+		image_list.append('{}/{}_{}_ISM.png'.format(gif_dir, file_name_plot, frame))
 
 	file_name_gif = '{}_{}_{}_{}'.format(file_name, res, sharp, n_frame)
 	file_path_name = '{}/{}.gif'.format(gif_dir, file_name_gif)
@@ -405,7 +405,7 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 		for filename in image_list:
 			image = imageio.imread(filename)
 			writer.append_data(image)
-			#os.remove(filename)
+			os.remove(filename)
 
 
 def form_n_vector(dx_shg, dy_shg):

@@ -310,6 +310,7 @@ def import_files(sim_dir, file_names, param):
 		param['vdw_matrix'] = vdw_matrix
 		param['l_conv'] = 10. / (param['l_fibril'] * 2 * param['vdw_sigma'])
 
+		keys = ['bond_matrix', 'vdw_matrix', 'l_conv']
 		for key in keys: ut.update_param_file(sim_dir + param_file_name, key, param[key])
 
 		print("Saving input pos file {}{}.npy".format(sim_dir, pos_file_name))
