@@ -37,8 +37,8 @@ Main program and analysis can be run via the following commands:
 		-nstep		Number of timesteps in simulation
 		-save_step	Number of timesteps between each saved restart and trajectory file
 		-mass		Mass of each of collagen bead in red. units
-		-vdw_sigma	Van de Waals radius of collagen beads in red. units
-		-vdw_epsilon	Van de Waals energy in red. units
+		-vdw_sigma	 Van de Waals radius of collagen beads in red. units
+		-vdw_epsilon	 Van de Waals energy in red. units
 		-bond_k		Harmonic bond energy in red. units
 		-angle_k	Sigmoidal angle energy in red. units
 		-kBT		Temperature constant in red. units
