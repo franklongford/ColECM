@@ -212,6 +212,7 @@ def read_shell_input(current_dir, sim_dir):
 	if os.path.exists(sim_dir + param_file_name + '.pkl'):
 		print("Loading parameter file {}.pkl".format(sim_dir + param_file_name))
 		param_file = ut.read_param_file(sim_dir + param_file_name)
+		keys += ['bond_matrix', 'vdw_matrix', 'l_conv']
 		for key in keys: param[key] = param_file[key]		
 
 	else:
@@ -274,7 +275,7 @@ def import_files(sim_dir, file_names, param):
 	if param['n_dim'] == 2: from sim_tools_2D import create_pos_array
 	elif param['n_dim'] == 3: from sim_tools_3D import create_pos_array
 
-	keys = ['bond_matrix', 'vdw_matrix', 'l_conv']
+	
 
 	if os.path.exists(sim_dir + restart_file_name + '.npy'):
 		print("Loading restart file {}.npy".format(sim_dir + restart_file_name))
@@ -284,18 +285,12 @@ def import_files(sim_dir, file_names, param):
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 
-		param_file = ut.read_param_file(sim_dir + param_file_name)
-		for key in keys: param[key] = param_file[key]
-
 	elif os.path.exists(sim_dir + pos_file_name + '.npy'):
 		print("Loading position file {}.npy".format(sim_dir + pos_file_name))
 		pos = ut.load_npy(sim_dir + pos_file_name)
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * param['kBT'] / param['mass'])
-
-		param_file = ut.read_param_file(sim_dir + param_file_name)
-		for key in keys: param[key] = param_file[key]
 
 	else:
 		pos_file_name = ut.check_file_name(pos_file_name, file_type='pos') + '_pos'
