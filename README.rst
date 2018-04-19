@@ -33,20 +33,20 @@ Main program and analysis can be run via the following commands:
 		-traj		Name of simulation trajectory file
 		-rst		Name of simulation restart file
 		-out		Name of simulation output file
-		-ndim=2		Number of dimensions (2 or 3)
-		-nstep=10000		Number of timesteps in simulation
-		-save_step=500		Number of timesteps between each saved restart and trajectory file
-		-mass=1		Mass of each of collagen bead in red. units
-		-vdw_sigma=1	Van de Waals radius of collagen beads in red. units
-		-vdw_epsilon=2	Van de Waals energy in red. units
-		-bond_k=20		Harmonic bond energy in red. units
-		-angle_k=20	Sigmoidal angle energy in red. units
-		-kBT=5		Temperature constant in red. units
-		-gamma=1		Value of Langevin collision rate gamma in red. units (0-1)
-		-lfib=5		Length of collagen fibrils in beads
-		-nfibx=2		Number of collagen fibrils accross x axis
-		-nfiby=2		Number of collagen fibrils accross y axis
-		-nfibz=2		Number of collagen fibrils accross z axis (3D only)
+		-ndim 2		Number of dimensions (2 or 3)
+		-nstep 10000		Number of timesteps in simulation
+		-save_step 500		Number of timesteps between each saved restart and trajectory file
+		-mass 1		Mass of each of collagen bead in red. units
+		-vdw_sigma 1	Van de Waals radius of collagen beads in red. units
+		-vdw_epsilon 2	Van de Waals energy in red. units
+		-bond_k 20		Harmonic bond energy in red. units
+		-angle_k 20	Sigmoidal angle energy in red. units
+		-kBT 5		Temperature constant in red. units
+		-gamma 1		Value of Langevin collision rate gamma in red. units (0-1)
+		-lfib 5		Length of collagen fibrils in beads
+		-nfibx 2		Number of collagen fibrils accross x axis
+		-nfiby 2		Number of collagen fibrils accross y axis
+		-nfibz 1		Number of collagen fibrils accross z axis (3D only)
 		
 
 2) ``ColECM analysis [flags]``
@@ -58,9 +58,9 @@ Main program and analysis can be run via the following commands:
 		-traj	Name of simulation trajectory file
 		-out	Name of simulation output file to analyse
 		-gif	Name of gif file to be created
-		-res=5	Image resolution parameter (1-10)
-		-sharp=3	Image sharpness parameter (1-10)
-		-skip=10	Number of sampled frames between each png
+		-res 5	Image resolution parameter (1-10)
+		-sharp 3	Image sharpness parameter (1-10)
+		-skip 10	Number of sampled frames between each png
 
 You can run both modules by calling ``ColECM simulation analysis [flags]``
 
