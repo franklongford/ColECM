@@ -68,7 +68,11 @@ def simulation(current_dir, dir_path):
 
 	print("\n" + " " * 15 + "----Running Simulation----")
 
-	for step in range(param['n_step']):
+	tot_pos[0] += np.vstack((pos, cell_dim))
+	tot_vel[0] += vel
+	tot_frc[0] += frc
+
+	for step in range(1, param['n_step']):
 
 		pos, vel, frc, verlet_list, energy = sim.velocity_verlet_alg(param['n_dim'], pos, vel, frc, param['mass'], 
 			param['bond_matrix'], param['vdw_matrix'], verlet_list, bond_beads, dxdy_index, r_index, dt, sqrt_dt, cell_dim, 
@@ -85,26 +89,22 @@ def simulation(current_dir, dir_path):
 
 			ut.save_npy(sim_dir + restart_file_name, (tot_pos[i], tot_vel[i]))
 
-			sys.stdout.write(" " * 65 + "\r")
-			sys.stdout.flush()
+			sim_time = (time.time() - sim_time_start) * (param['n_step'] / step - 1) 
+			time_hour = int(sim_time / 60**2)
+			time_min = int((sim_time / 60) % 60)
+			time_sec = int(sim_time) % 60
+
 			print(" " + "-" * 55)
 			print(" " + "| Step: {:{dig}d} {} |".format(step, " " * (44 - dig), dig=dig))
 			print(" " + "| Temp: {:>10.4f} / kBT    Energy: {:>10.4f} / bead |".format(tot_temp[step] / param['kBT'], tot_energy[step] / n_bead))
+			print(" " + "|" + " " * 53 + "|")
+			print(" " + "| Estimated time remaining: {:5d} hr {:2d} min {:2d} sec    |".format(time_hour, time_min, time_sec))
 			print(" " + "-" * 55)
 
 		if np.max(np.abs(vel)) >= param['kBT'] * 1E5: 
 			print("velocity exceeded, step ={}".format(step))
 			n_step = step
 			sys.exit()
-
-		if step > 0: 
-			sim_time = (time.time() - sim_time_start) * (param['n_step'] / step - 1) 
-			time_hour = int(sim_time / 60**2)
-			time_min = int((sim_time / 60) % 60)
-			time_sec = int(sim_time) % 60
-
-			sys.stdout.write(" Estimated time remaining: {:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)\r".format(time_hour, time_min, time_sec, sim_time))
-			sys.stdout.flush()
 
 	sim_time_stop = time.time()
 
@@ -113,7 +113,7 @@ def simulation(current_dir, dir_path):
 	time_min = int((sim_time / 60) % 60)
 	time_sec = int(sim_time) % 60
 
-	print("\n----Simulation Complete----\n")
+	print("\n" + " " * 15 + "----Simulation Complete----\n")
 	print("{:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, sim_time))
 	print("\nAverages:")
 	print("Average Temperature: {:>10.4f} / kBT".format(np.mean(tot_temp) / param['kBT']))

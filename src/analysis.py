@@ -521,6 +521,8 @@ def heatmap_animation(n):
 
 def analysis(current_dir, dir_path):
 
+	print("\n" + " " * 15 + "----Beginning Analysis----\n")
+
 	sim_dir = current_dir + '/sim/'
 
 	file_names, param = setup.read_shell_input(current_dir, sim_dir)
@@ -555,7 +557,7 @@ def analysis(current_dir, dir_path):
 
 	fig_name = gif_file_name.split('/')[-1]
 
-	print('Creating Energy time series figure {}/{}_energy.png'.format(fig_dir, fig_name))
+	print('\nCreating Energy time series figure {}/{}_energy.png'.format(fig_dir, fig_name))
 	plt.figure(0)
 	plt.title('Energy Time Series')
 	plt.plot(tot_energy / n_bead)
@@ -604,8 +606,6 @@ def analysis(current_dir, dir_path):
 	q = reorder_array(eigval_shg)
 	q = q[1] - q[0]
 
-	print('Mean anistoropy = {}'.format(np.mean(q)))
-
 	print('Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
 	plt.figure(4)
 	plt.title('Anisotropy Time Series')
@@ -620,6 +620,8 @@ def analysis(current_dir, dir_path):
 	plt.hist(np.mean(q, axis=1), bins='auto', density=True)
 	plt.xlabel(r'Anisotropy')
 	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print('\nMean anistoropy = {}'.format(np.mean(q)))
 
 	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
 	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
