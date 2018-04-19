@@ -204,7 +204,7 @@ def read_shell_input(current_dir, sim_dir):
 	if ('-input' in sys.argv): input_file_name = current_dir + '/' + sys.argv[sys.argv.index('-input') + 1]
 	else: input_file_name = False
 
-	keys = ['mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k', 'angle_theta0', 'angle_k', 'rc', 'kBT', 
+	keys = ['n_dim', 'mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k', 'angle_theta0', 'angle_k', 'rc', 'kBT', 
 			'gamma', 'l_fibril', 'n_fibril_x', 'n_fibril_y', 'n_fibril_z']
 
 	param = get_param_defaults()
