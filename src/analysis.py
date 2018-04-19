@@ -5,7 +5,7 @@ ANALYSIS ROUTINE
 Created by: Frank Longford
 Created on: 09/03/2018
 
-Last Modified: 12/04/2018
+Last Modified: 19/04/2018
 """
 
 import numpy as np
@@ -521,28 +521,27 @@ def heatmap_animation(n):
 
 def analysis(current_dir, dir_path):
 
-	file_names, param = setup.read_shell_input(current_dir, dir_path)
+	sim_dir = current_dir + '/sim/'
+
+	file_names, param = setup.read_shell_input(current_dir, sim_dir)
 
 	param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name, gif_file_name = file_names
 
-	print("Loading parameter file {}.pkl".format(param_file_name))
-	param_file = ut.read_param_file(param_file_name)
-
-	vdw_param = [param_file['vdw_sigma'], param_file['vdw_epsilon']]
-	rc = param_file['rc']
-	l_conv = param_file['l_conv']
-	bond_matrix = param_file['bond_matrix']
-	kBT = param_file['kBT']
+	vdw_param = [param['vdw_sigma'], param['vdw_epsilon']]
+	rc = param['rc']
+	l_conv = param['l_conv']
+	bond_matrix = param['bond_matrix']
+	kBT = param['kBT']
 
 	res = param['res']
 	sharp = param['sharp']
 	skip = param['skip']
 
-	print("Loading output file {}".format(output_file_name))
-	tot_energy, tot_temp = ut.load_npy(output_file_name)
+	print("Loading output file {}{}".format(sim_dir, output_file_name))
+	tot_energy, tot_temp = ut.load_npy(sim_dir + output_file_name)
 
-	print("Loading trajectory file {}.npy".format(traj_file_name))
-	tot_pos = ut.load_npy(traj_file_name)
+	print("Loading trajectory file {}{}.npy".format(sim_dir, traj_file_name))
+	tot_pos = ut.load_npy(sim_dir + traj_file_name)
 	n_frame = tot_pos.shape[0]
 	n_bead = tot_pos.shape[1]
 	cell_dim = tot_pos[0][-1]
@@ -563,7 +562,6 @@ def analysis(current_dir, dir_path):
 	plt.xlabel(r'step')
 	plt.ylabel(r'Energy / bead')
 	plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-	plt.close(0)
 
 	print('Creating Energy histogram figure {}/{}_energy.png'.format(fig_dir, fig_name))
 	plt.figure(1)
@@ -590,7 +588,7 @@ def analysis(current_dir, dir_path):
 	
 	n_image = int(n_frame / param['skip'])
 	sample_l = 150 / param['l_conv']
-	n_sample = 20
+	n_sample = 30
 	area = int(np.min([sample_l, np.min(cell_dim[:2])]) / l_conv * res)
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
@@ -607,6 +605,21 @@ def analysis(current_dir, dir_path):
 	q = q[1] - q[0]
 
 	print('Mean anistoropy = {}'.format(np.mean(q)))
+
+	print('Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
+	plt.figure(4)
+	plt.title('Anisotropy Time Series')
+	plt.plot(np.mean(q, axis=1))
+	plt.xlabel(r'step')
+	plt.ylabel(r'Anisotropy')
+	plt.savefig('{}/{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print('Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
+	plt.figure(5)
+	plt.title('Anisotropy Histogram')
+	plt.hist(np.mean(q, axis=1), bins='auto', density=True)
+	plt.xlabel(r'Anisotropy')
+	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
 	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')

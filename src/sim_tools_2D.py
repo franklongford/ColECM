@@ -5,7 +5,7 @@ SIMULATION 2D ROUTINE
 Created by: Frank Longford
 Created on: 09/03/2018
 
-Last Modified: 12/04/2018
+Last Modified: 19/04/2018
 """
 
 import numpy as np
@@ -301,8 +301,8 @@ def create_pos_array(n_dim, fibril_param, vdw_param, bond_param, angle_param, rc
 	pos[range(l_fibril)] += init_pos
 	pos -= np.min(pos)
 
-	size_x = np.max(pos.T[0]) + vdw_param[0] 
-	size_y = np.max(pos.T[1]) + vdw_param[0] 
+	size_x = np.max(pos.T[0]) + 2 * vdw_param[0] 
+	size_y = np.max(pos.T[1]) + 2 * vdw_param[0] 
 	bead_list = np.arange(0, l_fibril)
 
 	for i in range(n_fibril_x):

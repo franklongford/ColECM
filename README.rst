@@ -35,6 +35,7 @@ Main program and analysis can be run via the following commands:
 		-out		Name of simulation output file
 		-ndim		Number of dimensions (2 or 3)
 		-nstep		Number of timesteps in simulation
+		-save_step	Number of timesteps between each saved restart and trajectory file
 		-mass		Mass of each of collagen bead in red. units
 		-vdw_sigma	Van de Waals radius of collagen beads in red. units
 		-vdw_epsilon	Van de Waals energy in red. units
@@ -74,6 +75,7 @@ Simulation defaults are listed below:
 	-gif		Name of simulation trajectory file
 	-ndim		2
 	-nstep		10000
+	-save_step	500
 	-mass		1
 	-vdw_sigma	1
 	-vdw_epsilon	2
@@ -88,6 +90,36 @@ Simulation defaults are listed below:
 	-res		5
 	-sharp		3
 	-skip		10
+
+
+File Tree:
+-------------
+
+Output of main routine will produce following file tree structure in the current working directory:
+
+::
+
+    sim
+    │
+    ├── ..._param.pkl
+    ├── ..._pos.npy
+    ├── ..._traj.npy
+    └── ..._out.npy
+	
+    fig
+    │
+    ├── ..._energy_time.png
+    ├── ..._energy_hist.png
+    ├── ..._temp_time.png
+    ├── ..._temp_hist.png
+    ├── ..._anis_time.png
+    └── ..._anis_hist.png
+
+    gif
+    │
+    ├── ..._SHG_....gif
+    └── ..._SHG_..._ISM.png  
+
 
 Uninstallation:
 -------------

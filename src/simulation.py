@@ -5,7 +5,7 @@ SIMULATION ROUTINE
 Created by: Frank Longford
 Created on: 13/04/2018
 
-Last Modified: 12/04/2018
+Last Modified: 19/04/2018
 """
 
 import numpy as np
@@ -19,7 +19,10 @@ def simulation(current_dir, dir_path):
 	print("\nEntering Setup\n")
 	init_time_start = time.time()
 
-	file_names, param = setup.read_shell_input(current_dir, dir_path)
+	sim_dir = current_dir + '/sim/'
+	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
+
+	file_names, param = setup.read_shell_input(current_dir, sim_dir)
 
 	if param['n_dim'] == 2: 
 		import sim_tools_2D as sim
@@ -28,13 +31,12 @@ def simulation(current_dir, dir_path):
 		import sim_tools_3D as sim
 		dt = 0.003
 
-	traj_steps = 100
-	n_frames = int(param['n_step'] / traj_steps)
+	n_frames = int(param['n_step'] / param['save_step'])
 	dig = len(str(param['n_step']))
 	sqrt_dt = np.sqrt(dt)
 
 	param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name, _ = file_names
-	pos, vel, cell_dim, param = setup.import_files(file_names, param)
+	pos, vel, cell_dim, param = setup.import_files(sim_dir, file_names, param)
 
 	vdw_param = (param['vdw_sigma'], param['vdw_epsilon'])
 	bond_param = (param['bond_r0'], param['bond_k'])
@@ -75,13 +77,13 @@ def simulation(current_dir, dir_path):
 		tot_energy[step] += energy
 		tot_temp[step] += ut.kin_energy(vel, param['mass'], param['n_dim']) * 2
 
-		if step % traj_steps == 0:
-			i = int(step / traj_steps)
+		if step % param['save_step'] == 0:
+			i = int(step / param['save_step'])
 			tot_pos[i] += np.vstack((pos, cell_dim))
 			tot_vel[i] += vel
 			tot_frc[i] += frc
 
-			ut.save_npy(restart_file_name, (tot_pos[i], tot_vel[i]))
+			ut.save_npy(sim_dir + restart_file_name, (tot_pos[i], tot_vel[i]))
 
 			print("-" * 55)
 			print("| Step: {:{dig}d} {} |".format(step, " " * (44 - dig), dig=dig))
@@ -103,19 +105,17 @@ def simulation(current_dir, dir_path):
 	print("\n----Simulation Complete----\n")
 	print("{:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, sim_time))
 	print("\nAverages:")
-	print("Average Velocity:    {:>10.4f}".format(np.mean(abs(tot_vel))))
 	print("Average Temperature: {:>10.4f} / kBT".format(np.mean(tot_temp) / param['kBT']))
 	print("Average Energy:      {:>10.4f} / bead".format(np.mean(tot_energy) / n_bead))
 	print("\nRMS:")
-	print("RMS Velocity:    {:>10.4f}".format(np.std(tot_vel)))
 	print("RMS Temperature: {:>10.4f} / kBT".format(np.std(tot_temp / param['kBT'])))
 	print("RMS Energy:      {:>10.4f} / bead\n".format(np.std(tot_energy / n_bead)))	
 
 	print("Saving restart file {}".format(restart_file_name))
-	ut.save_npy(restart_file_name, (tot_pos[-1], tot_vel[-1]))
+	ut.save_npy(sim_dir + restart_file_name, (tot_pos[-1], tot_vel[-1]))
 
 	print("Saving trajectory file {}".format(traj_file_name))
-	ut.save_npy(traj_file_name, tot_pos)
+	ut.save_npy(sim_dir + traj_file_name, tot_pos)
 
 	print("Saving output file {}".format(output_file_name))
-	ut.save_npy(output_file_name, (tot_energy, tot_temp))
+	ut.save_npy(sim_dir + output_file_name, (tot_energy, tot_temp))

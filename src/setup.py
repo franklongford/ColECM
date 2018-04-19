@@ -5,7 +5,7 @@ SETUP ROUTINE
 Created by: Frank Longford
 Created on: 01/11/2015
 
-Last Modified: 12/04/2018
+Last Modified: 19/04/2018
 """
 
 import numpy as np
@@ -18,9 +18,15 @@ import utilities as ut
 
 
 def get_param_defaults():
+	"""
+	get_param_defaults()
 
+	Returns default simulation and analysis parameters
+	"""
+	
 	defaults = {'n_dim' : 2,
 			'n_step' : 10000,
+			'save_step' : 500,
 			'mass' : 1.,
 			'vdw_sigma' : 1.,
 			'vdw_epsilon' : 1.,
@@ -39,12 +45,17 @@ def get_param_defaults():
 			'l_conv' : 1.,
 			'res' : 5.,
 			'sharp' : 3.0,
-			'skip' : 10,}
+			'skip' : 1}
 
 	return defaults
 
 
 def check_sim_param(input_list, param=False):
+	"""
+	check_sim_param(input_list, param=False)
+
+	Checks input_list to overwrite simulation parameters in param dictionary 
+	"""
 
 	if not param: param = get_param_defaults()
 
@@ -71,6 +82,11 @@ def check_sim_param(input_list, param=False):
 
 
 def check_analysis_param(input_list, param=False):
+	"""
+	check_analysis_param(input_list, param=False)
+
+	Checks input_list to overwrite analysis parameters in param dictionary 
+	"""
 
 	if not param: param = get_param_defaults()
 
@@ -82,6 +98,11 @@ def check_analysis_param(input_list, param=False):
 
 
 def read_input_file(input_file_name, simulation=True, analysis=True, param=False):
+	"""
+	read_input_file(input_file_name, simulation=True, analysis=True, param=False)
+
+	Opens input_file_name and checks contents for simulation and/or analysis parameters to overwrite param dictionary
+	"""
 
 	if not param: param = get_param_defaults()
 
@@ -92,6 +113,7 @@ def read_input_file(input_file_name, simulation=True, analysis=True, param=False
 	input_list = (' '.join(lines)).split()
 
 	if ('-nstep' in input_list): param['n_step'] = int(input_list[input_list.index('-nstep') + 1])
+	if ('-save_step' in input_list): param['save_step'] = int(input_list[input_list.index('-save_step') + 1])
 
 	if simulation: param = check_sim_param(input_list, param)
 	if analysis: param = check_analysis_param(input_list, param)
@@ -100,6 +122,11 @@ def read_input_file(input_file_name, simulation=True, analysis=True, param=False
 
 
 def manual_input_param(param=False):
+	"""
+	manual_input_param(param=False)
+
+	Manual paramter input (CURRENTLY OBSOLETE)
+	"""
 
 	if not param: param = get_param_defaults()
 
@@ -121,33 +148,55 @@ def manual_input_param(param=False):
 	return param
 
 
-def read_shell_input(current_dir, dir_path):
+def read_shell_input(current_dir, sim_dir):
+	"""
+	read_shell_input(current_dir, sim_dir)
 
-	sim_dir = current_dir + '/sim'
-	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
+	Reads bash shell tags to gather simulation and analysis parameters.
+	Order of input methods: default_param < input_file < inline tags < param_file 
 
-	if ('-param' in sys.argv): param_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-param') + 1]
-	else: param_file_name = sim_dir + '/' + input("Enter param_file name: ")
-	param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl') + '_param'
+	Parameters
+	----------
 
-	if ('-pos' in sys.argv): pos_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-pos') + 1]
-	else: pos_file_name = sim_dir + '/' + input("Enter pos_file name: ")
-	pos_file_name = ut.check_file_name(pos_file_name, extension='npy')
+	current_dir:  str
+		Working directory from which ColECM excecutable is called
 
-	if ('-traj' in sys.argv): traj_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-traj') + 1]
+	sim_dir:  str
+		Directory in which simulation files are to be saved
+
+	Returns
+	-------
+
+	file_names:  list (str)
+		List of simulation and analysis files names
+
+	param:  dict
+		Dictionary of simulation and analysis parameters
+	"""
+
+	if ('-param' in sys.argv): param_file_name = sys.argv[sys.argv.index('-param') + 1]
+	else: param_file_name = input("Enter param_file name: ")
+
+	if ('-pos' in sys.argv): pos_file_name =  sys.argv[sys.argv.index('-pos') + 1]
+	else: pos_file_name = input("Enter pos_file name: ")
+
+	if ('-traj' in sys.argv): traj_file_name =  sys.argv[sys.argv.index('-traj') + 1]
 	else: traj_file_name = pos_file_name
-	traj_file_name = ut.check_file_name(traj_file_name, 'traj', 'npy') + '_traj'
 
-	if ('-rst' in sys.argv): restart_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-rst') + 1]
+	if ('-rst' in sys.argv): restart_file_name = sys.argv[sys.argv.index('-rst') + 1]
 	else: restart_file_name = pos_file_name
-	restart_file_name = ut.check_file_name(restart_file_name, 'rst', 'npy') + '_rst'
-
-	if ('-out' in sys.argv): output_file_name = sim_dir + '/' + sys.argv[sys.argv.index('-out') + 1]
+	
+	if ('-out' in sys.argv): output_file_name = sys.argv[sys.argv.index('-out') + 1]
 	else: output_file_name = traj_file_name
-	output_file_name = ut.check_file_name(output_file_name, 'out', 'npy') + '_out'
 
 	if ('-gif' in sys.argv): gif_file_name = sys.argv[sys.argv.index('-gif') + 1]
 	else: gif_file_name = traj_file_name
+
+	param_file_name = ut.check_file_name(param_file_name, 'param', 'pkl') + '_param'
+	pos_file_name = ut.check_file_name(pos_file_name, extension='npy')
+	traj_file_name = ut.check_file_name(traj_file_name, 'traj', 'npy') + '_traj'
+	restart_file_name = ut.check_file_name(restart_file_name, 'rst', 'npy') + '_rst'
+	output_file_name = ut.check_file_name(output_file_name, 'out', 'npy') + '_out'
 	gif_file_name = ut.check_file_name(gif_file_name, 'gif', 'png') + '_gif'
 
 	file_names = (param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name, gif_file_name)
@@ -158,25 +207,27 @@ def read_shell_input(current_dir, dir_path):
 	keys = ['mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k', 'angle_theta0', 'angle_k', 'rc', 'kBT', 
 			'gamma', 'l_fibril', 'n_fibril_x', 'n_fibril_y', 'n_fibril_z']
 
-	if os.path.exists('{}.pkl'.format(param_file_name)):
-		param = get_param_defaults()
-		print("Loading parameter file {}.pkl".format(param_file_name))
-		param_file = ut.read_param_file(param_file_name)
+	param = get_param_defaults()
+
+	if os.path.exists(sim_dir + param_file_name + '.pkl'):
+		print("Loading parameter file {}.pkl".format(sim_dir + param_file_name))
+		param_file = ut.read_param_file(sim_dir + param_file_name)
 		for key in keys: param[key] = param_file[key]		
 
 	else:
-		if input_file_name: param = read_input_file(input_file_name, analysis=False)
+		if input_file_name: param = read_input_file(input_file_name, analysis=False, param=param)
 		param = check_sim_param(sys.argv, param)
 
-		print("Creating parameter file {}.pkl".format(param_file_name)) 
-		ut.make_param_file(param_file_name)
+		print("Creating parameter file {}.pkl".format(sim_dir + param_file_name)) 
+		ut.make_param_file(sim_dir + param_file_name)
 
-		for key in keys: ut.update_param_file(param_file_name, key, param[key])
+		for key in keys: ut.update_param_file(sim_dir + param_file_name, key, param[key])
 		
 	assert param['n_dim'] in [2, 3]
 	assert param['rc'] >= 1.5 * param['vdw_sigma']
 
 	if ('-nstep' in sys.argv): param['n_step'] = int(sys.argv[sys.argv.index('-nstep') + 1])
+	if ('-save_step' in sys.argv): param['save_step'] = int(sys.argv[sys.argv.index('-save_step') + 1])
 
 	if input_file_name: param = read_input_file(input_file_name, simulation=False, param=param)
 	param = check_analysis_param(sys.argv, param)	
@@ -184,7 +235,39 @@ def read_shell_input(current_dir, dir_path):
 	return file_names, param
 
 
-def import_files(file_names, param):
+def import_files(sim_dir, file_names, param):
+	"""
+	import_files(sim_dir, file_names, param)
+
+	Imports existing or creates new simulation files listed in file_names 
+
+	Parameters
+	----------
+
+	sim_dir:  str
+		Directory in which simulation files are to be saved
+
+	file_names:  list (str)
+		List of simulation and analysis files names
+
+	param:  dict
+		Dictionary of simulation and analysis parameters
+
+	Returns
+	-------
+
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Positions of n_bead beads in n_dim
+
+	vel: array_like, dtype=float
+		Velocity of each bead in all collagen fibres
+
+	cell_dim:  array_like (float); shape=(n_dim)
+		Simulation cell dimensions in n_dim dimensions
+
+	param:  dict
+		Dictionary of simulation and analysis parameters
+	"""
 
 	param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name, _ = file_names
 
@@ -193,31 +276,31 @@ def import_files(file_names, param):
 
 	keys = ['bond_matrix', 'vdw_matrix', 'l_conv']
 
-	if os.path.exists(restart_file_name + '.npy'):
-		print("Loading restart file {}.npy".format(restart_file_name))
-		restart = ut.load_npy(restart_file_name)
+	if os.path.exists(sim_dir + restart_file_name + '.npy'):
+		print("Loading restart file {}.npy".format(sim_dir + restart_file_name))
+		restart = ut.load_npy(sim_dir + restart_file_name)
 		pos = restart[0]
 		vel = restart[1]
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 
-		param_file = ut.read_param_file(param_file_name)
+		param_file = ut.read_param_file(sim_dir + param_file_name)
 		for key in keys: param[key] = param_file[key]
 
-	elif os.path.exists(pos_file_name + '.npy'):
-		print("Loading position file {}.npy".format(pos_file_name))
-		pos = ut.load_npy(pos_file_name)
+	elif os.path.exists(sim_dir + pos_file_name + '.npy'):
+		print("Loading position file {}.npy".format(sim_dir + pos_file_name))
+		pos = ut.load_npy(sim_dir + pos_file_name)
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * param['kBT'] / param['mass'])
 
-		param_file = ut.read_param_file(param_file_name)
+		param_file = ut.read_param_file(sim_dir + param_file_name)
 		for key in keys: param[key] = param_file[key]
 
 	else:
 		pos_file_name = ut.check_file_name(pos_file_name, file_type='pos') + '_pos'
 
-		print("Creating input pos file {}.npy".format(pos_file_name))
+		print("Creating input pos file {}{}.npy".format(sim_dir, pos_file_name))
 
 		fibril_param = (param['l_fibril'], param['n_fibril_x'], param['n_fibril_y'], param['n_fibril_z'])
 		vdw_param = (param['vdw_sigma'], param['vdw_epsilon'])
@@ -232,10 +315,10 @@ def import_files(file_names, param):
 		param['vdw_matrix'] = vdw_matrix
 		param['l_conv'] = 10. / (param['l_fibril'] * 2 * param['vdw_sigma'])
 
-		for key in keys: ut.update_param_file(param_file_name, key, param[key])
+		for key in keys: ut.update_param_file(sim_dir + param_file_name, key, param[key])
 
-		print("Saving input pos file {}.npy".format(pos_file_name))
-		ut.save_npy(pos_file_name, np.vstack((pos, cell_dim)))
+		print("Saving input pos file {}{}.npy".format(sim_dir, pos_file_name))
+		ut.save_npy(sim_dir + pos_file_name, np.vstack((pos, cell_dim)))
 		
 	return pos, vel, cell_dim, param
 
