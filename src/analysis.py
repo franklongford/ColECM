@@ -519,19 +519,17 @@ def heatmap_animation(n):
 	ax.pcolor(image_pos[n], cmap='viridis')
 
 
-def analysis(current_dir, dir_path):
+def analysis(current_dir, input_file_name=False):
 
 	print("\n" + " " * 15 + "----Beginning Analysis----\n")
 
 	sim_dir = current_dir + '/sim/'
 
-	file_names, param = setup.read_shell_input(current_dir, sim_dir)
-
-	param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name, gif_file_name = file_names
+	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
 
 	vdw_param = [param['vdw_sigma'], param['vdw_epsilon']]
 	rc = param['rc']
-	l_conv = param['l_conv']
+	l_conv = 0.5#param['l_conv']
 	bond_matrix = param['bond_matrix']
 	kBT = param['kBT']
 
@@ -539,65 +537,73 @@ def analysis(current_dir, dir_path):
 	sharp = param['sharp']
 	skip = param['skip']
 
-	print("Loading output file {}{}".format(sim_dir, output_file_name))
-	tot_energy, tot_temp = ut.load_npy(sim_dir + output_file_name)
+	print("Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
+	tot_energy, tot_temp = ut.load_npy(sim_dir + file_names['output_file_name'])
 
-	print("Loading trajectory file {}{}.npy".format(sim_dir, traj_file_name))
-	tot_pos = ut.load_npy(sim_dir + traj_file_name)
+	print("Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
+	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
 	n_frame = tot_pos.shape[0]
 	n_bead = tot_pos.shape[1]
 	cell_dim = tot_pos[0][-1]
 
-	n_xyz = tuple(np.array(cell_dim * res, dtype=int))
+	print(cell_dim, l_conv)
+
+	n_xyz = tuple(np.array(cell_dim * l_conv * res, dtype=int))
 
 	gif_dir = current_dir + '/gif'
 	if not os.path.exists(gif_dir): os.mkdir(gif_dir)
 	fig_dir = current_dir + '/fig'
 	if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
-	fig_name = gif_file_name.split('/')[-1]
+	fig_name = file_names['gif_file_name'].split('/')[-1]
 
 	print('\nCreating Energy time series figure {}/{}_energy.png'.format(fig_dir, fig_name))
 	plt.figure(0)
 	plt.title('Energy Time Series')
-	plt.plot(tot_energy / n_bead)
+	plt.plot(tot_energy * param['l_fibril'] / n_bead)
 	plt.xlabel(r'step')
-	plt.ylabel(r'Energy / bead')
+	plt.ylabel(r'Energy per fibril')
 	plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	print('Creating Energy histogram figure {}/{}_energy.png'.format(fig_dir, fig_name))
 	plt.figure(1)
 	plt.title('Energy Histogram')
-	plt.hist(tot_energy / n_bead, bins='auto', density=True)
-	plt.xlabel(r'Energy / bead')
+	plt.hist(tot_energy * param['l_fibril'] / n_bead, bins='auto', density=True)
+	plt.xlabel(r'Energy per fibril')
 	plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	print('Creating Temperature time series figure {}/{}_temp.png'.format(fig_dir, fig_name))
 	plt.figure(2)
 	plt.title('Temperature Time Series')
-	plt.plot(tot_temp / kBT)
+	plt.plot(tot_temp)
 	plt.xlabel(r'step')
-	plt.ylabel(r'Temp / kBT')
+	plt.ylabel(r'Temp (kBT)')
 	plt.savefig('{}/{}_temp_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	print('Creating Temperature histogram figure {}/{}_temp.png'.format(fig_dir, fig_name))
 	plt.figure(3)
 	plt.title('Temperature Histogram')
-	plt.hist(tot_temp / kBT, bins='auto', density=True)
-	plt.xlabel(r'Temp / kBT')
+	plt.hist(tot_temp, bins='auto', density=True)
+	plt.xlabel(r'Temp (kBT)')
 	plt.savefig('{}/{}_temp_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	
 	n_image = int(n_frame / param['skip'])
-	sample_l = 150 / param['l_conv']
+	sample_l = 150 * l_conv
 	n_sample = 30
-	area = int(np.min([sample_l, np.min(cell_dim[:2])]) / l_conv * res)
+	area = int(np.min([sample_l, np.min(cell_dim[:2]) * l_conv]) * res)
+
+	print(cell_dim, area)
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
 
 	"Generate Gaussian convoluted images and intensity derivatives"
-	image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] / (l_conv * sharp) * res, 
-		n_xyz, 2 * rc / (l_conv * sharp) * res)
+	image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] * l_conv / sharp * res, 
+		n_xyz, 2 * rc * l_conv / sharp * res)
+
+	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
+	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
+
 	"Calculate intensity orientational vector n for each pixel"
 	n_vector = form_n_vector(dx_shg, dy_shg)
 	"Sample average orientational anisotopy"
@@ -609,9 +615,10 @@ def analysis(current_dir, dir_path):
 	print('Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
 	plt.figure(4)
 	plt.title('Anisotropy Time Series')
-	plt.plot(np.mean(q, axis=1))
+	plt.plot(np.mean(q, axis=1), label=fig_name)
 	plt.xlabel(r'step')
 	plt.ylabel(r'Anisotropy')
+	plt.legend()
 	plt.savefig('{}/{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	print('Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
@@ -623,9 +630,7 @@ def analysis(current_dir, dir_path):
 
 	print('\nMean anistoropy = {}'.format(np.mean(q)))
 
-	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
-	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
-
+	
 	"""
 	fig, ax = plt.subplots()
 	plt.imshow(hist, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
@@ -653,4 +658,6 @@ def analysis(current_dir, dir_path):
 	ani = animation.FuncAnimation(fig, animate, frames=n_frame, interval=100, repeat=False)
 	plt.show()
 	"""
+
+	return np.mean(q)
 

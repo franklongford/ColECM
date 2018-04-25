@@ -14,7 +14,7 @@ import sys, os, time
 import utilities as ut
 import setup
 
-def simulation(current_dir, dir_path):	
+def simulation(current_dir, input_file_name=False):	
 
 	print("\nEntering Setup\n")
 	init_time_start = time.time()
@@ -22,7 +22,7 @@ def simulation(current_dir, dir_path):
 	sim_dir = current_dir + '/sim/'
 	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
 
-	file_names, param = setup.read_shell_input(current_dir, sim_dir)
+	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
 
 	if param['n_dim'] == 2: 
 		import sim_tools_2D as sim
@@ -35,7 +35,6 @@ def simulation(current_dir, dir_path):
 	dig = len(str(param['n_step']))
 	sqrt_dt = np.sqrt(dt)
 
-	param_file_name, pos_file_name, traj_file_name, restart_file_name, output_file_name, _ = file_names
 	pos, vel, cell_dim, param = setup.import_files(sim_dir, file_names, param)
 
 	vdw_param = (param['vdw_sigma'], param['vdw_epsilon'])
@@ -57,6 +56,7 @@ def simulation(current_dir, dir_path):
 
 	print("\nSetup complete: {:5.3f} s".format(init_time_stop - init_time_start))
 	print("Number of beads = {}".format(n_bead))
+	print("Number of fibres = {}".format(n_bead // param['l_fibril']))
 	print("Bead radius = {} um\nSimulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
 	print("Number of Simulation steps = {}".format(param['n_step']))
 
@@ -87,19 +87,19 @@ def simulation(current_dir, dir_path):
 			tot_vel[i] += vel
 			tot_frc[i] += frc
 
-			ut.save_npy(sim_dir + restart_file_name, (tot_pos[i], tot_vel[i]))
+			ut.save_npy(sim_dir + file_names['restart_file_name'], (tot_pos[i], tot_vel[i]))
 
 			sim_time = (time.time() - sim_time_start) * (param['n_step'] / step - 1) 
 			time_hour = int(sim_time / 60**2)
 			time_min = int((sim_time / 60) % 60)
 			time_sec = int(sim_time) % 60
 
-			print(" " + "-" * 55)
-			print(" " + "| Step: {:{dig}d} {} |".format(step, " " * (44 - dig), dig=dig))
-			print(" " + "| Temp: {:>10.4f} / kBT    Energy: {:>10.4f} / bead |".format(tot_temp[step] / param['kBT'], tot_energy[step] / n_bead))
-			print(" " + "|" + " " * 53 + "|")
-			print(" " + "| Estimated time remaining: {:5d} hr {:2d} min {:2d} sec    |".format(time_hour, time_min, time_sec))
-			print(" " + "-" * 55)
+			print(" " + "-" * 56)
+			print(" " + "| Step: {:{dig}d} {}  |".format(step, " " * (44 - dig), dig=dig))
+			print(" " + "| Temp: {:>10.4f} kBT    Energy: {:>10.3f} per fibre |".format(tot_temp[step], tot_energy[step] / n_bead * param['l_fibril']))
+			print(" " + "|" + " " * 54 + "|")
+			print(" " + "| Estimated time remaining: {:5d} hr {:2d} min {:2d} sec     |".format(time_hour, time_min, time_sec))
+			print(" " + "-" * 56)
 
 		if np.max(np.abs(vel)) >= param['kBT'] * 1E5: 
 			print("velocity exceeded, step ={}".format(step))
@@ -116,17 +116,17 @@ def simulation(current_dir, dir_path):
 	print("\n" + " " * 15 + "----Simulation Complete----\n")
 	print("{:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, sim_time))
 	print("\nAverages:")
-	print("Average Temperature: {:>10.4f} / kBT".format(np.mean(tot_temp) / param['kBT']))
-	print("Average Energy:      {:>10.4f} / bead".format(np.mean(tot_energy) / n_bead))
+	print("Average Temperature: {:>10.4f} kBT".format(np.mean(tot_temp)))
+	print("Average Energy:      {:>10.4f} per fibre".format(np.mean(tot_energy) / n_bead * param['l_fibril']))
 	print("\nRMS:")
-	print("RMS Temperature: {:>10.4f} / kBT".format(np.std(tot_temp / param['kBT'])))
-	print("RMS Energy:      {:>10.4f} / bead\n".format(np.std(tot_energy / n_bead)))	
+	print("RMS Temperature: {:>10.4f} kBT".format(np.std(tot_temp)))
+	print("RMS Energy:      {:>10.4f} per fibre\n".format(np.std(tot_energy / n_bead * param['l_fibril'])))	
 
-	print("Saving restart file {}".format(restart_file_name))
-	ut.save_npy(sim_dir + restart_file_name, (tot_pos[-1], tot_vel[-1]))
+	print("Saving restart file {}".format(file_names['restart_file_name']))
+	ut.save_npy(sim_dir + file_names['restart_file_name'], (tot_pos[-1], tot_vel[-1]))
 
-	print("Saving trajectory file {}".format(traj_file_name))
-	ut.save_npy(sim_dir + traj_file_name, tot_pos)
+	print("Saving trajectory file {}".format(file_names['traj_file_name']))
+	ut.save_npy(sim_dir + file_names['traj_file_name'], tot_pos)
 
-	print("Saving output file {}".format(output_file_name))
-	ut.save_npy(sim_dir + output_file_name, (tot_energy, tot_temp))
+	print("Saving output file {}".format(file_names['output_file_name']))
+	ut.save_npy(sim_dir + file_names['output_file_name'], (tot_energy, tot_temp))
