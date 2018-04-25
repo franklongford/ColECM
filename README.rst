@@ -82,7 +82,7 @@ Simulation defaults are listed below:
 	-bond_k		10
 	-angle_k	10
 	-kBT		5
-	-gamma		0.25
+	-gamma		0.5
 	-lfib		5
 	-nfibx		2
 	-nfiby		2
