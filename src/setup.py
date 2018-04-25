@@ -331,7 +331,7 @@ def import_files(sim_dir, file_names, param):
 
 		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(param['n_dim'], fibril_param, vdw_param, 
 			bond_param, angle_param, param['rc'])
-		vel = (np.random.random(pos.shape) - 0.5) * 2 * np.sqrt(param['kBT'] / param['mass'])
+		vel = np.random.normal(loc=np.sqrt(param['kBT'] / param['mass']), size=pos.shape) 
 
 		param['bond_matrix'] = bond_matrix
 		param['vdw_matrix'] = vdw_matrix
