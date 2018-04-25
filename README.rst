@@ -82,14 +82,14 @@ Simulation defaults are listed below:
 	-bond_k		10
 	-angle_k	10
 	-kBT		5
-	-gamma		1
+	-gamma		0.25
 	-lfib		5
 	-nfibx		2
 	-nfiby		2
 	-nfibz		1
-	-res		5
+	-res		7.5
 	-sharp		3
-	-skip		10
+	-skip		1
 
 
 File Tree:

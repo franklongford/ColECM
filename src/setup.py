@@ -36,8 +36,8 @@ def get_param_defaults():
 			'angle_k' : 10.,
 			'rc' : 3.0,
 			'kBT' : 5.,
-			'gamma' : 1.,
-			'sigma' : np.sqrt(5.),
+			'gamma' : 0.25,
+			'sigma' : np.sqrt(2.1875),
 			'n_fibril_x' : 2,
 			'n_fibril_y' : 2,
 			'n_fibril_z' : 1,
@@ -92,7 +92,7 @@ def check_file_names(input_list, file_names=False):
 	if file_names['traj_file_name']: file_names['traj_file_name'] = ut.check_file_name(file_names['traj_file_name'], 'traj', 'npy') + '_traj'
 	if file_names['restart_file_name']: file_names['restart_file_name'] = ut.check_file_name(file_names['restart_file_name'], 'rst', 'npy') + '_rst'
 	if file_names['output_file_name']: file_names['output_file_name'] = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_out'
-	if file_names['gif_file_name']: file_names['gif_file_name'] = ut.check_file_name(file_names['gif_file_name'], 'gif', 'png') + '_gif'
+	if file_names['gif_file_name']: file_names['gif_file_name'] = ut.check_file_name(file_names['gif_file_name'], extension='png')
 
 	return file_names
 

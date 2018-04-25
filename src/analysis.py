@@ -529,7 +529,7 @@ def analysis(current_dir, input_file_name=False):
 
 	vdw_param = [param['vdw_sigma'], param['vdw_epsilon']]
 	rc = param['rc']
-	l_conv = 0.5#param['l_conv']
+	l_conv = param['l_conv']
 	bond_matrix = param['bond_matrix']
 	kBT = param['kBT']
 
