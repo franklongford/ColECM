@@ -36,8 +36,8 @@ def get_param_defaults():
 			'angle_k' : 10.,
 			'rc' : 3.0,
 			'kBT' : 5.,
-			'gamma' : 0.25,
-			'sigma' : np.sqrt(2.1875),
+			'gamma' : 0.5,
+			'sigma' : np.sqrt(3.75),
 			'n_fibril_x' : 2,
 			'n_fibril_y' : 2,
 			'n_fibril_z' : 1,
@@ -116,11 +116,12 @@ def check_sim_param(input_list, param=False):
 	if ('-angle_k' in input_list): param['angle_k'] = float(input_list[input_list.index('-angle_k') + 1])
 	if ('-rc' in input_list): param['rc'] = float(input_list[input_list.index('-rc') + 1])
 	else: param['rc'] = param['vdw_sigma'] * 3.0
-	if ('-kBT' in input_list): param['kBT'] = float(input_list[input_list.index('-kBT') + 1])
+	if ('-kBT' in input_list): 
+		param['kBT'] = float(input_list[input_list.index('-kBT') + 1])
+		param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
 	if ('-gamma' in input_list): 
 		param['gamma'] = float(input_list[input_list.index('-gamma') + 1])
 		param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
-
 	if ('-nfibx' in input_list): param['n_fibril_x'] = int(input_list[input_list.index('-nfibx') + 1])
 	if ('-nfiby' in input_list): param['n_fibril_y'] = int(input_list[input_list.index('-nfiby') + 1])
 	if ('-nfibz' in input_list): param['n_fibril_z'] = int(input_list[input_list.index('-nfibz') + 1])
@@ -330,7 +331,7 @@ def import_files(sim_dir, file_names, param):
 
 		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(param['n_dim'], fibril_param, vdw_param, 
 			bond_param, angle_param, param['rc'])
-		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * param['kBT'] / param['mass'])
+		vel = (np.random.random(pos.shape) - 0.5) * 2 * np.sqrt(param['kBT'] / param['mass'])
 
 		param['bond_matrix'] = bond_matrix
 		param['vdw_matrix'] = vdw_matrix
@@ -497,7 +498,7 @@ def initial_state(pos, cell_dim, bond_matrix, vdw_matrix, vdw_param, bond_param,
 	verlet_list = ut.check_cutoff(r2, rc**2)
 
 	bond_beads, dxy_index, r_index = ut.update_bond_lists(bond_matrix)
-	_, frc = calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, 
+	energy, frc = calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, 
 				vdw_param, bond_param, angle_param, rc, bond_beads, dxy_index, r_index)
 
-	return frc, verlet_list, bond_beads, dxy_index, r_index
+	return energy, frc, verlet_list, bond_beads, dxy_index, r_index

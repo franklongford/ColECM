@@ -42,8 +42,6 @@ def simulation(current_dir, input_file_name=False):
 	angle_param = (param['angle_theta0'], param['angle_k'])
 
 	n_bead = pos.shape[0]
-	frc, verlet_list, bond_beads, dxdy_index, r_index = setup.initial_state(pos, cell_dim, param['bond_matrix'], 
-		param['vdw_matrix'], vdw_param, bond_param, angle_param, param['rc'], param['kBT'])
 
 	tot_pos = np.zeros((n_frames, n_bead + 1, param['n_dim']))
 	tot_vel = np.zeros((n_frames, n_bead, param['n_dim']))
@@ -52,12 +50,19 @@ def simulation(current_dir, input_file_name=False):
 	tot_temp = np.zeros(param['n_step'])
 	tot_energy = np.zeros(param['n_step'])
 
+	energy, frc, verlet_list, bond_beads, dxdy_index, r_index = setup.initial_state(pos, cell_dim, param['bond_matrix'], 
+		param['vdw_matrix'], vdw_param, bond_param, angle_param, param['rc'], param['kBT'])
+
+	tot_energy[0] = energy
+	tot_temp[0] = ut.kin_energy(vel, param['mass'], param['n_dim']) * 2
+
 	init_time_stop = time.time()
 
 	print("\nSetup complete: {:5.3f} s".format(init_time_stop - init_time_start))
 	print("Number of beads = {}".format(n_bead))
 	print("Number of fibres = {}".format(n_bead // param['l_fibril']))
 	print("Bead radius = {} um\nSimulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
+	print("Thermostat param:  kBT = {}    gamma = {}   sigma = {}".format(param['kBT'], param['gamma'], round(param['sigma'], 3)))
 	print("Number of Simulation steps = {}".format(param['n_step']))
 
 	sim_time_start = time.time()
@@ -101,7 +106,7 @@ def simulation(current_dir, input_file_name=False):
 			print(" " + "| Estimated time remaining: {:5d} hr {:2d} min {:2d} sec     |".format(time_hour, time_min, time_sec))
 			print(" " + "-" * 56)
 
-		if np.max(np.abs(vel)) >= param['kBT'] * 1E5: 
+		if tot_temp[step] >= param['kBT'] * 1E3: 
 			print("velocity exceeded, step ={}".format(step))
 			n_step = step
 			sys.exit()
