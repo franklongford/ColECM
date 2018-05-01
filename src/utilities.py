@@ -29,7 +29,7 @@ def logo():
 	print( "  | | |   \___  \___/  |__ |___  \___ |      |  | | |")
 	print( "  |_|_|                  _____                  |_|_|")
 	print( " /_____\\" + ' ' * 16 + "/_____\\"  + ' ' * 16 + "/_____\\")
-	print( "|_______|" + '_' * 14 + "|_______|" + '_' * 14 + "|_______|" + '  v1.1.0.dev1')
+	print( "|_______|" + '_' * 14 + "|_______|" + '_' * 14 + "|_______|" + '  v1.1.0')
 	print( "\n              Collagen ECM Simulation\n")
 
 
@@ -478,9 +478,7 @@ def kin_energy(vel, mass, n_dim):
 	Returns kinetic energy of simulation in reduced units
 	"""
 
-	n_f = n_dim * (vel.shape[0] - 1) 
-
-	return 0.5 * np.sum(mass * vel**2) / n_f
+	return 0.5 * np.sum(mass * vel**2)
 
 
 def update_bond_lists(bond_matrix):
@@ -516,3 +514,12 @@ def update_bond_lists(bond_matrix):
 	r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(dxdy_index**2, axis=1)]).flatten()
 
 	return bond_beads, dxdy_index, r_index
+
+
+def centre_of_mass(pos, mass, n_fibre, l_fibre, n_dim):
+
+	com = np.zeros((n_dim, n_fibre))
+
+	for i in range(n_dim): com[i] += np.sum(np.reshape(pos.T[i] * mass, (n_fibre, l_fibre)), axis=1) / (l_fibre * mass)
+
+	return com

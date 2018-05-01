@@ -5,7 +5,7 @@ ColECM - Collagen Extracellular Matrix Simulation
 By Frank Longford (2018)
 ------------------------
 
-Simulation code designed to reproduce second harmonic generation (SHG) images of the collagen fibril network in the extra cellular matrix (ECM). Details on the model used can be found in documentation.pdf.
+Simulation code designed to reproduce second harmonic generation (SHG) images of the collagen fibril network in the extra cellular matrix (ECM). Details on the model used can be found in documentation.pdf. Please download latest version released as master branch copy may be unstable.
 
 Installation:
 -------------
@@ -139,5 +139,13 @@ Below are some examples:
 2)  ``ColECM simulation analysis -pos test_3D -param test_3D -ndim 3``
 
 	Will run and analyse a 3D simulation using the default parameter settings, usually lasing 10-20 seconds depending on system architecture.
+
+2)  ``ColECM analysis -pos test_3D -param test_3D``
+
+	Will analyse a 3D simulation as defined by position and parameter file names using the default parameter settings.
+
+2)  ``ColECM analysis -pos test_3D -param test_3D -res 10 -sharp 4``
+
+	Will analyse a 3D simulation as defined by position and parameter file names using increased image resolution and sharpness.
 
  

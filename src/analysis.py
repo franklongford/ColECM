@@ -63,9 +63,9 @@ def dx_gaussian(x, mean, std):
 	return (mean - x) / std**2 * gaussian(x, mean, std)
 
 
-def shg_images(traj, sigma, n_xyz, cut):
+def shg_images(traj, sigma, n_xyz_md, cut):
 	"""
-	shg_images(traj, sigma, n_x, n_y)
+	shg_images(traj, sigma, n_xyz_md, cut)
 
 	Form a set of imitation SHG images from Gaussian convolution of a set of trajectories
 
@@ -94,46 +94,51 @@ def shg_images(traj, sigma, n_xyz, cut):
 	n_image = traj.shape[0]
 	n_dim = traj.shape[1]
 
-	image_shg = np.zeros((n_image,) + n_xyz[:2][::-1])
-	dx_shg = np.zeros((n_image,) + n_xyz[:2][::-1])
-	dy_shg = np.zeros((n_image,) + n_xyz[:2][::-1])
+	tot_image_shg = []
+	tot_dx_shg = []
+	tot_dy_shg = []
 
-	"Calculate distances between grid points"
-	if n_dim == 2: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1]]
-	elif n_dim == 3: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1], 0:n_xyz[2]]
-
-	"Enforce periodic boundaries"
-	for i in range(n_dim): dxdydz[i] -= n_xyz[i] * np.array(2 * dxdydz[i] / n_xyz[i], dtype=int)
-
-	"Calculate radial distances"
-	r2 = np.sum(dxdydz**2, axis=0)
-	
-	"Find indicies within cutoff radius"
-	cutoff = np.where(r2 <= cut**2)
-	"""
-	"Form a filter for cutoff radius"
-	filter_ = np.zeros(n_xyz)
-	filter_[cutoff] += 1
-	"""
-	"Get all non-zero radii"
-	non_zero = np.zeros(n_xyz)
-	non_zero[cutoff] += 1
-	non_zero[0][0] = 0
-
-	"Form a matrix of radial distances corresponding to filter"
-	r = np.sqrt(r2)
-	r_cut = np.zeros(n_xyz)
-	r_cut[cutoff] += np.sqrt(r2[cutoff])
-	
-
-	for i, image in enumerate(range(n_image)):
-		sys.stdout.write("Processing image {} out of {}\r".format(i, n_image))
+	for image in range(n_image):
+		sys.stdout.write(" Processing image {} out of {}\r".format(image, n_image))
 		sys.stdout.flush()
 
-		hist, image_shg[i] = create_image(traj[image], sigma, n_xyz, r)
-		dx_shg[i], dy_shg[i] = fibre_align(hist, sigma, n_xyz, dxdydz, r_cut, non_zero)
+		n_xyz = tuple(n_xyz_md[image])
 
-	return image_shg, dx_shg, dy_shg
+		"Calculate distances between grid points"
+		if n_dim == 2: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1]]
+		elif n_dim == 3: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1], 0:n_xyz[2]]
+
+		"Enforce periodic boundaries"
+		for i in range(n_dim): dxdydz[i] -= n_xyz[i] * np.array(2 * dxdydz[i] / n_xyz[i], dtype=int)
+
+		"Calculate radial distances"
+		r2 = np.sum(dxdydz**2, axis=0)
+	
+		"Find indicies within cutoff radius"
+		cutoff = np.where(r2 <= cut**2)
+		"""
+		"Form a filter for cutoff radius"
+		filter_ = np.zeros(n_xyz)
+		filter_[cutoff] += 1
+		"""
+		"Get all non-zero radii"
+		non_zero = np.zeros(n_xyz)
+		non_zero[cutoff] += 1
+		non_zero[0][0] = 0
+
+		"Form a matrix of radial distances corresponding to filter"
+		r = np.sqrt(r2)
+		r_cut = np.zeros(n_xyz)
+		r_cut[cutoff] += np.sqrt(r2[cutoff])
+		
+		hist, image_shg = create_image(traj[image], sigma, n_xyz, r)
+		dx_shg, dy_shg = fibre_align(hist, sigma, n_xyz, dxdydz, r_cut, non_zero)
+
+		tot_image_shg.append(image_shg)
+		tot_dx_shg.append(dx_shg)
+		tot_dy_shg.append(dy_shg)
+
+	return tot_image_shg, tot_dx_shg, tot_dy_shg
 
 
 def create_image(pos, std, n_xyz, r):
@@ -350,7 +355,7 @@ def make_png(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD'):
 	plt.close()
 
 
-def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD'):
+def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim_md, itype='MD'):
 	"""
 	make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD')
 
@@ -395,7 +400,7 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 
 	for frame in range(n_frame):
 		#if not os.path.exists('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame)):
-		make_png("{}_{}".format(file_name_plot, frame), gif_dir, images[frame], res, sharp, cell_dim, itype)
+		make_png("{}_{}".format(file_name_plot, frame), gif_dir, images[frame], res, sharp, cell_dim_md[frame], itype)
 		image_list.append('{}/{}_{}_ISM.png'.format(gif_dir, file_name_plot, frame))
 
 	file_name_gif = '{}_{}_{}_{}'.format(file_name, res, sharp, n_frame)
@@ -417,20 +422,19 @@ def form_n_vector(dx_shg, dy_shg):
 	Parameters
 	----------
 
-	dx_grid:  array_like (float); shape=(n_frame, n_y, n_x)
+	dx_grid:  array_like (float); shape=(n_y, n_x)
 		Matrix of derivative of image intensity with respect to x axis for each pixel
 
-	dy_grid:  array_like (float); shape=(n_frame, n_y, n_x)
+	dy_grid:  array_like (float); shape=(n_y, n_x)
 		Matrix of derivative of image intensity with respect to y axis for each pixel
 
 	Returns
 	-------
 
-	n_vector:  array_like (float); shape(n_frame, n_y, n_x, 4)
+	n_vector:  array_like (float); shape(4, n_y, n_x)
 		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)	
 
 	"""
-
 
 	r_xy = np.zeros(dx_shg.shape)
 	tx = np.zeros(dx_shg.shape)
@@ -448,14 +452,13 @@ def form_n_vector(dx_shg, dy_shg):
 	nxy = tx*ty
 
 	n_vector = np.array((nxx, nxy, nxy, nyy))
-	n_vector = np.moveaxis(n_vector, (1, 0, 2, 3), (0, 1, 2, 3))
 
 	return n_vector
 
 
-def alignment_analysis(n_vector, area, n_sample):
+def alignment_analysis(n_vector_md, area_md, n_frame, n_sample):
 	"""
-	alignment_analysis(n_vector, area, n_sample)
+	alignment_analysis(n_vector, area, n_frame, n_sample)
 
 	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
 
@@ -482,29 +485,31 @@ def alignment_analysis(n_vector, area, n_sample):
 
 	"""
 
-	n_frame = n_vector.shape[0]
-	n_y = n_vector.shape[2]
-	n_x = n_vector.shape[3]
-
 	av_eigval = np.zeros((n_frame, n_sample, 2))
 	av_eigvec = np.zeros((n_frame, n_sample, 2, 2))
 
-	pad = int(area/2 - 1)
+	for frame in range(n_frame):
+		n_vector = np.array(n_vector_md[frame])
 
-	for n in range(n_sample):
-		start_x = np.random.randint(pad, n_x - pad)
-		start_y = np.random.randint(pad, n_y - pad) 
+		n_y = n_vector.shape[1]
+		n_x = n_vector.shape[2]
+
+		pad = int(area_md[frame] / 2 - 1)
+
+		for n in range(n_sample):
+
+			start_x = np.random.randint(pad, n_x - pad)
+			start_y = np.random.randint(pad, n_y - pad) 
+	
+			cut_n_vector = n_vector[:, start_y-pad: start_y+pad, 
+						   start_x-pad: start_x+pad]
+
+			av_n = np.reshape(np.mean(cut_n_vector, axis=(1, 2)), (2, 2))
 		
-		cut_n_vector = n_vector[:, :, start_y-pad: start_y+pad, 
-					      start_x-pad: start_x+pad]
+			eig_val, eig_vec = np.linalg.eigh(av_n)
 
-		av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
-
-		for frame in range(n_frame):
-			eig_val, eig_vec = np.linalg.eigh(av_n[frame])
-
-			av_eigval[frame][n] += eig_val
-			av_eigvec[frame][n] += eig_vec
+			av_eigval[frame][n] = eig_val
+			av_eigvec[frame][n] = eig_vec
 
 	return av_eigval, av_eigvec
 	
@@ -521,7 +526,7 @@ def heatmap_animation(n):
 
 def analysis(current_dir, input_file_name=False):
 
-	print("\n" + " " * 15 + "----Beginning Analysis----\n")
+	print("\n " + " " * 15 + "----Beginning Analysis----\n")
 
 	sim_dir = current_dir + '/sim/'
 
@@ -537,18 +542,13 @@ def analysis(current_dir, input_file_name=False):
 	sharp = param['sharp']
 	skip = param['skip']
 
-	print("Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
-	tot_energy, tot_temp = ut.load_npy(sim_dir + file_names['output_file_name'])
+	print(" Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
+	tot_energy, tot_temp, tot_press = ut.load_npy(sim_dir + file_names['output_file_name'])
 
-	print("Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
+	print(" Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
 	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
 	n_frame = tot_pos.shape[0]
 	n_bead = tot_pos.shape[1]
-	cell_dim = tot_pos[0][-1]
-
-	print(cell_dim, l_conv)
-
-	n_xyz = tuple(np.array(cell_dim * l_conv * res, dtype=int))
 
 	gif_dir = current_dir + '/gif'
 	if not os.path.exists(gif_dir): os.mkdir(gif_dir)
@@ -557,24 +557,24 @@ def analysis(current_dir, input_file_name=False):
 
 	fig_name = file_names['gif_file_name'].split('/')[-1]
 
-	print('\nCreating Energy time series figure {}/{}_energy.png'.format(fig_dir, fig_name))
+	print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
 	plt.figure(0)
 	plt.title('Energy Time Series')
-	plt.plot(tot_energy * param['l_fibril'] / n_bead, label=fig_name)
+	plt.plot(tot_energy * param['l_fibre'] / n_bead, label=fig_name)
 	plt.xlabel(r'step')
-	plt.ylabel(r'Energy per fibril')
+	plt.ylabel(r'Energy per fibre')
 	plt.legend()
 	plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print('Creating Energy histogram figure {}/{}_energy.png'.format(fig_dir, fig_name))
+	print(' Creating Energy histogram figure {}/{}_energy_hist.png'.format(fig_dir, fig_name))
 	plt.figure(1)
 	plt.title('Energy Histogram')
-	plt.hist(tot_energy * param['l_fibril'] / n_bead, bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Energy per fibril')
+	plt.hist(tot_energy * param['l_fibre'] / n_bead, bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'Energy per fibre')
 	plt.legend()
 	plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print('Creating Temperature time series figure {}/{}_temp.png'.format(fig_dir, fig_name))
+	print(' Creating Temperature time series figure {}/{}_temp_time.png'.format(fig_dir, fig_name))
 	plt.figure(2)
 	plt.title('Temperature Time Series')
 	plt.plot(tot_temp, label=fig_name)
@@ -583,7 +583,7 @@ def analysis(current_dir, input_file_name=False):
 	plt.legend()
 	plt.savefig('{}/{}_temp_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print('Creating Temperature histogram figure {}/{}_temp.png'.format(fig_dir, fig_name))
+	print(' Creating Temperature histogram figure {}/{}_temp_hist.png'.format(fig_dir, fig_name))
 	plt.figure(3)
 	plt.title('Temperature Histogram')
 	plt.hist(tot_temp, bins='auto', density=True, label=fig_name)
@@ -591,33 +591,50 @@ def analysis(current_dir, input_file_name=False):
 	plt.legend()
 	plt.savefig('{}/{}_temp_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
+	print(' Creating Pressure time series figure {}/{}_press_time.png'.format(fig_dir, fig_name))
+	plt.figure(4)
+	plt.title('Pressure Time Series')
+	plt.plot(tot_press, label=fig_name)
+	plt.xlabel(r'step')
+	plt.ylabel(r'Pressure')
+	plt.legend()
+	plt.savefig('{}/{}_press_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Pressure histogram figure {}/{}_press_hist.png'.format(fig_dir, fig_name))
+	plt.figure(5)
+	plt.title('Pressure Histogram')
+	plt.hist(tot_press, bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'Pressure')
+	plt.legend()
+	plt.savefig('{}/{}_press_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
 	
 	n_image = int(n_frame / param['skip'])
-	sample_l = 150 * l_conv
-	n_sample = 30
-	area = int(np.min([sample_l, np.min(cell_dim[:2]) * l_conv]) * res)
-
-	print(cell_dim, area)
+	sample_l = 50
+	n_sample = 20
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
+	cell_dim_md = np.array([tot_pos[n][-1] for n in range(0, n_frame, skip)])
+	n_xyz_md = np.array(cell_dim_md * l_conv * res, dtype=int)
+	area_md = np.array([int(np.min([sample_l, np.min(cell_dim[:2]) * l_conv]) * res) for cell_dim in cell_dim_md])
 
 	"Generate Gaussian convoluted images and intensity derivatives"
 	image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] * l_conv / sharp * res, 
-		n_xyz, 2 * rc * l_conv / sharp * res)
+		n_xyz_md, 2 * rc * l_conv / sharp * res)
 
-	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
+	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim_md, 'SHG')
 	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
 	"Calculate intensity orientational vector n for each pixel"
-	n_vector = form_n_vector(dx_shg, dy_shg)
+	n_vector_md = [form_n_vector(dx_shg[n], dy_shg[n]) for n in range(0, n_frame, skip)]
 	"Sample average orientational anisotopy"
-	eigval_shg, eigvec_shg = alignment_analysis(n_vector, area, n_sample)
+	eigval_shg, eigvec_shg = alignment_analysis(n_vector_md, area_md, n_frame, n_sample)
 
 	q = reorder_array(eigval_shg)
 	q = q[1] - q[0]
 
-	print('Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
-	plt.figure(4)
+	print(' Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
+	plt.figure(6)
 	plt.title('Anisotropy Time Series')
 	plt.plot(np.mean(q, axis=1), label=fig_name)
 	plt.xlabel(r'step')
@@ -625,16 +642,21 @@ def analysis(current_dir, input_file_name=False):
 	plt.legend()
 	plt.savefig('{}/{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print('Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
-	plt.figure(5)
+	print(' Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
+	plt.figure(7)
 	plt.title('Anisotropy Histogram')
 	plt.hist(np.mean(q, axis=1), bins='auto', density=True, label=fig_name)
 	plt.xlabel(r'Anisotropy')
 	plt.legend()
 	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print('\nMean anistoropy = {}'.format(np.mean(q)))
+	print('\n Mean anistoropy = {}'.format(np.mean(q)))
 
+	anis_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_anis'
+
+	print(" Saving anisotropy file {}".format(file_names['output_file_name']))
+	ut.save_npy(sim_dir + anis_file_name, q)
+	
 	
 	"""
 	fig, ax = plt.subplots()
@@ -663,6 +685,4 @@ def analysis(current_dir, input_file_name=False):
 	ani = animation.FuncAnimation(fig, animate, frames=n_frame, interval=100, repeat=False)
 	plt.show()
 	"""
-
-	return np.mean(q)
 

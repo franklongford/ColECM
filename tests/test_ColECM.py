@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../s
 
 import utilities as ut
 import simulation as sim
+import setup
 import sim_tools_2D as sim_2D
 import sim_tools_3D as sim_3D
 
@@ -40,6 +41,7 @@ vdw_matrix = np.array([[0, 8, 1],
 		       [8, 0, 8],
 		       [1, 8, 0]])
 
+fibril_param = (20, 2, 2, 2)
 vdw_param = [1., 2.]
 bond_param = [2.**(1./6.) * vdw_param[0], 10.]
 angle_param = [np.pi, 10.]
@@ -218,4 +220,11 @@ def test_pot_energy_frc():
 	assert abs(pot_energy - 42.943893873262496) <= THRESH
 	assert abs(np.sum(new_frc - check_frc)) <= THRESH
 
+
+def test_grow_fibril():
+
+
+	for i in range(20):
+		pos, cell_dim, bond_matrix, vdw_matrix = setup.create_pos_array(2, fibril_param, vdw_param, bond_param, angle_param, rc)	
+		pos, cell_dim, bond_matrix, vdw_matrix = setup.create_pos_array(3, fibril_param, vdw_param, bond_param, angle_param, rc)
 
