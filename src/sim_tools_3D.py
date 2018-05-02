@@ -158,8 +158,8 @@ def calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_lis
 			f_beads_y[indices_half[i]] += sign * (bond_frc * distances[1][indices_half] / r_half)
 			f_beads_z[indices_half[i]] += sign * (bond_frc * distances[2][indices_half] / r_half)
 
-		for i in range(3):
-			for j in range(3): virial_tensor[i][j] += np.sum(bond_frc / r_half * distances[i][indices_half] * distances[j][indices_half])
+		#for i in range(3):
+		#	for j in range(3): virial_tensor[i][j] += np.sum(bond_frc / r_half * distances[i][indices_half] * distances[j][indices_half])
 
 		"Bond Angles"
 		try:
@@ -301,9 +301,7 @@ def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_ma
 
 	"""
 
-	n_bead = pos.shape[0]
-	
-	beta = np.random.normal(0, 1, (n_bead, param['n_dim']))
+	beta = np.random.normal(0, 1, (param['n_bead'], param['n_dim']))
 	vel += frc / param['mass'] * dt
 
 	if NPT:
@@ -319,7 +317,7 @@ def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_ma
 		pos = mu * pos
 		cell_dim = mu * cell_dim
 
-	cell = np.tile(cell_dim, (n_bead, 1)) 
+	cell = np.tile(cell_dim, (param['n_bead'], 1)) 
 	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
 
 	distances = ut.get_distances(pos, cell_dim)

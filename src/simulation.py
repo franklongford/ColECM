@@ -79,7 +79,7 @@ def simulation(current_dir, input_file_name=False):
 			param['bond_matrix'], param['vdw_matrix'], verlet_list, bond_beads, dist_index, r_index, param['dt'], sqrt_dt, cell_dim)
 
 		kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
-		pressure = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
+		pressure = 1 / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
 	
 		tot_energy[step] += pot_energy + kin_energy
 		tot_temp[step] += 2 * kin_energy / n_dof

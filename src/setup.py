@@ -42,7 +42,9 @@ def get_param_defaults():
 			'n_fibre_x' : 2,
 			'n_fibre_y' : 2,
 			'n_fibre_z' : 1,
+			'n_fibre' : 4,
 			'l_fibre' : 5,
+			'n_bead' : 20,
 			'l_conv' : 1.,
 			'res' : 7.5,
 			'sharp' : 3.0,
@@ -127,6 +129,9 @@ def check_sim_param(input_list, param=False):
 	if ('-nfibx' in input_list): param['n_fibre_x'] = int(input_list[input_list.index('-nfibx') + 1])
 	if ('-nfiby' in input_list): param['n_fibre_y'] = int(input_list[input_list.index('-nfiby') + 1])
 	if ('-nfibz' in input_list): param['n_fibre_z'] = int(input_list[input_list.index('-nfibz') + 1])
+	param['n_fibre'] = param['n_fibre_x'] * param['n_fibre_y']
+	if param['n_dim'] == 3: param['n_fibre'] *= param['n_fibre_z']
+	param['n_bead'] = param['n_fibre'] * param['l_fibre']
 	if ('-lfib' in input_list): param['l_fibre'] = int(input_list[input_list.index('-lfib') + 1])
 
 	return param
@@ -240,7 +245,7 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 		check_file_names(sys.argv, file_names=file_names)
 
 	keys = ['n_dim', 'dt', 'mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k', 'angle_theta0', 'angle_k', 'rc', 'kBT', 
-		'gamma', 'sigma', 'l_fibre', 'n_fibre_x', 'n_fibre_y', 'n_fibre_z']
+		'gamma', 'sigma', 'l_fibre', 'n_fibre_x', 'n_fibre_y', 'n_fibre_z', 'n_fibre', 'n_bead']
 
 	if os.path.exists(sim_dir + file_names['param_file_name'] + '.pkl'):
 		print(" Loading parameter file {}.pkl".format(sim_dir + file_names['param_file_name']))
@@ -268,7 +273,7 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 	return file_names, param
 
 
-def grow_fibre(index, bead, n_bead, pos, param, bond_matrix, vdw_matrix, max_energy=100, max_attempt=200):
+def grow_fibre(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=100, max_attempt=200):
 	"""
 	grow_fibre(index, bead, pos, n_bead, param, max_energy, max_attempt=200)
 
@@ -331,7 +336,7 @@ def grow_fibre(index, bead, n_bead, pos, param, bond_matrix, vdw_matrix, max_ene
 	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
 	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
 
-	cell_dim = np.array([param['vdw_sigma']**2 * n_bead] * param['n_dim'])
+	cell_dim = np.array([param['vdw_sigma']**2 * param['n_bead']] * param['n_dim'])
 
 	if bead == 0:
 		pos[index] = np.random.random((param['n_dim'])) * param['vdw_sigma'] * 2
@@ -404,24 +409,20 @@ def create_pos_array(param):
 
 	"""
 
-	n_fibre = param['n_fibre_x'] * param['n_fibre_y']
-	if param['n_dim'] == 3: n_fibre *= param['n_fibre_z']
+	pos = np.zeros((param['n_bead'], param['n_dim']), dtype=float)
+	bond_matrix = np.zeros((param['n_bead'], param['n_bead']), dtype=int)
+	vdw_matrix = np.zeros(param['n_bead'], dtype=int)
 
-	n_bead = n_fibre * param['l_fibre']
-	pos = np.zeros((n_bead, param['n_dim']), dtype=float)
-	bond_matrix = np.zeros((n_bead, n_bead), dtype=int)
-	vdw_matrix = np.zeros(n_bead, dtype=int)
-
-	for bead in range(n_bead):
+	for bead in range(param['n_bead']):
 		if bead % param['l_fibre'] == 0: vdw_matrix[bead] += 10
 		elif bead % param['l_fibre'] == param['l_fibre']-1: vdw_matrix[bead] += 10
 		else: vdw_matrix[bead] += 1
 
-	vdw_matrix = np.reshape(np.tile(vdw_matrix, (1, n_bead)), (n_bead, n_bead))
+	vdw_matrix = np.reshape(np.tile(vdw_matrix, (1, param['n_bead'])), (param['n_bead'], param['n_bead']))
 
-	for bead in range(n_bead): vdw_matrix[bead][bead] = 0
+	for bead in range(param['n_bead']): vdw_matrix[bead][bead] = 0
 
-	for fibre in range(n_fibre):
+	for fibre in range(param['n_fibre']):
 		for bead in range(1, param['l_fibre']):
 			n = fibre * param['l_fibre'] + bead
 			bond_matrix[n][n-1] = 1
@@ -434,7 +435,7 @@ def create_pos_array(param):
 
 	while bead < param['l_fibre']:
 		try:
-			init_pos = grow_fibre(bead, bead, n_bead, init_pos, param,
+			init_pos = grow_fibre(bead, bead, init_pos, param,
 						bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]],
 						vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]])
 			bead += 1
@@ -443,7 +444,7 @@ def create_pos_array(param):
 	pos[range(param['l_fibre'])] += init_pos
 	pos -= np.min(pos)
 
-	print(" Creating simulation cell containing {} fibres".format(n_fibre))
+	print(" Creating simulation cell containing {} fibres".format(param['n_fibre']))
 
 	if param['n_dim'] == 2:
 
@@ -518,7 +519,7 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 		P = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
 		P_array.append(P)
 
-		if step % 1000 == 0: 
+		if step % 2000 == 0: 
 			av_P = np.mean(P_array)
 			optimising = (abs(av_P - param['P_0']) >= thresh)
 			P_array = [P]
@@ -534,16 +535,15 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 	return pos, vel, cell_dim
 
 
-def equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2):
+def equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=5E-2):
 
 	print("\n" + " " * 15 + "----Equilibrating Temperature----\n")
 
 	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg
 	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg
 
-	n_bead = pos.shape[0]
 	sqrt_dt = np.sqrt(param['dt'])
-	n_dof = param['n_dim'] * (n_bead - 1) 
+	n_dof = param['n_dim'] * (param['n_bead'] - 1) 
 
 	frc, verlet_list, pot_energy, virial_tensor, verlet_list, bond_beads, dist_index, r_index = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
 

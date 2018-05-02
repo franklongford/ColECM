@@ -63,7 +63,7 @@ def dx_gaussian(x, mean, std):
 	return (mean - x) / std**2 * gaussian(x, mean, std)
 
 
-def shg_images(traj, sigma, n_xyz_md, cut):
+def shg_images(traj, sigma, n_xyz, cut):
 	"""
 	shg_images(traj, sigma, n_xyz_md, cut)
 
@@ -94,51 +94,45 @@ def shg_images(traj, sigma, n_xyz_md, cut):
 	n_image = traj.shape[0]
 	n_dim = traj.shape[1]
 
-	tot_image_shg = []
-	tot_dx_shg = []
-	tot_dy_shg = []
+	image_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
+	dx_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
+	dy_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
+
+	"Calculate distances between grid points"
+	if n_dim == 2: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1]]
+	elif n_dim == 3: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1], 0:n_xyz[2]]
+
+	"Enforce periodic boundaries"
+	for i in range(n_dim): dxdydz[i] -= n_xyz[i] * np.array(2 * dxdydz[i] / n_xyz[i], dtype=int)
+
+	"Calculate radial distances"
+	r2 = np.sum(dxdydz**2, axis=0)
+
+	"Find indicies within cutoff radius"
+	cutoff = np.where(r2 <= cut**2)
+	"""
+	"Form a filter for cutoff radius"
+	filter_ = np.zeros(n_xyz)
+	filter_[cutoff] += 1
+	"""
+	"Get all non-zero radii"
+	non_zero = np.zeros(n_xyz)
+	non_zero[cutoff] += 1
+	non_zero[0][0] = 0
+
+	"Form a matrix of radial distances corresponding to filter"
+	r = np.sqrt(r2)
+	r_cut = np.zeros(n_xyz)
+	r_cut[cutoff] += np.sqrt(r2[cutoff])
 
 	for image in range(n_image):
 		sys.stdout.write(" Processing image {} out of {}\r".format(image, n_image))
 		sys.stdout.flush()
-
-		n_xyz = tuple(n_xyz_md[image])
-
-		"Calculate distances between grid points"
-		if n_dim == 2: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1]]
-		elif n_dim == 3: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1], 0:n_xyz[2]]
-
-		"Enforce periodic boundaries"
-		for i in range(n_dim): dxdydz[i] -= n_xyz[i] * np.array(2 * dxdydz[i] / n_xyz[i], dtype=int)
-
-		"Calculate radial distances"
-		r2 = np.sum(dxdydz**2, axis=0)
-	
-		"Find indicies within cutoff radius"
-		cutoff = np.where(r2 <= cut**2)
-		"""
-		"Form a filter for cutoff radius"
-		filter_ = np.zeros(n_xyz)
-		filter_[cutoff] += 1
-		"""
-		"Get all non-zero radii"
-		non_zero = np.zeros(n_xyz)
-		non_zero[cutoff] += 1
-		non_zero[0][0] = 0
-
-		"Form a matrix of radial distances corresponding to filter"
-		r = np.sqrt(r2)
-		r_cut = np.zeros(n_xyz)
-		r_cut[cutoff] += np.sqrt(r2[cutoff])
 		
-		hist, image_shg = create_image(traj[image], sigma, n_xyz, r)
-		dx_shg, dy_shg = fibre_align(hist, sigma, n_xyz, dxdydz, r_cut, non_zero)
+		hist, image_shg[image] = create_image(traj[image], sigma, n_xyz, r)
+		dx_shg[image], dy_shg[image] = fibre_align(hist, sigma, n_xyz, dxdydz, r_cut, non_zero)
 
-		tot_image_shg.append(image_shg)
-		tot_dx_shg.append(dx_shg)
-		tot_dy_shg.append(dy_shg)
-
-	return tot_image_shg, tot_dx_shg, tot_dy_shg
+	return image_shg, dx_shg, dy_shg
 
 
 def create_image(pos, std, n_xyz, r):
@@ -355,7 +349,7 @@ def make_png(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD'):
 	plt.close()
 
 
-def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim_md, itype='MD'):
+def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD'):
 	"""
 	make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD')
 
@@ -400,7 +394,7 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim_
 
 	for frame in range(n_frame):
 		#if not os.path.exists('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame)):
-		make_png("{}_{}".format(file_name_plot, frame), gif_dir, images[frame], res, sharp, cell_dim_md[frame], itype)
+		make_png("{}_{}".format(file_name_plot, frame), gif_dir, images[frame], res, sharp, cell_dim, itype)
 		image_list.append('{}/{}_{}_ISM.png'.format(gif_dir, file_name_plot, frame))
 
 	file_name_gif = '{}_{}_{}_{}'.format(file_name, res, sharp, n_frame)
@@ -422,16 +416,16 @@ def form_n_vector(dx_shg, dy_shg):
 	Parameters
 	----------
 
-	dx_grid:  array_like (float); shape=(n_y, n_x)
+	dx_grid:  array_like (float); shape=(nframe, n_y, n_x)
 		Matrix of derivative of image intensity with respect to x axis for each pixel
 
-	dy_grid:  array_like (float); shape=(n_y, n_x)
+	dy_grid:  array_like (float); shape=(nframe, n_y, n_x)
 		Matrix of derivative of image intensity with respect to y axis for each pixel
 
 	Returns
 	-------
 
-	n_vector:  array_like (float); shape(4, n_y, n_x)
+	n_vector:  array_like (float); shape(nframe, 4, n_y, n_x)
 		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)	
 
 	"""
@@ -452,11 +446,12 @@ def form_n_vector(dx_shg, dy_shg):
 	nxy = tx*ty
 
 	n_vector = np.array((nxx, nxy, nxy, nyy))
+	n_vector = np.moveaxis(n_vector, (1, 0, 2, 3), (0, 1, 2, 3))
 
 	return n_vector
 
 
-def alignment_analysis(n_vector_md, area_md, n_frame, n_sample):
+def alignment_analysis(n_vector, area, n_sample):
 	"""
 	alignment_analysis(n_vector, area, n_frame, n_sample)
 
@@ -485,28 +480,28 @@ def alignment_analysis(n_vector_md, area_md, n_frame, n_sample):
 
 	"""
 
+	n_frame = n_vector.shape[0]
+	n_y = n_vector.shape[2]
+	n_x = n_vector.shape[3]
+
 	av_eigval = np.zeros((n_frame, n_sample, 2))
 	av_eigvec = np.zeros((n_frame, n_sample, 2, 2))
 
-	for frame in range(n_frame):
-		n_vector = np.array(n_vector_md[frame])
+	pad = int(area / 2 - 1)
 
-		n_y = n_vector.shape[1]
-		n_x = n_vector.shape[2]
+	for n in range(n_sample):
 
-		pad = int(area_md[frame] / 2 - 1)
+		start_x = np.random.randint(pad, n_x - pad)
+		start_y = np.random.randint(pad, n_y - pad) 
 
-		for n in range(n_sample):
+		cut_n_vector = n_vector[:, :, start_y-pad: start_y+pad, 
+					      start_x-pad: start_x+pad]
 
-			start_x = np.random.randint(pad, n_x - pad)
-			start_y = np.random.randint(pad, n_y - pad) 
+		av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
+
+		for frame in range(n_frame):
 	
-			cut_n_vector = n_vector[:, start_y-pad: start_y+pad, 
-						   start_x-pad: start_x+pad]
-
-			av_n = np.reshape(np.mean(cut_n_vector, axis=(1, 2)), (2, 2))
-		
-			eig_val, eig_vec = np.linalg.eigh(av_n)
+			eig_val, eig_vec = np.linalg.eigh(av_n[frame])
 
 			av_eigval[frame][n] = eig_val
 			av_eigvec[frame][n] = eig_vec
@@ -549,6 +544,8 @@ def analysis(current_dir, input_file_name=False):
 	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
 	n_frame = tot_pos.shape[0]
 	n_bead = tot_pos.shape[1]
+	cell_dim = tot_pos[0][-1]
+	n_xyz = tuple(np.array(cell_dim * l_conv * res, dtype=int))
 
 	gif_dir = current_dir + '/gif'
 	if not os.path.exists(gif_dir): os.mkdir(gif_dir)
@@ -612,26 +609,33 @@ def analysis(current_dir, input_file_name=False):
 	n_image = int(n_frame / param['skip'])
 	sample_l = 50
 	n_sample = 20
+	area = int(np.min([sample_l, np.min(cell_dim[:2]) * l_conv]) * res)
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
-	cell_dim_md = np.array([tot_pos[n][-1] for n in range(0, n_frame, skip)])
-	n_xyz_md = np.array(cell_dim_md * l_conv * res, dtype=int)
-	area_md = np.array([int(np.min([sample_l, np.min(cell_dim[:2]) * l_conv]) * res) for cell_dim in cell_dim_md])
 
 	"Generate Gaussian convoluted images and intensity derivatives"
 	image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] * l_conv / sharp * res, 
-		n_xyz_md, 2 * rc * l_conv / sharp * res)
+		n_xyz, 2 * rc * l_conv / sharp * res)
 
-	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim_md, 'SHG')
+	#image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_image'
+	#print(" Saving image files {}".format(file_names['output_file_name']))
+	#ut.save_npy(sim_dir + image_file_name, (image_shg, dx_shg, dy_shg))
+
+	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
 	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
 	"Calculate intensity orientational vector n for each pixel"
-	n_vector_md = [form_n_vector(dx_shg[n], dy_shg[n]) for n in range(0, n_frame, skip)]
+	n_vector = form_n_vector(dx_shg, dy_shg)
 	"Sample average orientational anisotopy"
-	eigval_shg, eigvec_shg = alignment_analysis(n_vector_md, area_md, n_frame, n_sample)
+	eigval_shg, eigvec_shg = alignment_analysis(n_vector, area, n_sample)
 
 	q = reorder_array(eigval_shg)
 	q = q[1] - q[0]
+
+	print('\n Mean anistoropy = {}'.format(np.mean(q)))
+	anis_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_anis'
+	print(" Saving anisotropy file {}".format(file_names['output_file_name']))
+	ut.save_npy(sim_dir + anis_file_name, q)
 
 	print(' Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
 	plt.figure(6)
@@ -650,14 +654,7 @@ def analysis(current_dir, input_file_name=False):
 	plt.legend()
 	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print('\n Mean anistoropy = {}'.format(np.mean(q)))
 
-	anis_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_anis'
-
-	print(" Saving anisotropy file {}".format(file_names['output_file_name']))
-	ut.save_npy(sim_dir + anis_file_name, q)
-	
-	
 	"""
 	fig, ax = plt.subplots()
 	plt.imshow(hist, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
