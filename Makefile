@@ -41,3 +41,4 @@ clean:
 	@rm -f src/*.pyc
 	@rm -f -r .cache/
 	@rm -f -r .DS_Store/
+	@rm -f -r .pytest_cache/
