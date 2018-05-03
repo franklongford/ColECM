@@ -542,6 +542,7 @@ def analysis(current_dir, input_file_name=False):
 
 	print(" Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
 	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
+
 	n_frame = tot_pos.shape[0]
 	n_bead = tot_pos.shape[1]
 	cell_dim = tot_pos[0][-1]

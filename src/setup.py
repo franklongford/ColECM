@@ -131,8 +131,8 @@ def check_sim_param(input_list, param=False):
 	if ('-nfibz' in input_list): param['n_fibre_z'] = int(input_list[input_list.index('-nfibz') + 1])
 	param['n_fibre'] = param['n_fibre_x'] * param['n_fibre_y']
 	if param['n_dim'] == 3: param['n_fibre'] *= param['n_fibre_z']
-	param['n_bead'] = param['n_fibre'] * param['l_fibre']
 	if ('-lfib' in input_list): param['l_fibre'] = int(input_list[input_list.index('-lfib') + 1])
+	param['n_bead'] = param['n_fibre'] * param['l_fibre']
 
 	return param
 
@@ -530,7 +530,6 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 	print("\n No. iterations:   {:>10d}".format(step))
 	print(" Final pressure:   {:>10.4f}".format(P))
 	print(" Final volume:     {:>10.4f}".format(np.prod(cell_dim)))
-	print(" Cell density:     {:>10.4f}".format(pos.shape[1] * param['mass'] / np.prod(cell_dim)))
 
 	return pos, vel, cell_dim
 
@@ -714,7 +713,10 @@ def import_files(sim_dir, file_names, param):
 
 		pos, vel, cell_dim = equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
 		pos, vel = equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
-		
+
+		print(" Saving restart file {}".format(file_names['restart_file_name']))
+		ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
+
 	return pos, vel, cell_dim, param
 
 
