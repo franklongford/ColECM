@@ -9,8 +9,6 @@ Last Modified: 19/04/2018
 """
 
 import numpy as np
-import random
-
 import sys, os, pickle
 
 import utilities as ut

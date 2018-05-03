@@ -9,7 +9,6 @@ Last Modified: 12/04/2018
 """
 
 import numpy as np
-import scipy as sp
 
 import sys, os, pickle
 

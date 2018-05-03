@@ -8,8 +8,6 @@ Last Modified: 13/03/2018
 """
 
 import numpy as np
-import random
-
 import sys, os, time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
@@ -40,12 +38,6 @@ bond_matrix = np.array([[0, 1, 0],
 vdw_matrix = np.array([[0, 8, 1],
 		       [8, 0, 8],
 		       [1, 8, 0]])
-
-fibril_param = (20, 2, 2, 2)
-vdw_param = [1., 2.]
-bond_param = [2.**(1./6.) * vdw_param[0], 10.]
-angle_param = [np.pi, 10.]
-rc = 3.25 * vdw_param[0]
 
 def test_unit_vector():
 
@@ -188,43 +180,54 @@ def test_cos_sin_theta():
 
 def test_pot_energy_frc():
 
+	param = setup.get_param_defaults()
+	param['n_fibre_x'] = 1
+	param['n_fibre_y'] = 1
+	param['n_fibre_z'] = 1
+	param['l_fibre'] = 3
+
 	distances = ut.get_distances(pos_2D, cell_dim_2D)
 	bond_beads, dxdy_index, r_index = ut.update_bond_lists(bond_matrix)
 	r2 = np.sum(distances**2, axis=0)
-	verlet_list = ut.check_cutoff(r2, rc**2)
+	verlet_list = ut.check_cutoff(r2, param['rc']**2)
 	
-	pot_energy, new_frc = sim_2D.calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, 
-					verlet_list, vdw_param, bond_param, angle_param, rc, 
-					bond_beads, dxdy_index, r_index)
+	pot_energy, new_frc, _ = sim_2D.calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, 
+					verlet_list, bond_beads, dxdy_index, r_index)
 
 	check_frc = np.array([[ 12277.59052347,  -6225.74404829],
  			      [ 41.48708925,  -1095.43380772],
  			      [-12319.07761272,   7321.17785601]])
 
-	assert abs(pot_energy - 826.54499140268899) <= THRESH
+	assert abs(pot_energy - 423.5238450131211) <= THRESH
 	assert abs(np.sum(new_frc - check_frc)) <= THRESH
 
+	param['n_dim'] = 3
 	distances = ut.get_distances(pos_3D, cell_dim_3D)
 	bond_beads, dxdydz_index, r_index = ut.update_bond_lists(bond_matrix)
 	r2 = np.sum(distances**2, axis=0)
-	verlet_list = ut.check_cutoff(r2, rc**2)
+	verlet_list = ut.check_cutoff(r2, param['rc']**2)
 	
-	pot_energy, new_frc = sim_3D.calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, 
-					verlet_list, vdw_param, bond_param, angle_param, rc, 
-					bond_beads, dxdydz_index, r_index)
+	pot_energy, new_frc, _ = sim_3D.calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, 
+					verlet_list, bond_beads, dxdy_index, r_index)
 
 	check_frc = np.array([[  23.97941507,  770.44703468, -238.8615784 ],
  			      [  27.2045763,  -777.5797729,   172.30544761],
 			      [ -51.18399136,    7.13273822,   66.55613079]])
 
-	assert abs(pot_energy - 42.943893873262496) <= THRESH
+	assert abs(pot_energy - 31.332909531802844) <= THRESH
 	assert abs(np.sum(new_frc - check_frc)) <= THRESH
 
 
 def test_grow_fibril():
 
+	param = setup.get_param_defaults()
+	n_attempts = 15
+	param['l_fibre'] = 20
+	param['n_bead'] = param['n_fibre'] * param['l_fibre'] 
 
-	for i in range(20):
-		pos, cell_dim, bond_matrix, vdw_matrix = setup.create_pos_array(2, fibril_param, vdw_param, bond_param, angle_param, rc)	
-		pos, cell_dim, bond_matrix, vdw_matrix = setup.create_pos_array(3, fibril_param, vdw_param, bond_param, angle_param, rc)
+	for i in range(n_attempts): setup.create_pos_array(param)
+
+	param['n_dim'] = 3
+
+	for i in range(n_attempts): setup.create_pos_array(param)
 

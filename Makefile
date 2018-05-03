@@ -12,7 +12,7 @@ check:
 	@$(PYTHON) --version || (echo "No python distribution detected"; exit 1)
 	@echo
 	@echo "Checking default pip version:"
-	@$(PIP) --version || (echo "No pip distribution detected"; exit 1)
+	@$(PYTHON) -m $(PIP) --version || (echo "No pip distribution detected"; exit 1)
 
 
 install:
@@ -21,7 +21,7 @@ install:
 	@echo
 	@$(PYTHON) install.py $(NAME) || (echo "Installation failed"; exit 1)
 	@chmod +x $(NAME)
-	@$(PIP) install -r requirements.txt
+	@$(PYTHON) -m $(PIP) install -r requirements.txt
 
 
 test:
