@@ -44,7 +44,7 @@ def simulation(current_dir, input_file_name=False):
 	tot_press = np.zeros(param['n_step'])
 	tot_vol = np.zeros(param['n_step'])
 
-	frc, verlet_list, pot_energy, virial_tensor, verlet_list, bond_beads, dist_index, r_index = setup.calc_state(pos, vel, cell_dim, 
+	frc, verlet_list, pot_energy, virial_tensor, bond_beads, dist_index, r_index = setup.calc_state(pos, vel, cell_dim, 
 								param['bond_matrix'], param['vdw_matrix'], param)
 	tot_pos[0] += np.vstack((pos, cell_dim))
 	tot_vel[0] += vel
@@ -61,8 +61,8 @@ def simulation(current_dir, input_file_name=False):
 	init_time_stop = time.time()
 
 	print("\n Setup complete: {:5.3f} s".format(init_time_stop - init_time_start))
-	print(" Number of beads = {}".format(param['n_fibre']))
-	print(" Number of fibres = {}".format(param['n_fibre']))
+	print(" Number of beads = {}".format(param['n_fibril']))
+	print(" Number of fibrils = {}".format(param['n_fibril']))
 	print(" Bead radius = {} um\n Simulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
 	print(" Cell density:     {:>10.4f} bead mass um-3".format(param['n_bead'] * param['mass'] / np.prod(cell_dim * param['l_conv'])))
 	print(" Thermostat param:  kBT = {}    gamma = {}   sigma = {}".format(param['kBT'], param['gamma'], round(param['sigma'], 3)))
@@ -100,7 +100,7 @@ def simulation(current_dir, input_file_name=False):
 
 			print(" " + "-" * 56)
 			print(" " + "| Step: {:{dig}d} {}  |".format(step, " " * (44 - dig), dig=dig))
-			print(" " + "| Temp: {:>10.4f} kBT    Energy: {:>10.3f} per fibre |".format(tot_temp[step], tot_energy[step] / param['n_fibre']))
+			print(" " + "| Temp: {:>10.4f} kBT    Energy: {:>10.3f} per fibril |".format(tot_temp[step], tot_energy[step] / param['n_fibril']))
 			print(" " + "| Pressure: {:>10.4f}    Volume: {:>10.4f}           |".format(tot_press[step], tot_vol[step]))
 			print(" " + "|" + " " * 54 + "|")
 			print(" " + "| Estimated time remaining: {:5d} hr {:2d} min {:2d} sec     |".format(time_hour, time_min, time_sec))
@@ -122,12 +122,12 @@ def simulation(current_dir, input_file_name=False):
 	print(" {:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, sim_time))
 	print("\n Averages:")
 	print(" Average Temperature: {:>10.4f} kBT".format(np.mean(tot_temp)))
-	print(" Average Energy:      {:>10.4f} per fibre".format(np.mean(tot_energy) / param['n_fibre']))
+	print(" Average Energy:      {:>10.4f} per fibril".format(np.mean(tot_energy) / param['n_fibril']))
 	print(" Average Pressure:    {:>10.4f}".format(np.mean(tot_press)))
 	print(" Average Volume:      {:>10.4f}".format(np.mean(tot_vol)))
 	print("\n RMS:")
 	print(" RMS Temperature: {:>10.4f} kBT".format(np.std(tot_temp)))
-	print(" RMS Energy:      {:>10.4f} per fibre".format(np.std(tot_energy / param['n_fibre'])))
+	print(" RMS Energy:      {:>10.4f} per fibril".format(np.std(tot_energy / param['n_fibril'])))
 	print(" RMS Pressure:    {:>10.4f}".format(np.std(tot_press)))
 	print(" RMS Volume:      {:>10.4f}\n".format(np.std(tot_vol)))
 

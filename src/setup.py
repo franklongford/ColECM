@@ -36,11 +36,11 @@ def get_param_defaults():
 			'kBT' : 5.,
 			'gamma' : 0.5,
 			'sigma' : np.sqrt(3.75),
-			'n_fibre_x' : 2,
-			'n_fibre_y' : 2,
-			'n_fibre_z' : 1,
-			'n_fibre' : 4,
-			'l_fibre' : 5,
+			'n_fibril_x' : 2,
+			'n_fibril_y' : 2,
+			'n_fibril_z' : 1,
+			'n_fibril' : 4,
+			'l_fibril' : 5,
 			'n_bead' : 20,
 			'l_conv' : 1.,
 			'res' : 7.5,
@@ -50,6 +50,7 @@ def get_param_defaults():
 			'lambda_p' : 2E-5}
 
 	return defaults
+
 
 def get_file_name_defaults():
 	"""
@@ -123,13 +124,13 @@ def check_sim_param(input_list, param=False):
 	if ('-kBT' in input_list): param['kBT'] = float(input_list[input_list.index('-kBT') + 1])
 	if ('-gamma' in input_list): param['gamma'] = float(input_list[input_list.index('-gamma') + 1])
 	param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
-	if ('-nfibx' in input_list): param['n_fibre_x'] = int(input_list[input_list.index('-nfibx') + 1])
-	if ('-nfiby' in input_list): param['n_fibre_y'] = int(input_list[input_list.index('-nfiby') + 1])
-	if ('-nfibz' in input_list): param['n_fibre_z'] = int(input_list[input_list.index('-nfibz') + 1])
-	param['n_fibre'] = param['n_fibre_x'] * param['n_fibre_y']
-	if param['n_dim'] == 3: param['n_fibre'] *= param['n_fibre_z']
-	if ('-lfib' in input_list): param['l_fibre'] = int(input_list[input_list.index('-lfib') + 1])
-	param['n_bead'] = param['n_fibre'] * param['l_fibre']
+	if ('-nfibx' in input_list): param['n_fibril_x'] = int(input_list[input_list.index('-nfibx') + 1])
+	if ('-nfiby' in input_list): param['n_fibril_y'] = int(input_list[input_list.index('-nfiby') + 1])
+	if ('-nfibz' in input_list): param['n_fibril_z'] = int(input_list[input_list.index('-nfibz') + 1])
+	param['n_fibril'] = param['n_fibril_x'] * param['n_fibril_y']
+	if param['n_dim'] == 3: param['n_fibril'] *= param['n_fibril_z']
+	if ('-lfib' in input_list): param['l_fibril'] = int(input_list[input_list.index('-lfib') + 1])
+	param['n_bead'] = param['n_fibril'] * param['l_fibril']
 
 	return param
 
@@ -190,9 +191,9 @@ def manual_input_param(param=False):
 	param['angle_k'] = float(input("Enter angle k energy: "))
 	param['kBT'] = float(input("Enter kBT constant: "))
 	param['gamma'] = float(input("Enter Langevin gamma constant: "))
-	param['l_fibre']  = int(input("Enter length of fibril (no. of beads): "))
-	param['n_fibre_x']  = int(input("Enter number of fibrils in x dimension: "))
-	param['n_fibre_y']  = int(input("Enter number of fibrils in y dimension: "))
+	param['l_fibril']  = int(input("Enter length of fibril (no. of beads): "))
+	param['n_fibril_x']  = int(input("Enter number of fibrils in x dimension: "))
+	param['n_fibril_y']  = int(input("Enter number of fibrils in y dimension: "))
 	if param['n_dim'] == 3: param['n_fibril_z'] = int(input("Enter number of fibrils in z dimension: "))
 	param['res'] = float(input("Enter resolution (1-10): "))
 	param['sharp'] = float(input("Enter sharpness (1-10): "))
@@ -242,13 +243,22 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 		check_file_names(sys.argv, file_names=file_names)
 
 	keys = ['n_dim', 'dt', 'mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k', 'angle_theta0', 'angle_k', 'rc', 'kBT', 
-		'gamma', 'sigma', 'l_fibre', 'n_fibre_x', 'n_fibre_y', 'n_fibre_z', 'n_fibre', 'n_bead']
+		'gamma', 'sigma', 'l_fibril', 'n_fibril_x', 'n_fibril_y', 'n_fibril_z', 'n_fibril', 'n_bead']
 
 	if os.path.exists(sim_dir + file_names['param_file_name'] + '.pkl'):
 		print(" Loading parameter file {}.pkl".format(sim_dir + file_names['param_file_name']))
 		param_file = ut.read_param_file(sim_dir + file_names['param_file_name'])
-		keys += ['bond_matrix', 'vdw_matrix', 'l_conv']
+
+		if param_file['l_fibre']:
+			fibre_keys = ['l_fibre', 'n_fibre_x', 'n_fibre_y', 'n_fibre_z', 'n_fibre']			
+			fibril_keys = ['l_fibril', 'n_fibril_x', 'n_fibril_y', 'n_fibril_z', 'n_fibril']
+			for i, key in enumerate(fibril_keys): param_file[key] = param_file.pop(fibre_keys[i])
+
+			ut.make_param_file(sim_dir + file_names['param_file_name'])
+			for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
+
 		for key in keys: param[key] = param_file[key]		
+		for key in ['bond_matrix', 'vdw_matrix', 'l_conv']: param[key] = param_file[key]
 
 	else:
 		if input_file_name: _, param = read_input_file(input_file_name, simulation=True, param=param)
@@ -256,7 +266,6 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 
 		print(" Creating parameter file {}.pkl".format(sim_dir + file_names['param_file_name'])) 
 		ut.make_param_file(sim_dir + file_names['param_file_name'])
-
 		for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
 		
 	assert param['n_dim'] in [2, 3]
@@ -265,57 +274,45 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 	if ('-nstep' in sys.argv): param['n_step'] = int(sys.argv[sys.argv.index('-nstep') + 1])
 	if ('-save_step' in sys.argv): param['save_step'] = int(sys.argv[sys.argv.index('-save_step') + 1])
 
-	param = check_analysis_param(sys.argv, param)	
+	param = check_analysis_param(sys.argv, param)
+
+	print(" Parameters found:")
+	for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
 
 	return file_names, param
 
 
-def grow_fibre(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=100, max_attempt=200):
+def grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_attempt=200):
 	"""
-	grow_fibre(index, bead, pos, n_bead, param, max_energy, max_attempt=200)
+	grow_fibril(index, bead, pos, n_bead, param, max_energy, max_attempt=200)
 
-	Grow collagen fibre consisting of beads
+	Grow collagen fibril consisting of beads
 
 	Parameters
 	----------
 
-	n:  int
+	index:  int
 		Index of bead in pos array
 
-	bead: int
-		Index of bead in fibre
-
-	n_dim:  int
-		Number of dimensions in simulation
-
-	n_bead:  int
-		Number of beads in simulation
+	bead:  int
+		Bead in fibril
 
 	pos:  array_like (float); shape=(n_bead, n_dim)
 		Positions of n_bead beads in n_dim
 
+	param:  dict
+		Dictionary of simulation and analysis parameters
+
 	bond_matrix: array_like (int); shape=(n_bead, n_bead)
 		Matrix determining whether a bond is present between two beads
 
-	verlet_list: array_like (int); shape=(n_bead, n_bead)
-		Matrix determining whether two beads are within rc radial distance
+	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a non-bonded interaction is present between two beads
 
-	vdw_param: array_like (float); shape=(2)
-		Sigma and epsilon paameters for Van de Waals forces
-
-	bond_param: array_like (float); shape=(2)
-		Equilibrium length and energy paameters for bonded forces
-
-	angle_param: array_like (float); shape=(2)
-		Equilibrium angle and energy paameters for angular forces
-
-	rc:  float
-		Interaction cutoff radius for non-bonded forces
-
-	max_energy:  float
+	max_energy:  float (optional)
 		Maximum potential energy threshold for each system configuration
 
-	max_attempt:  int
+	max_attempt:  int  (optional)
 		Maximum number of attempts to find an acceptable configuration
 		
 		
@@ -324,9 +321,6 @@ def grow_fibre(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=100,
 
 	pos:  array_like (float); shape=(n_bead, n_dim)
 		Updated positions of n_bead beads in n_dim
-
-	bond_matrix: array_like (int); shape=(n_bead, n_bead)
-		Updated matrix determining whether a bond is present between two beads
 
 	"""
 
@@ -349,8 +343,9 @@ def grow_fibre(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=100,
 			pos[index] = pos[index-1] + new_vec
 			distances = ut.get_distances(pos[:bead+1], cell_dim)
 			r2 = np.sum(distances**2, axis=0)
+			verlet_list = ut.check_cutoff(r2, param['rc']**2)
 
-			energy, _, _ = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, ut.check_cutoff(r2, param['rc']**2), bond_beads, dist_index, r_index)
+			energy, _, _ = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list, bond_beads, dist_index, r_index)
 
 			attempt += 1
 			if attempt > max_attempt: raise RuntimeError
@@ -367,30 +362,9 @@ def create_pos_array(param):
 	Parameters
 	----------
 
-	n_dim:  int
-		Number of dimensions in simulation
+	param:  dict
+		Dictionary of simulation and analysis parameters
 
-	n_fibril_x:  int
-		Number of fibrils in x dimension
-
-	n_fibril_y:  int
-		Number of fibrils in y dimension
-
-	l_fibril:  int
-		Length of each fibre in simulation
-
-	vdw_param: array_like (float); shape=(2)
-		Sigma and epsilon paameters for Van de Waals forces
-
-	bond_param: array_like (float); shape=(2)
-		Equilibrium length and energy paameters for bonded forces
-
-	angle_param: array_like (float); shape=(2)
-		Equilibrium angle and energy paameters for angular forces
-
-	rc:  float
-		Interaction cutoff radius for non-bonded forces
-		
 		
 	Returns
 	-------
@@ -404,6 +378,9 @@ def create_pos_array(param):
 	bond_matrix: array_like (int); shape=(n_bead, n_bead)
 		Matrix determining whether a bond is present between two beads
 
+	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a non-bonded interaction is present between two beads
+
 	"""
 
 	pos = np.zeros((param['n_bead'], param['n_dim']), dtype=float)
@@ -411,54 +388,54 @@ def create_pos_array(param):
 	vdw_matrix = np.zeros(param['n_bead'], dtype=int)
 
 	for bead in range(param['n_bead']):
-		if bead % param['l_fibre'] == 0: vdw_matrix[bead] += 10
-		elif bead % param['l_fibre'] == param['l_fibre']-1: vdw_matrix[bead] += 10
+		if bead % param['l_fibril'] == 0: vdw_matrix[bead] += 10
+		elif bead % param['l_fibril'] == param['l_fibril']-1: vdw_matrix[bead] += 10
 		else: vdw_matrix[bead] += 1
 
 	vdw_matrix = np.reshape(np.tile(vdw_matrix, (1, param['n_bead'])), (param['n_bead'], param['n_bead']))
 
 	for bead in range(param['n_bead']): vdw_matrix[bead][bead] = 0
 
-	for fibre in range(param['n_fibre']):
-		for bead in range(1, param['l_fibre']):
-			n = fibre * param['l_fibre'] + bead
+	for fibril in range(param['n_fibril']):
+		for bead in range(1, param['l_fibril']):
+			n = fibril * param['l_fibril'] + bead
 			bond_matrix[n][n-1] = 1
 			bond_matrix[n-1][n] = 1
 
-	print(" Creating fibre template containing {} beads".format(param['l_fibre']))
+	print(" Creating fibril template containing {} beads".format(param['l_fibril']))
 
-	init_pos = np.zeros((param['l_fibre'], param['n_dim']), dtype=float)
+	init_pos = np.zeros((param['l_fibril'], param['n_dim']), dtype=float)
 	bead = 0
 
-	while bead < param['l_fibre']:
+	while bead < param['l_fibril']:
 		try:
-			init_pos = grow_fibre(bead, bead, init_pos, param,
+			init_pos = grow_fibril(bead, bead, init_pos, param,
 						bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]],
 						vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]])
 			bead += 1
 		except RuntimeError: bead = 0
 
-	pos[range(param['l_fibre'])] += init_pos
+	pos[range(param['l_fibril'])] += init_pos
 	pos -= np.min(pos)
 
-	print(" Creating simulation cell containing {} fibres".format(param['n_fibre']))
+	print(" Creating simulation cell containing {} fibrils".format(param['n_fibril']))
 
 	if param['n_dim'] == 2:
 
 		size_x = np.max(pos.T[0]) + 2 * param['vdw_sigma'] 
 		size_y = np.max(pos.T[1]) + 2 * param['vdw_sigma'] 
-		bead_list = np.arange(0, param['l_fibre'])
+		bead_list = np.arange(0, param['l_fibril'])
 
-		for i in range(param['n_fibre_x']):
-			for j in range(param['n_fibre_y']):
+		for i in range(param['n_fibril_x']):
+			for j in range(param['n_fibril_y']):
 				if j + i == 0: continue
 			
-				fibre = (j + i * param['n_fibre_y'])
+				fibril = (j + i * param['n_fibril_y'])
 
 				pos_x = pos.T[0][bead_list] + size_x * i
 				pos_y = pos.T[1][bead_list] + size_y * j
 
-				pos[bead_list + param['l_fibre'] * fibre] += np.array((pos_x, pos_y)).T
+				pos[bead_list + param['l_fibril'] * fibril] += np.array((pos_x, pos_y)).T
 
 		cell_dim = np.array([np.max(pos.T[0]) + param['vdw_sigma'], np.max(pos.T[1]) + param['vdw_sigma']])
 
@@ -466,20 +443,20 @@ def create_pos_array(param):
 		size_x = np.max(pos.T[0]) + param['vdw_sigma'] / 2
 		size_y = np.max(pos.T[1]) + param['vdw_sigma'] / 2
 		size_z = np.max(pos.T[2]) + param['vdw_sigma'] / 2
-		bead_list = np.arange(0, param['l_fibre'])
+		bead_list = np.arange(0, param['l_fibril'])
 
-		for k in range(param['n_fibre_z']):
-			for i in range(param['n_fibre_x']):
-				for j in range(param['n_fibre_y']):
+		for k in range(param['n_fibril_z']):
+			for i in range(param['n_fibril_x']):
+				for j in range(param['n_fibril_y']):
 					if k + j + i == 0: continue
 				
-					fibre = (j + i * param['n_fibre_y'] + k * param['n_fibre_x'] * param['n_fibre_y'])
+					fibril = (j + i * param['n_fibril_y'] + k * param['n_fibril_x'] * param['n_fibril_y'])
 
 					pos_x = pos.T[0][bead_list] + size_x * i
 					pos_y = pos.T[1][bead_list] + size_y * j
 					pos_z = pos.T[2][bead_list] + size_z * k
 
-					pos[bead_list + param['l_fibre'] * fibre] += np.array((pos_x, pos_y, pos_z)).T
+					pos[bead_list + param['l_fibril'] * fibril] += np.array((pos_x, pos_y, pos_z)).T
 
 		cell_dim = np.array([np.max(pos.T[0]) + param['vdw_sigma'] / 2, np.max(pos.T[1]) + param['vdw_sigma'] / 2, np.max(pos.T[2]) + param['vdw_sigma'] / 2])
 
@@ -487,6 +464,50 @@ def create_pos_array(param):
 
 
 def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2):
+	"""
+	equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
+
+	Equilibrate pressure of system
+
+	Parameters
+	----------
+	
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Updated positions of n_bead beads in n_dim
+
+	vel: array_like, dtype=float
+		Updated velocity of each bead in all collagen fibrils
+
+	cell_dim:  array_like (float); shape=(n_dim)
+		Simulation cell dimensions in n_dim dimensions
+
+	bond_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a bond is present between two beads
+
+	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a non-bonded interaction is present between two beads
+
+	param:  dict
+		Dictionary of simulation and analysis parameters
+
+	thresh:  float (optional)
+		Threshold difference between average system and reference pressure
+
+		
+	Returns
+	-------
+
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Positions of n_bead beads in n_dim
+
+	vel: array_like, dtype=float
+		Updated velocity of each bead in all collagen fibrils
+
+	cell_dim:  array_like (float); shape=(n_dim)
+		Simulation cell dimensions in n_dim dimensions
+
+	"""
+
 
 	print("\n" + " " * 15 + "----Equilibrating Pressure----\n")
 
@@ -495,7 +516,7 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 
 	sqrt_dt = np.sqrt(param['dt'])
 
-	frc, verlet_list, pot_energy, virial_tensor, verlet_list, bond_beads, dist_index, r_index = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+	frc, verlet_list, pot_energy, virial_tensor, bond_beads, dist_index, r_index = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
 
 	kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
 	P = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
@@ -532,6 +553,46 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 
 
 def equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=5E-2):
+	"""
+	equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
+
+	Equilibrate temperature of system
+
+	Parameters
+	----------
+	
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Updated positions of n_bead beads in n_dim
+
+	vel: array_like, dtype=float
+		Updated velocity of each bead in all collagen fibrils
+
+	cell_dim:  array_like (float); shape=(n_dim)
+		Simulation cell dimensions in n_dim dimensions
+
+	bond_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a bond is present between two beads
+
+	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a non-bonded interaction is present between two beads
+
+	param:  dict
+		Dictionary of simulation and analysis parameters
+
+	thresh:  float (optional)
+		Threshold difference between average system and reference temperature
+
+		
+	Returns
+	-------
+
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Positions of n_bead beads in n_dim
+
+	vel: array_like, dtype=float
+		Updated velocity of each bead in all collagen fibrils
+
+	"""
 
 	print("\n" + " " * 15 + "----Equilibrating Temperature----\n")
 
@@ -541,7 +602,7 @@ def equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, 
 	sqrt_dt = np.sqrt(param['dt'])
 	n_dof = param['n_dim'] * (param['n_bead'] - 1) 
 
-	frc, verlet_list, pot_energy, virial_tensor, verlet_list, bond_beads, dist_index, r_index = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+	frc, verlet_list, pot_energy, virial_tensor, bond_beads, dist_index, r_index = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
 
 	kBT = 2 * ut.kin_energy(vel, param['mass'], param['n_dim'])
 	step = 1
@@ -587,19 +648,25 @@ def calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param):
 		Positions of n_bead beads in n_dim
 	
 	vel: array_like, dtype=float
-		Velocity of each bead in all collagen fibres
+		Velocity of each bead in all collagen fibrils
 
 	cell_dim: array_like, dtype=float
 		Array with simulation cell dimensions
 
-	param:  
+	bond_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a bond is present between two beads
 
+	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a non-bonded interaction is present between two beads
+
+	param:  dict
+		Dictionary of simulation and analysis parameters
 	
 	Returns
 	-------
 
 	frc: array_like, dtype=float
-		Forces acting upon each bead in all collagen fibres
+		Forces acting upon each bead in all collagen fibrils
 
 	verlet_list: array_like, dtype=int
 		Matrix determining whether two beads are within rc radial distance
@@ -613,8 +680,8 @@ def calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param):
 	bond_beads:  array_like, (int); shape=(n_angle, 3)
 		Array containing indicies in pos array all 3-bead angular interactions
 
-	dxyz_index:  array_like, (int); shape=(n_bond, 2)
-		Array containing indicies in dx and dy arrays of all bonded interactions
+	dist_index:  array_like, (int); shape=(n_bond, 2)
+		Array containing indicies in distance arrays of all bonded interactions
 
 	r_index:  array_like, (int); shape=(n_bond, 2)
 		Array containing indicies in r array of all bonded interactions
@@ -632,7 +699,7 @@ def calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param):
 	bond_beads, dist_index, r_index = ut.update_bond_lists(bond_matrix)
 	pot_energy, frc, virial_tensor = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list, bond_beads, dist_index, r_index)
 
-	return frc, verlet_list, pot_energy, virial_tensor, verlet_list, bond_beads, dist_index, r_index
+	return frc, verlet_list, pot_energy, virial_tensor, bond_beads, dist_index, r_index
 
 
 def import_files(sim_dir, file_names, param):
@@ -660,7 +727,7 @@ def import_files(sim_dir, file_names, param):
 		Positions of n_bead beads in n_dim
 
 	vel: array_like, dtype=float
-		Velocity of each bead in all collagen fibres
+		Velocity of each bead in all collagen fibrils
 
 	cell_dim:  array_like (float); shape=(n_dim)
 		Simulation cell dimensions in n_dim dimensions

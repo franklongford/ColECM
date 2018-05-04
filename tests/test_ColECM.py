@@ -1,5 +1,5 @@
 """
-COLLAGEN FIBRE SIMULATION TEST SUITE
+COLLAGEN FIBRIL SIMULATION TEST SUITE
 
 Created by: Frank Longford
 Created on: 13/03/2018
@@ -181,10 +181,10 @@ def test_cos_sin_theta():
 def test_pot_energy_frc():
 
 	param = setup.get_param_defaults()
-	param['n_fibre_x'] = 1
-	param['n_fibre_y'] = 1
-	param['n_fibre_z'] = 1
-	param['l_fibre'] = 3
+	param['n_fibril_x'] = 1
+	param['n_fibril_y'] = 1
+	param['n_fibril_z'] = 1
+	param['l_fibril'] = 3
 
 	distances = ut.get_distances(pos_2D, cell_dim_2D)
 	bond_beads, dxdy_index, r_index = ut.update_bond_lists(bond_matrix)
@@ -222,8 +222,8 @@ def test_grow_fibril():
 
 	param = setup.get_param_defaults()
 	n_attempts = 15
-	param['l_fibre'] = 20
-	param['n_bead'] = param['n_fibre'] * param['l_fibre'] 
+	param['l_fibril'] = 20
+	param['n_bead'] = param['n_fibril'] * param['l_fibril'] 
 
 	for i in range(n_attempts): setup.create_pos_array(param)
 

@@ -130,7 +130,7 @@ def shg_images(traj, sigma, n_xyz, cut):
 		sys.stdout.flush()
 		
 		hist, image_shg[image] = create_image(traj[image], sigma, n_xyz, r)
-		dx_shg[image], dy_shg[image] = fibre_align(hist, sigma, n_xyz, dxdydz, r_cut, non_zero)
+		dx_shg[image], dy_shg[image] = fibril_align(hist, sigma, n_xyz, dxdydz, r_cut, non_zero)
 
 	return image_shg, dx_shg, dy_shg
 
@@ -212,7 +212,7 @@ def create_image(pos, std, n_xyz, r):
 	return histogram, image
 
 
-def fibre_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
+def fibril_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 	"""
 	create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero)
 
@@ -558,17 +558,17 @@ def analysis(current_dir, input_file_name=False):
 	print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
 	plt.figure(0)
 	plt.title('Energy Time Series')
-	plt.plot(tot_energy * param['l_fibre'] / n_bead, label=fig_name)
+	plt.plot(tot_energy * param['l_fibril'] / n_bead, label=fig_name)
 	plt.xlabel(r'step')
-	plt.ylabel(r'Energy per fibre')
+	plt.ylabel(r'Energy per fibril')
 	plt.legend()
 	plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	print(' Creating Energy histogram figure {}/{}_energy_hist.png'.format(fig_dir, fig_name))
 	plt.figure(1)
 	plt.title('Energy Histogram')
-	plt.hist(tot_energy * param['l_fibre'] / n_bead, bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Energy per fibre')
+	plt.hist(tot_energy * param['l_fibril'] / n_bead, bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'Energy per fibril')
 	plt.legend()
 	plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
@@ -612,15 +612,29 @@ def analysis(current_dir, input_file_name=False):
 	n_sample = 20
 	area = int(np.min([sample_l, np.min(cell_dim[:2]) * l_conv]) * res)
 
-	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame, skip)], 2, 1)
+	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame)], 2, 1)
 
-	"Generate Gaussian convoluted images and intensity derivatives"
-	image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] * l_conv / sharp * res, 
-		n_xyz, 2 * rc * l_conv / sharp * res)
+	image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_image_shg'.format(n_frame)
+	dx_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_dx_shg'.format(n_frame)
+	dy_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_dy_shg'.format(n_frame)
+	try:
+		image_shg = ut.load_npy(sim_dir + image_file_name, range(0, n_frame, skip))	
+		dx_shg = ut.load_npy(sim_dir + dx_file_name, range(0, n_frame, skip))
+		dy_shg = ut.load_npy(sim_dir + dy_file_name, range(0, n_frame, skip))
+	
+	except:
+		"Generate Gaussian convoluted images and intensity derivatives"
+		image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] * l_conv / sharp * res, 
+			n_xyz, 2 * rc * l_conv / sharp * res)
 
-	#image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_image'
-	#print(" Saving image files {}".format(file_names['output_file_name']))
-	#ut.save_npy(sim_dir + image_file_name, (image_shg, dx_shg, dy_shg))
+		print(" Saving image files {}".format(file_names['output_file_name']))
+		ut.save_npy(sim_dir + image_file_name, image_shg)
+		ut.save_npy(sim_dir + dx_file_name, dx_shg)
+		ut.save_npy(sim_dir + dy_file_name, dy_shg)
+
+		image_shg = np.array([image_shg[i] for i in range(0, n_frame, skip)])
+		dx_shg = np.array([dx_shg[i] for i in range(0, n_frame, skip)])
+		dy_shg = np.array([dy_shg[i] for i in range(0, n_frame, skip)])
 
 	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
 	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
@@ -654,33 +668,4 @@ def analysis(current_dir, input_file_name=False):
 	plt.xlabel(r'Anisotropy')
 	plt.legend()
 	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-
-	"""
-	fig, ax = plt.subplots()
-	plt.imshow(hist, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-	#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
-	#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
-	plt.savefig('{}/{}_{}_hist_sample.png'.format(gif_dir, gif_file_name, res), bbox_inches='tight')
-	plt.close()
-
-	fig, ax = plt.subplots()
-	plt.imshow(image, cmap='viridis', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-	#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
-	#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
-	plt.savefig('{}/{}_{}_{}_gauss_sample.png'.format(gif_dir, gif_file_name, res, sharp), bbox_inches='tight')
-	plt.close()
-
-	fig, ax = plt.subplots()
-	plt.imshow(image_pos[0], cmap='viridis', interpolation='nearest')
-	ani = animation.FuncAnimation(fig, heatmap_animation, frames=n_frame, interval=100, repeat=False)
-	plt.show()
-
-	fig, ax = plt.subplots()
-	sc = ax.scatter(tot_pos[0][0], tot_pos[0][1])
-	plt.xlim(0, cell_dim[0])
-	plt.ylim(0, cell_dim[1])
-	ani = animation.FuncAnimation(fig, animate, frames=n_frame, interval=100, repeat=False)
-	plt.show()
-	"""
 

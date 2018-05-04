@@ -118,7 +118,11 @@ def calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_lis
 		Total potential energy of simulation cell
 
 	frc_beads:  array_like (float); shape=(n_beads, n_dim)
-		Forces acting upon each bead due to positional array 
+		Forces acting upon each bead due to positional array
+
+	virial_tensor:  array_like (float); shape=(n_dim, n_dim)
+		Virial term of pressure tensor components
+
 
 	"""
 
@@ -240,10 +244,12 @@ def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_ma
 		Positions of n_bead beads in n_dim
 
 	vel: array_like, dtype=float
-		Velocity of each bead in all collagen fibres
+		Velocity of each bead in all collagen fibrils
 
 	frc: array_like, dtype=float
-		Forces acting upon each bead in all collagen fibres
+		Forces acting upon each bead in all collagen fibrils
+
+	param:
 
 	virial_tensor: 
 
@@ -284,10 +290,13 @@ def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_ma
 		Updated positions of n_bead beads in n_dim
 
 	vel: array_like, dtype=float
-		Updated velocity of each bead in all collagen fibres
+		Updated velocity of each bead in all collagen fibrils
 
 	frc: array_like, dtype=float
-		Updated forces acting upon each bead in all collagen fibres
+		Updated forces acting upon each bead in all collagen fibrils
+
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
 
 	verlet_list: array_like, dtype=int
 		Matrix determining whether two beads are within rc radial distance
@@ -295,7 +304,8 @@ def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_ma
 	pot_energy:  float
 		Total energy of simulation
 
-	virial_tensor: 
+	virial_tensor:  array_like (float); shape=(n_dim, n_dim)
+		Virial term of pressure tensor components
 
 	"""
 

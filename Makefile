@@ -3,6 +3,7 @@ PIP=pip
 
 NAME=ColECM
 
+
 init: check install test
 
 
@@ -17,11 +18,10 @@ check:
 
 install:
 	@echo
-	@echo "Installing ColECM: creating binary"
+	@echo "Installing ColECM"
 	@echo
-	@$(PYTHON) install.py $(NAME) || (echo "Installation failed"; exit 1)
-	@chmod +x $(NAME)
-	@$(PYTHON) -m $(PIP) install -r requirements.txt
+	@$(PYTHON) make.py install $(NAME) || (echo "Installation failed"; exit 1)
+	@$(PYTHON) -m $(PIP) install -r requirements.txt 
 
 
 test:
@@ -32,8 +32,8 @@ test:
 
 
 uninstall:
-	@rm -f ColECM
-
+	@$(PYTHON) make.py uninstall $(NAME) || (echo "Uninstallation failed"; exit 1)
+		
 
 clean:
 	@rm -f -r tests/__pycache__

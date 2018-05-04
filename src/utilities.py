@@ -515,10 +515,40 @@ def update_bond_lists(bond_matrix):
 	return bond_beads, dxdy_index, r_index
 
 
-def centre_of_mass(pos, mass, n_fibre, l_fibre, n_dim):
+def centre_of_mass(pos, mass, n_fibril, l_fibril, n_dim):
+	"""
+	centre_of_mass(pos, mass, n_fibril, l_fibril, n_dim)
 
-	com = np.zeros((n_dim, n_fibre))
+	Calculate fibrillar centre of mass
 
-	for i in range(n_dim): com[i] += np.sum(np.reshape(pos.T[i] * mass, (n_fibre, l_fibre)), axis=1) / (l_fibre * mass)
+	Parameters:
+	-----------
+
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Positions of n_bead beads in n_dim
+
+	mass:  float
+		Mass of fibril bead
+
+	n_fibril:  int
+		Number of fibrils in simulation
+
+	l_fibril:  int
+		Length of fibrils in simulation
+
+	n_dim:  int
+		Number of dimensions
+
+	Returns:
+	--------
+
+	com:  array_like (float); shape=(n_dim, n_fibril)
+		Array of centre of mass for each fibril
+ 
+	"""
+
+	com = np.zeros((n_dim, n_fibril))
+
+	for i in range(n_dim): com[i] += np.sum(np.reshape(pos.T[i] * mass, (n_fibril, l_fibril)), axis=1) / (l_fibril * mass)
 
 	return com
