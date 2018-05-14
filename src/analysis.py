@@ -13,8 +13,7 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as plt3d
 import matplotlib.animation as animation
 
-import sys
-import os
+import sys, os
 
 import utilities as ut
 import setup
@@ -509,6 +508,30 @@ def alignment_analysis(n_vector, area, n_sample):
 	return av_eigval, av_eigvec
 	
 
+def get_fibre_vectors(pos, cell_dim, param):
+
+	
+	n_bond = np.sum(np.triu(param['bond_matrix']))
+
+	distances = ut.get_distances(pos, cell_dim)
+	bond_index_half = np.argwhere(np.triu(param['bond_matrix']))
+	indices_half = ut.create_index(bond_index_half)
+
+	bond_list = np.zeros((param['n_dim'], n_bond))
+	for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
+	bond_list = bond_list.T
+
+	bead_vectors = ut.unit_vector(bond_list)
+	bead_vectors = np.sum(bead_vectors.reshape(param['l_fibril']-1, param['n_fibril'], 2), axis=0)
+	bead_matrices = np.hstack((bead_vectors, np.flip(bead_vectors, 1)))
+	bead_matrices *= np.tile(np.array([1, 1, 1, -1]), (param['n_fibril'], 1))
+
+	O_frame = np.mean(bead_matrices, axis=0)
+	R_frame = np.mean(bead_matrices**2, axis=0)
+
+	return O_frame, R_frame
+
+
 def animate(n):
 	plt.title('Frame {}'.format(n))
 	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
@@ -614,9 +637,10 @@ def analysis(current_dir, input_file_name=False):
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame)], 2, 1)
 
-	image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_image_shg'.format(n_frame)
-	dx_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_dx_shg'.format(n_frame)
-	dy_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_dy_shg'.format(n_frame)
+	image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_image_shg'.format(n_frame, res, sharp)
+	dx_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dx_shg'.format(n_frame, res, sharp)
+	dy_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dy_shg'.format(n_frame, res, sharp)
+
 	try:
 		image_shg = ut.load_npy(sim_dir + image_file_name, range(0, n_frame, skip))	
 		dx_shg = ut.load_npy(sim_dir + dx_file_name, range(0, n_frame, skip))
@@ -636,7 +660,17 @@ def analysis(current_dir, input_file_name=False):
 		dx_shg = np.array([dx_shg[i] for i in range(0, n_frame, skip)])
 		dy_shg = np.array([dy_shg[i] for i in range(0, n_frame, skip)])
 
-	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
+	O_total = np.zeros(param['n_dim']**2)
+	R_total = np.zeros(param['n_dim']**2)
+
+	for pos in image_md: 
+		O_frame, R_frame = get_fibre_vectors(pos.T, cell_dim, param)
+		O_total += O_frame
+		R_total += R_frame
+
+	print('\n Mean fibril alignment = {}'.format(R_total[-1]/n_frame))
+
+	#make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
 	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
 
 	"Calculate intensity orientational vector n for each pixel"

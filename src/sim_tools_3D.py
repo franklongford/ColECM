@@ -150,15 +150,24 @@ def calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_lis
 
 		r_half = np.sqrt(r2[indices_half])
 		r_full = np.repeat(r_half, 2)
-		
-		bond_pot = ut.pot_harmonic(r_half, param['bond_r0'], param['bond_k'])
-		pot_energy += np.sum(bond_pot)
 
-		bond_frc = ut.force_harmonic(r_half, param['bond_r0'], param['bond_k'])
+		#verlet_list_r0 = ut.check_cutoff(r_half, param['bond_r0'])
+		#verlet_list_r1 = ut.check_cutoff(r_half, param['bond_r1'])
+		
+		bond_pot = ut.pot_harmonic(r_half, param['bond_r0'], param['bond_k0'])# * verlet_list_r0
+		#bond_pot_1 = ut.pot_harmonic(r_half, param['bond_r1'], param['bond_k1']) * verlet_list_r1
+		pot_energy += np.sum(bond_pot)# + np.sum(bond_pot_1)
+
+		bond_frc = ut.force_harmonic(r_half, param['bond_r0'], param['bond_k0'])# * verlet_list_r0
+		#bond_frc_1 = ut.force_harmonic(r_half, param['bond_r1'], param['bond_k1']) * verlet_list_r1
 		for i, sign in enumerate([1, -1]):
 			f_beads_x[indices_half[i]] += sign * (bond_frc * distances[0][indices_half] / r_half)
 			f_beads_y[indices_half[i]] += sign * (bond_frc * distances[1][indices_half] / r_half)
 			f_beads_z[indices_half[i]] += sign * (bond_frc * distances[2][indices_half] / r_half)
+
+			#f_beads_x[indices_half[i]] += sign * (bond_frc_1 * distances[0][indices_half] / r_half)
+			#f_beads_y[indices_half[i]] += sign * (bond_frc_1 * distances[1][indices_half] / r_half)
+			#f_beads_z[indices_half[i]] += sign * (bond_frc_1 * distances[2][indices_half] / r_half)
 
 		#for i in range(3):
 		#	for j in range(3): virial_tensor[i][j] += np.sum(bond_frc / r_half * distances[i][indices_half] * distances[j][indices_half])
@@ -172,7 +181,7 @@ def calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_lis
 			"Find |rij| values for each vector"
 			r_vector = r_half[r_index]
 			cos_the, sin_the, r_prod = cos_sin_theta(vector, r_vector)
-			pot_energy += param['angle_k'] * np.sum(cos_the + 1)
+			pot_energy += param['angle_k0'] * np.sum(cos_the + 1)
 
 			"Form arrays of |rij| vales, cos(theta) and |rij||rjk| terms same shape as vector array"
 			r_array = np.reshape(np.repeat(r_vector, 3), vector.shape)
@@ -191,7 +200,7 @@ def calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_lis
 			r_left[jk_indices] -= r_right[ij_indices] 
 		
 			"Calculate forces upon beads i, j and k"
-			frc_angle_ij = param['angle_k'] * r_left
+			frc_angle_ij = param['angle_k0'] * r_left
 			frc_angle_k = -np.sum(np.reshape(frc_angle_ij, (int(n_vector/2), 2, 3)), axis=1)
 
 			"Add angular forces to force array" 
@@ -331,7 +340,6 @@ def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_ma
 	distances = ut.get_distances(pos, cell_dim)
 	r2 = np.sum(distances**2, axis=0)
 
-	verlet_list = ut.check_cutoff(r2, param['rc']**2)
 	pot_energy, frc, virial_tensor = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list, bond_beads, dist_index, r_index)
 
-	return pos, vel, frc, cell_dim, verlet_list, pot_energy, virial_tensor
+	return pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2

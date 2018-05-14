@@ -23,31 +23,34 @@ def get_param_defaults():
 	
 	defaults = {	'n_dim' : 2,
 		    	'dt' : 0.004,
-			'n_step' : 10000,
-			'save_step' : 500,
-			'mass' : 1.,
-			'vdw_sigma' : 1.,
-			'vdw_epsilon' : 1.,
-			'bond_r0' : 2.**(1./6.),
-			'bond_k' : 10.,
-			'angle_theta0' : np.pi,
-			'angle_k' : 10.,
-			'rc' : 3.0,
-			'kBT' : 5.,
-			'gamma' : 0.5,
-			'sigma' : np.sqrt(3.75),
-			'n_fibril_x' : 2,
-			'n_fibril_y' : 2,
-			'n_fibril_z' : 1,
-			'n_fibril' : 4,
-			'l_fibril' : 5,
-			'n_bead' : 20,
-			'l_conv' : 1.,
-			'res' : 7.5,
-			'sharp' : 3.0,
-			'skip' : 1,
-			'P_0' : 1,
-			'lambda_p' : 2E-5}
+				'n_step' : 10000,
+				'save_step' : 500,
+				'mass' : 1.,
+				'vdw_sigma' : 1.,
+				'vdw_epsilon' : 1.,
+				'bond_r0' : 2.**(1./6.),
+				#'bond_r1' : 1.5 * 2.**(1./6.),
+				#'bond_rb' : 1.6 * 2.**(1./6.),
+				'bond_k0' : 10.,
+				#'bond_k1' : 50.,
+				'angle_theta0' : np.pi,
+				'angle_k0' : 10.,
+				'rc' : 3.0,
+				'kBT' : 5.,
+				'gamma' : 0.5,
+				'sigma' : np.sqrt(3.75),
+				'n_fibril_x' : 2,
+				'n_fibril_y' : 2,
+				'n_fibril_z' : 1,
+				'n_fibril' : 4,
+				'l_fibril' : 5,
+				'n_bead' : 20,
+				'l_conv' : 1.,
+				'res' : 7.5,
+				'sharp' : 3.0,
+				'skip' : 1,
+				'P_0' : 1,
+				'lambda_p' : 4E-5}
 
 	return defaults
 
@@ -116,9 +119,12 @@ def check_sim_param(input_list, param=False):
 	if ('-mass' in input_list): param['mass'] = float(input_list[input_list.index('-mass') + 1])
 	if ('-vdw_sigma' in input_list): param['vdw_sigma'] = float(input_list[input_list.index('-vdw_sigma') + 1])
 	param['bond_r0'] = 2.**(1./6.) * param['vdw_sigma']
+	#param['bond_r1'] = 1.5 * param['bond_r0']
 	if ('-vdw_epsilon' in input_list): param['vdw_epsilon'] = float(input_list[input_list.index('-vdw_epsilon') + 1])
-	if ('-bond_k' in input_list): param['bond_k'] = float(input_list[input_list.index('-bond_k') + 1])
-	if ('-angle_k' in input_list): param['angle_k'] = float(input_list[input_list.index('-angle_k') + 1])
+	if ('-bond_k0' in input_list): param['bond_k0'] = float(input_list[input_list.index('-bond_k0') + 1])
+	#if ('-bond_k1' in input_list): param['bond_k1'] = float(input_list[input_list.index('-bond_k1') + 1])
+	#if param['bond_k1'] < param['bond_k0']: param['bond_k1'] = param['bond_k0']
+	if ('-angle_k0' in input_list): param['angle_k0'] = float(input_list[input_list.index('-angle_k0') + 1])
 	if ('-rc' in input_list): param['rc'] = float(input_list[input_list.index('-rc') + 1])
 	else: param['rc'] = param['vdw_sigma'] * 3.0
 	if ('-kBT' in input_list): param['kBT'] = float(input_list[input_list.index('-kBT') + 1])
@@ -187,7 +193,8 @@ def manual_input_param(param=False):
 	param['mass'] = float(input("Enter bead mass: "))
 	param['vdw_sigma'] = float(input("Enter vdw sigma radius: "))
 	param['vdw_epsilon'] = float(input("Enter vdw epsilon energy: "))
-	param['bond_k'] = float(input("Enter bond k energy: "))
+	param['bond_k0'] = float(input("Enter bond k0 energy: "))
+	param['bond_k1'] = float(input("Enter bond k1 energy: "))
 	param['angle_k'] = float(input("Enter angle k energy: "))
 	param['kBT'] = float(input("Enter kBT constant: "))
 	param['gamma'] = float(input("Enter Langevin gamma constant: "))
@@ -242,13 +249,15 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 		file_names['pos_file_name'] = input("Enter pos_file name: ")
 		check_file_names(sys.argv, file_names=file_names)
 
-	keys = ['n_dim', 'dt', 'mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k', 'angle_theta0', 'angle_k', 'rc', 'kBT', 
-		'gamma', 'sigma', 'l_fibril', 'n_fibril_x', 'n_fibril_y', 'n_fibril_z', 'n_fibril', 'n_bead']
+	keys = ['n_dim', 'dt', 'mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k0', 'angle_theta0', 
+			'angle_k0', 'rc', 'kBT', 'gamma', 'sigma', 'l_fibril', 'n_fibril_x', 'n_fibril_y', 
+			'n_fibril_z', 'n_fibril', 'n_bead']
 
 	if os.path.exists(sim_dir + file_names['param_file_name'] + '.pkl'):
 		print(" Loading parameter file {}.pkl".format(sim_dir + file_names['param_file_name']))
 		param_file = ut.read_param_file(sim_dir + file_names['param_file_name'])
 
+		"""
 		if param_file['l_fibre']:
 			fibre_keys = ['l_fibre', 'n_fibre_x', 'n_fibre_y', 'n_fibre_z', 'n_fibre']			
 			fibril_keys = ['l_fibril', 'n_fibril_x', 'n_fibril_y', 'n_fibril_z', 'n_fibril']
@@ -256,6 +265,7 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 
 			ut.make_param_file(sim_dir + file_names['param_file_name'])
 			for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
+		"""
 
 		for key in keys: param[key] = param_file[key]		
 		for key in ['bond_matrix', 'vdw_matrix', 'l_conv']: param[key] = param_file[key]
@@ -333,7 +343,7 @@ def grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200
 		pos[index] = np.random.random((param['n_dim'])) * param['vdw_sigma'] * 2
 
 	else:
-		bond_beads, dist_index, r_index = ut.update_bond_lists(bond_matrix)
+		bond_beads, dist_index, r_index, _ = ut.update_bond_lists(bond_matrix)
 
 		energy = max_energy + 1
 		attempt = 0
@@ -411,7 +421,8 @@ def create_pos_array(param):
 		try:
 			init_pos = grow_fibril(bead, bead, init_pos, param,
 						bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]],
-						vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]])
+						vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]], 
+						max_energy=50 * param['bond_k0'])
 			bead += 1
 		except RuntimeError: bead = 0
 
@@ -509,50 +520,86 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 	"""
 
 
-	print("\n" + " " * 15 + "----Equilibrating Pressure----\n")
+	print("\n" + " " * 15 + "----Equilibrating Density----\n")
 
 	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg
 	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg
 
 	sqrt_dt = np.sqrt(param['dt'])
+	n_dof = param['n_dim'] * (param['n_bead'] - 1) 
 
-	frc, verlet_list, pot_energy, virial_tensor, bond_beads, dist_index, r_index = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+	sim_state = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+	frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end = sim_state
 
 	kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
 	P = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
+	kBT = 2 * kin_energy / n_dof
+	step = 1
+	kBT_array = [kBT]
+
 	P_array = [P]
+	kBT_array = [kBT]
+	den_array = [param['n_bead'] / np.prod(cell_dim)]
+
 	step = 1
 	optimising = True
 
-	print(" Starting pressure:  {:>10.4f}\n Reference pressure: {:>10.4f}".format(P, param['P_0']))
-	print(" Starting volume:    {:>10.4f}\n".format(np.prod(cell_dim)))
-	print(" {:^18s} | {:^18s} | {:^18s} ".format('Step', 'Pressure', 'Volume'))
-	print(" " + "-" * 60)
+	print(" Starting pressure:     {:>10.4f}\n Reference pressure:    {:>10.4f}".format(P, param['P_0']))
+	print(" Starting volume:       {:>10.4f}\n Starting temperature:  {:>10.4f}".format(np.prod(cell_dim), kBT))
+	print(" Starting density:      {:>10.4f}\n".format(param['n_bead'] / np.prod(cell_dim)))
+	print(" {:^12s} | {:^12s} | {:^12s} | {:^12s} | {:^12s} ".format('Step', 'Ref Pressure', 'Av Pressure', 'Temperature', 'Density'))
+	print(" " + "-" * 76)
 
 	while optimising:
-		pos, vel, frc, cell_dim, verlet_list, pot_energy, virial_tensor = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
-			verlet_list, bond_beads, dist_index, r_index, param['dt'], sqrt_dt, cell_dim, NPT=True)
+		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
+			verlet_list_rc, bond_beads, dist_index, r_index, param['dt'], sqrt_dt, cell_dim, NPT=True)
 
+		(pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2) = sim_state
+
+		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
+		"""
+		"DYNAMIC BONDS - not yet implemented fully"
+		if step % 1 == 0: 
+			param['bond_matrix'], update = ut.bond_check(param['bond_matrix'], fib_end, r2, param['rc'], param['bond_rb'], param['vdw_sigma'])
+			if update:
+				bond_beads, dist_index, r_index, fib_end = ut.update_bond_lists(bond_matrix)
+		"""
 		kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
 		P = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
-		P_array.append(P)
+		kBT = 2 * kin_energy / n_dof
 
-		if step % 2000 == 0: 
+		P_array.append(P)
+		kBT_array.append(kBT)
+		den_array.append(param['n_bead'] / np.prod(cell_dim))
+
+		if step % 4000 == 0: 
 			av_P = np.mean(P_array)
-			optimising = (abs(av_P - param['P_0']) >= thresh)
+			av_kBT = np.mean(kBT_array)
+			av_den = np.mean(den_array)
+
+			P_diff = (av_P - param['P_0'])
+			kBT_diff = (av_kBT - param['kBT'])
+
 			P_array = [P]
-			print(" {:18d} | {:>18.4f} | {:>18.4f} ".format(step, av_P, np.prod(cell_dim)))
- 
+			kBT_array = [kBT]
+			den_array = [param['n_bead'] / np.prod(cell_dim)]
+
+			optimising = abs(P_diff) > thresh
+			if kBT_diff > 0.15: optimising = False
+			#if optimising: param['P_0'] += 0.1 * P_diff
+
+			print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, param['P_0'], av_P, av_kBT, av_den))
+
 		step += 1
 
 	print("\n No. iterations:   {:>10d}".format(step))
-	print(" Final pressure:   {:>10.4f}".format(P))
+	print(" Final density:   {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim)))
 	print(" Final volume:     {:>10.4f}".format(np.prod(cell_dim)))
 
 	return pos, vel, cell_dim
 
 
-def equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=5E-2):
+def equilibrate_temperature(sim_dir, pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=5E-2):
 	"""
 	equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
 
@@ -602,9 +649,10 @@ def equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, 
 	sqrt_dt = np.sqrt(param['dt'])
 	n_dof = param['n_dim'] * (param['n_bead'] - 1) 
 
-	frc, verlet_list, pot_energy, virial_tensor, bond_beads, dist_index, r_index = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+	sim_state = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+	frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end = sim_state
 
-	kBT = 2 * ut.kin_energy(vel, param['mass'], param['n_dim'])
+	kBT = 2 * ut.kin_energy(vel, param['mass'], param['n_dim']) / n_dof
 	step = 1
 	kBT_array = [kBT]
 	optimising = True
@@ -614,9 +662,19 @@ def equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, 
 	print(" " + "-" * 40)
 
 	while optimising:
-		pos, vel, frc, cell_dim, verlet_list, pot_energy, virial_tensor = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
-			verlet_list, bond_beads, dist_index, r_index, param['dt'], sqrt_dt, cell_dim)
+		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
+			verlet_list_rc, bond_beads, dist_index, r_index, param['dt'], sqrt_dt, cell_dim)
 
+		(pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2) = sim_state
+
+		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
+		"""
+		"DYNAMIC BONDS - not yet implemented fully"
+		if step % 1 == 0: 
+			param['bond_matrix'], update = ut.bond_check(param['bond_matrix'], fib_end, r2, param['rc'], param['bond_rb'], param['vdw_sigma'])
+			if update:
+				bond_beads, dist_index, r_index, fib_end = ut.update_bond_lists(bond_matrix)
+		"""
 		kBT = 2 * ut.kin_energy(vel, param['mass'], param['n_dim']) / n_dof
 		kBT_array.append(kBT)
 
@@ -625,7 +683,7 @@ def equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, 
 			optimising = (abs(av_kBT - param['kBT']) >= thresh)
 			kBT_array = [kBT]
 			print(" {:18d} | {:>18.4f} ".format(step, av_kBT))
- 
+
 		step += 1
 
 	print("\n No. iterations:   {:>10d}".format(step))
@@ -694,12 +752,13 @@ def calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param):
 	distances = ut.get_distances(pos, cell_dim)
 	r2 = np.sum(distances**2, axis=0)
 
-	verlet_list = ut.check_cutoff(r2, param['rc']**2)
+	verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
+	#verlet_list_rb = ut.check_cutoff(r2, param['bond_rb']**2)
 
-	bond_beads, dist_index, r_index = ut.update_bond_lists(bond_matrix)
-	pot_energy, frc, virial_tensor = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list, bond_beads, dist_index, r_index)
+	bond_beads, dist_index, r_index, fib_end = ut.update_bond_lists(bond_matrix)
+	pot_energy, frc, virial_tensor = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list_rc, bond_beads, dist_index, r_index)
 
-	return frc, verlet_list, pot_energy, virial_tensor, bond_beads, dist_index, r_index
+	return frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end
 
 
 def import_files(sim_dir, file_names, param):
@@ -775,11 +834,14 @@ def import_files(sim_dir, file_names, param):
 		print(" Saving input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
 		ut.save_npy(sim_dir + file_names['pos_file_name'], np.vstack((pos, cell_dim)))
 
+		pos, vel = equilibrate_temperature(sim_dir, pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
 		pos, vel, cell_dim = equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
-		pos, vel = equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+		pos, vel = equilibrate_temperature(sim_dir, pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
 
 		print(" Saving restart file {}".format(file_names['restart_file_name']))
 		ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
+		#param['bond_matrix'] = bond_matrix
+		#ut.update_param_file(sim_dir + file_names['param_file_name'], 'bond_matrix', param['bond_matrix'])
 
 	return pos, vel, cell_dim, param
 

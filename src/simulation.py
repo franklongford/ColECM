@@ -44,8 +44,9 @@ def simulation(current_dir, input_file_name=False):
 	tot_press = np.zeros(param['n_step'])
 	tot_vol = np.zeros(param['n_step'])
 
-	frc, verlet_list, pot_energy, virial_tensor, bond_beads, dist_index, r_index = setup.calc_state(pos, vel, cell_dim, 
-								param['bond_matrix'], param['vdw_matrix'], param)
+	sim_state = setup.calc_state(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
+	frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end = sim_state
+
 	tot_pos[0] += np.vstack((pos, cell_dim))
 	tot_vel[0] += vel
 	tot_frc[0] += frc
@@ -61,7 +62,7 @@ def simulation(current_dir, input_file_name=False):
 	init_time_stop = time.time()
 
 	print("\n Setup complete: {:5.3f} s".format(init_time_stop - init_time_start))
-	print(" Number of beads = {}".format(param['n_fibril']))
+	print(" Number of beads = {}".format(param['n_bead']))
 	print(" Number of fibrils = {}".format(param['n_fibril']))
 	print(" Bead radius = {} um\n Simulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
 	print(" Cell density:     {:>10.4f} bead mass um-3".format(param['n_bead'] * param['mass'] / np.prod(cell_dim * param['l_conv'])))
@@ -74,8 +75,22 @@ def simulation(current_dir, input_file_name=False):
 
 	for step in range(1, param['n_step']):
 
-		pos, vel, frc, cell_dim, verlet_list, pot_energy, virial_tensor = sim.velocity_verlet_alg(pos, vel, frc, virial_tensor, param, 
-			param['bond_matrix'], param['vdw_matrix'], verlet_list, bond_beads, dist_index, r_index, param['dt'], sqrt_dt, cell_dim)
+		sim_state = sim.velocity_verlet_alg(pos, vel, frc, virial_tensor, param, 
+			param['bond_matrix'], param['vdw_matrix'], verlet_list_rc, bond_beads, dist_index, 
+			r_index, param['dt'], sqrt_dt, cell_dim)
+
+		(pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2) = sim_state
+
+		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
+
+		"""
+		"DYNAMIC BONDS - not yet implemented fully"
+		if step % 1 == 0: 
+			param['bond_matrix'], update = ut.bond_check(param['bond_matrix'], fib_end, r2, param['rc'], param['bond_rb'], param['vdw_sigma'])
+			if update:
+				bond_beads, dist_index, r_index, fib_end = ut.update_bond_lists(param['bond_matrix'])
+				ut.update_param_file(sim_dir + file_names['param_file_name'], 'bond_matrix', param['bond_matrix'])
+		#"""
 
 		kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
 		pressure = 1 / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
@@ -99,11 +114,11 @@ def simulation(current_dir, input_file_name=False):
 			time_sec = int(sim_time) % 60
 
 			print(" " + "-" * 56)
-			print(" " + "| Step: {:{dig}d} {}  |".format(step, " " * (44 - dig), dig=dig))
+			print(" " + "| Step: {:{dig}d} {}   |".format(step, " " * (44 - dig), dig=dig))
 			print(" " + "| Temp: {:>10.4f} kBT    Energy: {:>10.3f} per fibril |".format(tot_temp[step], tot_energy[step] / param['n_fibril']))
-			print(" " + "| Pressure: {:>10.4f}    Volume: {:>10.4f}           |".format(tot_press[step], tot_vol[step]))
-			print(" " + "|" + " " * 54 + "|")
-			print(" " + "| Estimated time remaining: {:5d} hr {:2d} min {:2d} sec     |".format(time_hour, time_min, time_sec))
+			print(" " + "| Pressure: {:>10.4f}    Volume: {:>10.4f}            |".format(tot_press[step], tot_vol[step]))
+			print(" " + "|" + " " * 55 + "|")
+			print(" " + "| Estimated time remaining: {:5d} hr {:2d} min {:2d} sec      |".format(time_hour, time_min, time_sec))
 			print(" " + "-" * 56)
 
 		if tot_temp[step] >= param['kBT'] * 1E3: 

@@ -2,7 +2,7 @@ import sys, os, subprocess
 
 task = sys.argv[1]
 program_name = sys.argv[2]
-command = 'python'
+python_command = 'python'
 python_version = sys.version_info
 ColECM_dir = os.getcwd()
 
@@ -24,7 +24,7 @@ if task == 'install':
 		python_version = output[:-1]
 
 		if output[1] >= 3:	
-			command += '3'
+			python_command += '3'
 			print("{} detected, using python3 excecutable\n".format(output[:-1]))
 		else: 
 			print("No python3 excecutable found, exiting installation\n")
@@ -34,13 +34,13 @@ if task == 'install':
 
 	with open(program_name, 'w') as outfile:
 		outfile.write('#!/bin/bash\n\n')
-		outfile.write('{} {}/src/main.py "$@"'.format(command, ColECM_dir))
+		outfile.write('{} {}/src/main.py "$@"'.format(python_command, ColECM_dir))
 
 	bashCommand = "chmod +x {}".format(program_name)
 	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, error = process.communicate()
 
-	bashCommand = "which {}".format(command)
+	bashCommand = "which {}".format(python_command)
 	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, error = process.communicate()
 	bin_dir = str(output).split('/')[:-1]

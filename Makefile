@@ -13,7 +13,7 @@ check:
 	@$(PYTHON) --version || (echo "No python distribution detected"; exit 1)
 	@echo
 	@echo "Checking default pip version:"
-	@$(PYTHON) -m $(PIP) --version || (echo "No pip distribution detected"; exit 1)
+	@$(PIP) --version || (echo "No pip distribution detected"; exit 1)
 
 
 install:
@@ -21,7 +21,7 @@ install:
 	@echo "Installing ColECM"
 	@echo
 	@$(PYTHON) make.py install $(NAME) || (echo "Installation failed"; exit 1)
-	@$(PYTHON) -m $(PIP) install -r requirements.txt 
+	@$(PIP) install -r requirements.txt 
 
 
 test:

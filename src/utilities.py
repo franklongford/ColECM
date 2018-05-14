@@ -311,19 +311,18 @@ def cum_mov_average(array):
 	return average
 
 
-def unit_vector(vector):
+def unit_vector(vector, axis=-1):
 	"""
-	unit_vector(vector)
-	
-	Returns unit vector of input vector
+	unit_vector(vector, axis=-1)
 
+	Returns unit vector of vector
 	"""
-	vector_2 = vector**2 
-	norm = 1. / np.sum(vector_2)
 
-	unit_vector = np.sqrt(vector_2 * norm) * np.sign(vector) 
+	vector = np.array(vector)
+	magnitude_2 = np.sum(vector.T**2, axis=axis)
+	u_vector = np.sqrt(vector**2 / magnitude_2) * np.sign(vector)
 
-	return unit_vector
+	return u_vector
 
 
 def rand_vector(n): 
@@ -387,7 +386,7 @@ def check_cutoff(array, thresh):
 	Determines whether elements of array are less than or equal to thresh
 	"""
 
-	return (array <= thresh).astype(float)
+	return (array <= thresh)
 
 
 def get_distances(pos, cell_dim):
@@ -489,16 +488,29 @@ def update_bond_lists(bond_matrix):
 
 	N = bond_matrix.shape[0]
 
+	"Get indicies of bonded beads"
 	bond_index_half = np.argwhere(np.triu(bond_matrix))
 	bond_index_full = np.argwhere(bond_matrix)
 
+	"Create index lists for referring to in 2D arrays"
 	indices_half = create_index(bond_index_half)
 	indices_full = create_index(bond_index_full)
 
 	bond_beads = []
-	dxdy_index = []
+	dist_index = []
 
+	"Count number of unique bonds"
 	count = np.unique(bond_index_full.T[0]).shape[0]
+
+	"Find indicies of ends of fibrils"
+	fib_end_check = np.argwhere(np.sum(bond_matrix, axis=1) <= 1)
+	n_fib_end = fib_end_check.shape[0]
+	fib_end_check_ind = np.tile(fib_end_check, n_fib_end)
+	fib_end_check_ind = np.stack((fib_end_check_ind, fib_end_check_ind.T), axis=2)
+	fib_end_check_ind = create_index(fib_end_check_ind[np.where(~np.eye(n_fib_end,dtype=bool))])
+
+	fib_end = np.zeros(bond_matrix.shape)
+	fib_end[fib_end_check_ind] += 1
 
 	for n in range(N):
 		slice_full = np.argwhere(bond_index_full.T[0] == n)
@@ -506,13 +518,13 @@ def update_bond_lists(bond_matrix):
 
 		if slice_full.shape[0] > 1:
 			bond_beads.append(np.unique(bond_index_full[slice_full].flatten()))
-			dxdy_index.append(bond_index_full[slice_full][::-1])
+			dist_index.append(bond_index_full[slice_full][::-1])
 
 	bond_beads = np.array(bond_beads)
-	dxdy_index = np.reshape(dxdy_index, (2 * len(dxdy_index), 2))
-	r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(dxdy_index**2, axis=1)]).flatten()
+	dist_index = np.reshape(dist_index, (2 * len(dist_index), 2))
+	r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(dist_index**2, axis=1)]).flatten()
 
-	return bond_beads, dxdy_index, r_index
+	return bond_beads, dist_index, r_index, fib_end
 
 
 def centre_of_mass(pos, mass, n_fibril, l_fibril, n_dim):
@@ -552,3 +564,23 @@ def centre_of_mass(pos, mass, n_fibril, l_fibril, n_dim):
 	for i in range(n_dim): com[i] += np.sum(np.reshape(pos.T[i] * mass, (n_fibril, l_fibril)), axis=1) / (l_fibril * mass)
 
 	return com
+
+
+def bond_check(bond_matrix, fib_end, r2, rc, bond_rb, vdw_sigma):
+
+	verlet_list_rb = check_cutoff(r2, bond_rb**2)
+
+	bond_break_check = np.logical_not(verlet_list_rb) * bond_matrix
+	
+	bond_form_prob = fib_end * verlet_list_rb * (r2 - vdw_sigma**2) / (bond_rb**2 - vdw_sigma**2)
+	bond_form_check = np.array(fib_end * np.triu(bond_form_prob) + np.triu(np.random.random(bond_matrix.shape)), dtype=int)
+	bond_form_check += np.triu(bond_form_check).T
+	if np.any(np.sum(abs(bond_form_check), axis=1) > 1):
+		bond_form_check[np.argwhere(np.sum(bond_form_check, axis=1) > 1)] = 0
+	bond_check = bond_form_check - bond_break_check
+
+	if np.count_nonzero(bond_check) > 0:
+		bond_matrix += bond_check
+		return bond_matrix, True
+
+	else: return bond_matrix, False
