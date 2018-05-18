@@ -9,6 +9,7 @@ Last Modified: 19/04/2018
 """
 
 import numpy as np
+from scipy import constants as con
 import sys, os, pickle
 
 import utilities as ut
@@ -23,34 +24,63 @@ def get_param_defaults():
 	
 	defaults = {	'n_dim' : 2,
 		    	'dt' : 0.004,
-				'n_step' : 10000,
-				'save_step' : 500,
-				'mass' : 1.,
-				'vdw_sigma' : 1.,
-				'vdw_epsilon' : 1.,
-				'bond_r0' : 2.**(1./6.),
-				#'bond_r1' : 1.5 * 2.**(1./6.),
-				#'bond_rb' : 1.6 * 2.**(1./6.),
-				'bond_k0' : 10.,
-				#'bond_k1' : 50.,
-				'angle_theta0' : np.pi,
-				'angle_k0' : 10.,
-				'rc' : 3.0,
-				'kBT' : 5.,
-				'gamma' : 0.5,
-				'sigma' : np.sqrt(3.75),
-				'n_fibril_x' : 2,
-				'n_fibril_y' : 2,
-				'n_fibril_z' : 1,
-				'n_fibril' : 4,
-				'l_fibril' : 5,
-				'n_bead' : 20,
-				'l_conv' : 1.,
-				'res' : 7.5,
-				'sharp' : 3.0,
-				'skip' : 1,
-				'P_0' : 1,
-				'lambda_p' : 4E-5}
+			'n_step' : 10000,
+			'save_step' : 500,
+			'mass' : 1.,
+			'vdw_sigma' : 1,
+			'vdw_epsilon' : 1.,
+			'bond_r0' : 2.**(1./6.),
+			#'bond_r1' : 1.5 * 2.**(1./6.),
+			#'bond_rb' : 1.6 * 2.**(1./6.),
+			'bond_k0' : 1.,
+			#'bond_k1' : 50.,
+			'angle_theta0' : np.pi,
+			'angle_k0' : 1.,
+			'rc' : 3.0,
+			'kBT' : 4.,
+			'gamma' : 0.5,
+			'sigma' : np.sqrt(0.5 * (2 - 0.5) * (4 / 1.)),
+			'n_fibril_x' : 3,
+			'n_fibril_y' : 3,
+			'n_fibril_z' : 1,
+			'n_fibril' : 9,
+			'l_fibril' : 50,
+			'n_bead' : 450,
+			'l_conv' : 3.5E-1,
+			'res' : 7.5,
+			'sharp' : 3.0,
+			'skip' : 1,
+			'P_0' : 1,
+			'lambda_p' : 4E-5}
+	"""
+	defaults = {	'n_dim' : 2,
+		    	'dt' : 0.004,
+			'n_step' : 10000,
+			'save_step' : 500,
+			'mass' : 146115, # g mol-1
+			'vdw_sigma' : 0.35, # um
+			'vdw_epsilon' : 1.,
+			'bond_r0' : 2., # um
+			'bond_k0' : 1.,
+			'angle_theta0' : np.pi,
+			'angle_k0' : 1.,
+			'rc' : 0.07 * 3.0, # um
+			'kBT' : 5.,
+			'gamma' : 0.5,
+			'sigma' : np.sqrt(3.75),
+			'n_fibril_x' : 2,
+			'n_fibril_y' : 2,
+			'n_fibril_z' : 1,
+			'n_fibril' : 4,
+			'l_fibril' : 50,
+			'n_bead' : 200,
+			'l_conv' : 1,
+			'res' : 7.5,
+			'sharp' : 3.0,
+			'skip' : 1,
+			'P_0' : 1,
+			'lambda_p' : 4E-5}
+	"""
 
 	return defaults
 
@@ -118,7 +148,7 @@ def check_sim_param(input_list, param=False):
 		elif param['n_dim'] == 3: param['dt'] = 0.003 
 	if ('-mass' in input_list): param['mass'] = float(input_list[input_list.index('-mass') + 1])
 	if ('-vdw_sigma' in input_list): param['vdw_sigma'] = float(input_list[input_list.index('-vdw_sigma') + 1])
-	param['bond_r0'] = 2.**(1./6.) * param['vdw_sigma']
+	#param['bond_r0'] = 2.**(1./6.) * param['vdw_sigma']
 	#param['bond_r1'] = 1.5 * param['bond_r0']
 	if ('-vdw_epsilon' in input_list): param['vdw_epsilon'] = float(input_list[input_list.index('-vdw_epsilon') + 1])
 	if ('-bond_k0' in input_list): param['bond_k0'] = float(input_list[input_list.index('-bond_k0') + 1])
@@ -349,7 +379,7 @@ def grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200
 		attempt = 0
 
 		while energy > max_energy:
-			new_vec = ut.rand_vector(param['n_dim']) * param['vdw_sigma']	
+			new_vec = ut.rand_vector(param['n_dim']) * param['bond_r0']	
 			pos[index] = pos[index-1] + new_vec
 			distances = ut.get_distances(pos[:bead+1], cell_dim)
 			r2 = np.sum(distances**2, axis=0)
@@ -526,7 +556,7 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg
 
 	sqrt_dt = np.sqrt(param['dt'])
-	n_dof = param['n_dim'] * (param['n_bead'] - 1) 
+	n_dof = param['n_dim'] * param['n_bead']
 
 	sim_state = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
 	frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end = sim_state
@@ -536,10 +566,7 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 	kBT = 2 * kin_energy / n_dof
 	step = 1
 	kBT_array = [kBT]
-
 	P_array = [P]
-	kBT_array = [kBT]
-	den_array = [param['n_bead'] / np.prod(cell_dim)]
 
 	step = 1
 	optimising = True
@@ -570,25 +597,24 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 
 		P_array.append(P)
 		kBT_array.append(kBT)
-		den_array.append(param['n_bead'] / np.prod(cell_dim))
 
-		if step % 4000 == 0: 
+		den = param['n_bead'] / np.prod(cell_dim)
+
+		optimising = den <= 0.3#abs(P_diff) > thresh
+
+		if step % 2000 == 0: 
 			av_P = np.mean(P_array)
 			av_kBT = np.mean(kBT_array)
-			av_den = np.mean(den_array)
 
 			P_diff = (av_P - param['P_0'])
 			kBT_diff = (av_kBT - param['kBT'])
 
 			P_array = [P]
 			kBT_array = [kBT]
-			den_array = [param['n_bead'] / np.prod(cell_dim)]
 
-			optimising = abs(P_diff) > thresh
-			if kBT_diff > 0.15: optimising = False
 			#if optimising: param['P_0'] += 0.1 * P_diff
 
-			print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, param['P_0'], av_P, av_kBT, av_den))
+			print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, param['P_0'], av_P, av_kBT, den))
 
 		step += 1
 
@@ -599,7 +625,7 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 	return pos, vel, cell_dim
 
 
-def equilibrate_temperature(sim_dir, pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=5E-2):
+def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, thresh=5E-2):
 	"""
 	equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
 
@@ -647,7 +673,8 @@ def equilibrate_temperature(sim_dir, pos, vel, cell_dim, bond_matrix, vdw_matrix
 	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg
 
 	sqrt_dt = np.sqrt(param['dt'])
-	n_dof = param['n_dim'] * (param['n_bead'] - 1) 
+	n_dof = param['n_dim'] * param['n_bead'] 
+	vel = np.zeros(pos.shape)
 
 	sim_state = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
 	frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end = sim_state
@@ -656,9 +683,12 @@ def equilibrate_temperature(sim_dir, pos, vel, cell_dim, bond_matrix, vdw_matrix
 	step = 1
 	kBT_array = [kBT]
 	optimising = True
+	ref_kBT = param['kBT']
+	param['kBT'] = 0.1
+	param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
 
 	print(" Starting kBT:    {:>10.4f}\n Reference kBT:   {:>10.4f}".format(kBT, param['kBT']))
-	print(" {:^18s} | {:^18s} ".format('Step', 'kBT'))
+	print(" {:^18s} | {:^18s} ".format('Step', 'Ref kBT', 'kBT'))
 	print(" " + "-" * 40)
 
 	while optimising:
@@ -678,13 +708,19 @@ def equilibrate_temperature(sim_dir, pos, vel, cell_dim, bond_matrix, vdw_matrix
 		kBT = 2 * ut.kin_energy(vel, param['mass'], param['n_dim']) / n_dof
 		kBT_array.append(kBT)
 
-		if step % 1000 == 0: 
+		if step % 250 == 0: 
 			av_kBT = np.mean(kBT_array)
-			optimising = (abs(av_kBT - param['kBT']) >= thresh)
 			kBT_array = [kBT]
-			print(" {:18d} | {:>18.4f} ".format(step, av_kBT))
+			print(" {:18d} | {:>18.4f} | {:>18.4f}".format(step, param['kBT'], av_kBT))
+			if abs(av_kBT - param['kBT']) <= thresh:
+				param['kBT'] += 0.1
+				param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
+				if ref_kBT <= param['kBT']: optimising = False
 
 		step += 1
+
+	param['kBT'] = ref_kBT
+	param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
 
 	print("\n No. iterations:   {:>10d}".format(step))
 	print(" Final kBT:   {:>10.4f}".format(kBT))
@@ -834,9 +870,8 @@ def import_files(sim_dir, file_names, param):
 		print(" Saving input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
 		ut.save_npy(sim_dir + file_names['pos_file_name'], np.vstack((pos, cell_dim)))
 
-		pos, vel = equilibrate_temperature(sim_dir, pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param)
 		pos, vel, cell_dim = equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
-		pos, vel = equilibrate_temperature(sim_dir, pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
 
 		print(" Saving restart file {}".format(file_names['restart_file_name']))
 		ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))

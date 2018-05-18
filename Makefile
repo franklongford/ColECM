@@ -1,5 +1,6 @@
 PYTHON=python
 PIP=pip
+BIN=~/.conda/envs/python_3/bin
 
 NAME=ColECM
 
@@ -20,7 +21,7 @@ install:
 	@echo
 	@echo "Installing ColECM"
 	@echo
-	@$(PYTHON) make.py install $(NAME) || (echo "Installation failed"; exit 1)
+	@$(PYTHON) make.py install $(NAME) $(BIN) || (echo "Installation failed"; exit 1)
 	@$(PIP) install -r requirements.txt 
 
 
@@ -32,7 +33,7 @@ test:
 
 
 uninstall:
-	@$(PYTHON) make.py uninstall $(NAME) || (echo "Uninstallation failed"; exit 1)
+	@$(PYTHON) make.py uninstall $(NAME) $(BIN) || (echo "Uninstallation failed"; exit 1)
 		
 
 clean:

@@ -450,9 +450,9 @@ def form_n_vector(dx_shg, dy_shg):
 	return n_vector
 
 
-def alignment_analysis(n_vector, area, n_sample):
+def tensor_alignment_analysis(n_vector, area, n_sample):
 	"""
-	alignment_analysis(n_vector, area, n_frame, n_sample)
+	tensor_alignment_analysis(n_vector, area, n_frame, n_sample)
 
 	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
 
@@ -490,8 +490,10 @@ def alignment_analysis(n_vector, area, n_sample):
 
 	for n in range(n_sample):
 
-		start_x = np.random.randint(pad, n_x - pad)
-		start_y = np.random.randint(pad, n_y - pad) 
+		try: start_x = np.random.randint(pad, n_x - pad)
+		except: start_x = pad
+		try: start_y = np.random.randint(pad, n_y - pad) 
+		except: start_y = pad
 
 		cut_n_vector = n_vector[:, :, start_y-pad: start_y+pad, 
 					      start_x-pad: start_x+pad]
@@ -508,10 +510,94 @@ def alignment_analysis(n_vector, area, n_sample):
 	return av_eigval, av_eigvec
 	
 
+def fourier_alignment_analysis(image_shg, area, n_sample):
+	"""
+	alignment_analysis(image, area, n_frame, n_sample)
+
+	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
+
+	Parameters
+	----------
+
+	image_shg:  array_like (float); shape=(n_images, n_x, n_y)
+		Array of images corresponding to each trajectory configuration
+
+	area:  int
+		Unit length of sample area
+
+	n_sample:  int
+		Number of randomly selected areas to sample
+
+	Returns
+	-------
+
+	av_eigval:  array_like (float); shape=(n_frame, n_sample, 2)
+		Eigenvalues of average nematic tensors for n_sample areas
+
+	av_eigvec:  array_like (float); shape=(n_frame, n_sample, 2, 2)
+		Eigenvectors of average nematic tensors for n_sample areas
+
+	"""
+
+	n_frame = image_shg.shape[0]
+	n_y = image_shg.shape[1]
+	n_x = image_shg.shape[2]
+
+	pad = int(area / 2 - 1)
+
+	"Calculate distances between grid points"
+	grid = np.mgrid[-pad//2:pad//2, -pad//2:pad//2]
+	q2_grid =  np.sum(grid**2, axis=0)
+	sin_grid = grid[0] / np.sqrt(q2_grid)
+	the_grid = np.arcsin(sin_grid) * 360 / np.pi
+
+	plt.close('all')
+	plt.imshow(the_grid, cmap='binary')
+	plt.colorbar()
+	plt.show()
+
+	sin_array = np.unique(sin_grid)
+	the_array = np.unique(the_grid)
+
+	int_q = np.zeros(the_array.shape)
+	n_bins = int_q.size
+
+	print(the_array)
+
+	for n in range(n_sample):
+
+		try: start_x = np.random.randint(pad, n_x - pad)
+		except: start_x = pad
+		try: start_y = np.random.randint(pad, n_y - pad) 
+		except: start_y = pad
+
+		cut_image = image_shg[:, start_y-pad: start_y+pad, 
+					 start_x-pad: start_x+pad]
+
+		for frame in range(n_frame):
+	
+			image_fft = np.fft.fftshift(np.fft.fft2(cut_image[frame]))
+			#fft_angle = np.angle(image_fft)
+			#angles = np.unique(fft_angle)			
+
+			"""
+			plt.close('all')
+			plt.imshow(image_fft.real, cmap='binary')
+			plt.colorbar()
+			plt.show()
+			"""
+
+			for i in range(1, n_bins-1):
+				indices = np.where(the_grid == the_array[i])
+				int_q[i] += np.sum(image_fft[indices].real**2) / (4 * pad**2 * n_frame * n_sample)
+
+	return the_array, int_q
+	
+
 def get_fibre_vectors(pos, cell_dim, param):
 
 	
-	n_bond = np.sum(np.triu(param['bond_matrix']))
+	n_bond = int(np.sum(np.triu(param['bond_matrix'])))
 
 	distances = ut.get_distances(pos, cell_dim)
 	bond_index_half = np.argwhere(np.triu(param['bond_matrix']))
@@ -632,7 +718,7 @@ def analysis(current_dir, input_file_name=False):
 	
 	n_image = int(n_frame / param['skip'])
 	sample_l = 50
-	n_sample = 20
+	n_sample = 1
 	area = int(np.min([sample_l, np.min(cell_dim[:2]) * l_conv]) * res)
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame)], 2, 1)
@@ -670,13 +756,10 @@ def analysis(current_dir, input_file_name=False):
 
 	print('\n Mean fibril alignment = {}'.format(R_total[-1]/n_frame))
 
-	#make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, cell_dim, 'SHG')
-	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md, res, sharp, cell_dim, 'MD')
-
 	"Calculate intensity orientational vector n for each pixel"
 	n_vector = form_n_vector(dx_shg, dy_shg)
 	"Sample average orientational anisotopy"
-	eigval_shg, eigvec_shg = alignment_analysis(n_vector, area, n_sample)
+	eigval_shg, eigvec_shg = tensor_alignment_analysis(n_vector, area, n_sample)
 
 	q = reorder_array(eigval_shg)
 	q = q[1] - q[0]
@@ -702,4 +785,21 @@ def analysis(current_dir, input_file_name=False):
 	plt.xlabel(r'Anisotropy')
 	plt.legend()
 	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	#"""
+	the_array, int_q = fourier_alignment_analysis(image_shg, area, n_sample)
+
+	print('Creating Fouier Angle Spectrum figure {}/{}_fourier.png'.format(fig_dir, fig_name))
+	plt.figure(8)
+	plt.title('Fourier Angle Spectrum')
+	plt.plot(the_array, int_q, label=fig_name)
+	plt.xlabel(r'Angle (deg)')
+	plt.ylabel(r'Amplitude')
+	plt.legend()
+	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	#"""
+	
+	print('Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
+	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, l_conv * cell_dim, 'SHG')
+	make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * l_conv, res, sharp, l_conv * cell_dim, 'MD')
 

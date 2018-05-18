@@ -2,6 +2,7 @@ import sys, os, subprocess
 
 task = sys.argv[1]
 program_name = sys.argv[2]
+bin_dir = sys.argv[3]
 python_command = 'python'
 python_version = sys.version_info
 ColECM_dir = os.getcwd()
@@ -40,13 +41,6 @@ if task == 'install':
 	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, error = process.communicate()
 
-	bashCommand = "which {}".format(python_command)
-	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	output, error = process.communicate()
-	bin_dir = str(output).split('/')[:-1]
-	if bin_dir[0] == "b'": bin_dir = bin_dir[1:]
-	bin_dir = '/' + "/".join(bin_dir)
-
 	print("Copying {} executable to {}\n".format(program_name, bin_dir))
 
 	bashCommand = "cp {} {}".format(program_name, bin_dir)
@@ -66,13 +60,6 @@ if task == 'uninstall':
 		output, error = process.communicate()
 	except: sys.exit(1)
 	
-	bashCommand = "which {}".format(program_name)
-	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	output, error = process.communicate()
-	bin_dir = str(output).split('/')[:-1]
-	if bin_dir[0] == "b'": bin_dir = bin_dir[1:]
-	bin_dir = '/' + "/".join(bin_dir)
-
 	bashCommand = "rm {}/{}".format(bin_dir, program_name)
 	try: 
 		process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)

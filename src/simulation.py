@@ -33,7 +33,7 @@ def simulation(current_dir, input_file_name=False):
 
 	pos, vel, cell_dim, param = setup.import_files(sim_dir, file_names, param)
 
-	n_dof = param['n_dim'] * (param['n_bead'] - 1) 
+	n_dof = param['n_dim'] * param['n_bead'] 
 
 	tot_pos = np.zeros((n_frames, param['n_bead'] + 1, param['n_dim']))
 	tot_vel = np.zeros((n_frames, param['n_bead'], param['n_dim']))
