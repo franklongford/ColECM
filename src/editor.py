@@ -138,7 +138,7 @@ def editor(current_dir, input_file_name=False):
 	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
 
 	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
-	print(" Loading restart file {}.npy".format(sim_dir + file_names['restart_file_name']))
+	print("\n Loading restart file {}.npy\n".format(sim_dir + file_names['restart_file_name']))
 	restart = ut.load_npy(sim_dir + file_names['restart_file_name'])
 	pos = restart[0]
 	vel = restart[1]

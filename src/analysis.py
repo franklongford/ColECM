@@ -9,6 +9,7 @@ Last Modified: 19/04/2018
 """
 
 import numpy as np
+import scipy as sp
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as plt3d
 import matplotlib.animation as animation
@@ -545,6 +546,7 @@ def fourier_alignment_analysis(image_shg, area, n_sample):
 
 	pad = int(area / 2 - 1)
 
+	"""
 	"Calculate distances between grid points"
 	grid = np.mgrid[-pad//2:pad//2, -pad//2:pad//2]
 	q2_grid =  np.sum(grid**2, axis=0)
@@ -561,8 +563,49 @@ def fourier_alignment_analysis(image_shg, area, n_sample):
 
 	int_q = np.zeros(the_array.shape)
 	n_bins = int_q.size
+	"""
 
-	print(the_array)
+	cut_image = image_shg[0, 0: 2*pad, 0: 2*pad]
+
+	image_fft =np.fft.fft2(cut_image)
+	image_fft[0][0] = 0
+	image_fft = np.fft.fftshift(image_fft)
+
+	fft_angle = np.angle(image_fft, deg=True)
+	angles = np.unique(fft_angle)
+	int_q = np.zeros(angles.shape)
+	
+	n_bins = int_q.size
+
+	"""
+	fft_angle_2 = np.imag(np.log(image_fft / np.sqrt(image_fft*np.conj(image_fft))))
+	int_q_2 = np.zeros(angles.shape)
+
+	for i in range(n_bins):
+		indices = np.where(fft_angle == angles[i])
+		coeffs = image_fft[indices]
+		int_q[i] += np.sum(np.sqrt(coeffs*np.conj(coeffs).real)) / (360 * n_frame * n_sample)
+		int_q_2[i] += np.sum(np.sqrt(coeffs.real**2)) / (360 * n_frame * n_sample)
+
+	plt.close('all')
+	plt.figure(0)
+	plt.imshow(cut_image, cmap='bwr')
+	plt.colorbar()
+	plt.figure(1)
+	plt.imshow(image_fft.real, cmap='bwr')
+	plt.colorbar()
+	plt.figure(2)
+	plt.imshow(fft_angle, cmap='bwr')
+	plt.colorbar()
+	plt.figure(3)
+	plt.imshow(fft_angle_2, cmap='bwr')
+	plt.colorbar()
+	plt.figure(4)
+	plt.plot(angles, int_q)
+	plt.figure(5)
+	plt.plot(angles, int_q_2)
+	plt.show()
+	#"""
 
 	for n in range(n_sample):
 
@@ -575,23 +618,16 @@ def fourier_alignment_analysis(image_shg, area, n_sample):
 					 start_x-pad: start_x+pad]
 
 		for frame in range(n_frame):
-	
-			image_fft = np.fft.fftshift(np.fft.fft2(cut_image[frame]))
-			#fft_angle = np.angle(image_fft)
-			#angles = np.unique(fft_angle)			
 
-			"""
-			plt.close('all')
-			plt.imshow(image_fft.real, cmap='binary')
-			plt.colorbar()
-			plt.show()
-			"""
+			image_fft = np.fft.fft2(cut_image[frame])
+			image_fft[0][0] = 0
+			image_fft = np.fft.fftshift(image_fft)			
 
-			for i in range(1, n_bins-1):
-				indices = np.where(the_grid == the_array[i])
-				int_q[i] += np.sum(image_fft[indices].real**2) / (4 * pad**2 * n_frame * n_sample)
+			for i in range(n_bins):
+				indices = np.where(fft_angle == angles[i])
+				int_q[i] += np.sum(np.abs(image_fft[indices])) / (360 * n_frame * n_sample)
 
-	return the_array, int_q
+	return angles, int_q
 	
 
 def get_fibre_vectors(pos, cell_dim, param):
