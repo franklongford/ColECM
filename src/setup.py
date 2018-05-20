@@ -625,7 +625,7 @@ def equilibrate_pressure(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thr
 	return pos, vel, cell_dim
 
 
-def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, thresh=5E-2):
+def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, inc=0.1, thresh=5E-2):
 	"""
 	equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
 
@@ -672,7 +672,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg
 	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg
 
-	sqrt_dt = np.sqrt(param['dt'])
+	sqrt_dt = np.sqrt(param['dt'] / 2)
 	n_dof = param['n_dim'] * param['n_bead'] 
 	vel = np.zeros(pos.shape)
 
@@ -684,16 +684,16 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	kBT_array = [kBT]
 	optimising = True
 	ref_kBT = param['kBT']
-	param['kBT'] = 0.1
+	param['kBT'] = inc
 	param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
 
-	print(" Starting kBT:    {:>10.4f}\n Reference kBT:   {:>10.4f}".format(kBT, param['kBT']))
-	print(" {:^18s} | {:^18s} ".format('Step', 'Ref kBT', 'kBT'))
-	print(" " + "-" * 40)
+	print(" Starting kBT:    {:>10.4f}\n Reference kBT:   {:>10.4f}\n".format(kBT, param['kBT']))
+	print(" {:^18s} | {:^18s} | {:^18s}".format('Step', 'Ref kBT', 'kBT'))
+	print(" " + "-" * 60)
 
 	while optimising:
 		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
-			verlet_list_rc, bond_beads, dist_index, r_index, param['dt'], sqrt_dt, cell_dim)
+			verlet_list_rc, bond_beads, dist_index, r_index, param['dt']/2, sqrt_dt, cell_dim)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2) = sim_state
 
@@ -713,7 +713,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 			kBT_array = [kBT]
 			print(" {:18d} | {:>18.4f} | {:>18.4f}".format(step, param['kBT'], av_kBT))
 			if abs(av_kBT - param['kBT']) <= thresh:
-				param['kBT'] += 0.1
+				param['kBT'] += inc
 				param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
 				if ref_kBT <= param['kBT']: optimising = False
 
