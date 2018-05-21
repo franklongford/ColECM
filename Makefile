@@ -1,6 +1,6 @@
 PYTHON=python
 PIP=pip
-BIN=~/.conda/envs/python_3/bin
+#BIN=~/local/usr/bin "Enter binary folder here"
 
 NAME=ColECM
 

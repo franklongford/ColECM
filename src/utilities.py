@@ -319,7 +319,7 @@ def unit_vector(vector, axis=-1):
 	"""
 
 	vector = np.array(vector)
-	magnitude_2 = np.sum(vector.T**2, axis=axis)
+	magnitude_2 = np.resize(np.sum(vector**2, axis=axis), vector.shape)
 	u_vector = np.sqrt(vector**2 / magnitude_2) * np.sign(vector)
 
 	return u_vector

@@ -13,9 +13,6 @@ import sys, os, pickle
 
 import utilities as ut
 
-SQRT3 = np.sqrt(3)
-SQRT2 = np.sqrt(2)
-
 
 def cos_sin_theta(vector, r_vector):
 	"""

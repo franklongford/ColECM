@@ -144,11 +144,8 @@ def create_image(pos, std, n_xyz, r):
 	Parameter
 	---------
 
-	pos_x:  array_like (float), shape=(n_bead)
-		Bead position along x dimension
-
-	pos_y:  array_like (float), shape=(n_bead)
-		Bead position along y dimension
+	pos:  array_like (float), shape=(n_bead)
+		Bead positions along n_dim dimension
 
 	std:  float
 		Standard deviation of Gaussian distribution
@@ -291,9 +288,9 @@ def fibril_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 	return dx_grid, dy_grid
 
 
-def make_png(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD'):
+def make_png(file_name, fig_dir, image, bonds, res, sharp, cell_dim, itype='MD'):
 	"""
-	make_gif(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD')
+	make_gif(file_name, fig_dir, image, bond, res, sharp, cell_dim, itype='MD')
 
 	Create a png out of image data
 
@@ -329,6 +326,7 @@ def make_png(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD'):
 		if n_dim == 2:
 			fig, ax = plt.subplots(figsize=(cell_dim[0]/4, cell_dim[1]/4))
 			plt.scatter(image[0], image[1])
+			for bond in bonds:plt.plot(image[0][bond], image[1][bond], linestyle='dashed')
 			plt.xlim(0, cell_dim[0])
 			plt.ylim(0, cell_dim[1])
 		elif n_dim == 3:
@@ -349,9 +347,9 @@ def make_png(file_name, fig_dir, image, res, sharp, cell_dim, itype='MD'):
 	plt.close()
 
 
-def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD'):
+def make_gif(file_name, fig_dir, gif_dir, n_frame, images, param, cell_dim, itype='MD'):
 	"""
-	make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim, itype='MD')
+	make_gif(file_name, fig_dir, gif_dir, n_frame, images, bond_matrix, res, sharp, cell_dim, itype='MD')
 
 	Create a gif out of a series n_frame png figures
 
@@ -390,14 +388,15 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, res, sharp, cell_dim,
 	import imageio
 
 	image_list = []
-	file_name_plot = '{}_{}_{}'.format(file_name, res, sharp)
-
+	file_name_plot = '{}_{}_{}'.format(file_name, param['res'], param['sharp'])
+	indices = np.arange(param['n_bead']).reshape((param['n_fibril'], param['l_fibril']))
+	
 	for frame in range(n_frame):
 		#if not os.path.exists('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame)):
-		make_png("{}_{}".format(file_name_plot, frame), gif_dir, images[frame], res, sharp, cell_dim, itype)
+		make_png("{}_{}".format(file_name_plot, frame), gif_dir, images[frame], indices, param['res'], param['sharp'], cell_dim, itype)
 		image_list.append('{}/{}_{}_ISM.png'.format(gif_dir, file_name_plot, frame))
 
-	file_name_gif = '{}_{}_{}_{}'.format(file_name, res, sharp, n_frame)
+	file_name_gif = '{}_{}_{}_{}'.format(file_name, param['res'], param['sharp'], n_frame)
 	file_path_name = '{}/{}.gif'.format(gif_dir, file_name_gif)
 
 	with imageio.get_writer(file_path_name, mode='I', duration=0.3, format='GIF') as writer:
@@ -513,9 +512,9 @@ def tensor_alignment_analysis(n_vector, area, n_sample):
 
 def fourier_alignment_analysis(image_shg, area, n_sample):
 	"""
-	alignment_analysis(image, area, n_frame, n_sample)
+	fourier_alignment_analysis(image_shg, area, n_sample)
 
-	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
+	Calculates fourier amplitude spectrum of over area^2 pixels for n_samples
 
 	Parameters
 	----------
@@ -532,11 +531,11 @@ def fourier_alignment_analysis(image_shg, area, n_sample):
 	Returns
 	-------
 
-	av_eigval:  array_like (float); shape=(n_frame, n_sample, 2)
-		Eigenvalues of average nematic tensors for n_sample areas
+	angles:  array_like (float); shape=(n_bins)
+		Angles corresponding to fourier amplitudes
 
-	av_eigvec:  array_like (float); shape=(n_frame, n_sample, 2, 2)
-		Eigenvectors of average nematic tensors for n_sample areas
+	fourier_spec:  array_like (float); shape=(n_bins)
+		Average Fouier amplitudes of FT of image_shg
 
 	"""
 
@@ -546,66 +545,18 @@ def fourier_alignment_analysis(image_shg, area, n_sample):
 
 	pad = int(area / 2 - 1)
 
-	"""
-	"Calculate distances between grid points"
-	grid = np.mgrid[-pad//2:pad//2, -pad//2:pad//2]
-	q2_grid =  np.sum(grid**2, axis=0)
-	sin_grid = grid[0] / np.sqrt(q2_grid)
-	the_grid = np.arcsin(sin_grid) * 360 / np.pi
-
-	plt.close('all')
-	plt.imshow(the_grid, cmap='binary')
-	plt.colorbar()
-	plt.show()
-
-	sin_array = np.unique(sin_grid)
-	the_array = np.unique(the_grid)
-
-	int_q = np.zeros(the_array.shape)
-	n_bins = int_q.size
-	"""
-
 	cut_image = image_shg[0, 0: 2*pad, 0: 2*pad]
 
 	image_fft =np.fft.fft2(cut_image)
 	image_fft[0][0] = 0
 	image_fft = np.fft.fftshift(image_fft)
+	average_fft = np.zeros(image_fft.shape, dtype=complex)
 
 	fft_angle = np.angle(image_fft, deg=True)
 	angles = np.unique(fft_angle)
-	int_q = np.zeros(angles.shape)
+	fourier_spec = np.zeros(angles.shape)
 	
-	n_bins = int_q.size
-
-	"""
-	fft_angle_2 = np.imag(np.log(image_fft / np.sqrt(image_fft*np.conj(image_fft))))
-	int_q_2 = np.zeros(angles.shape)
-
-	for i in range(n_bins):
-		indices = np.where(fft_angle == angles[i])
-		coeffs = image_fft[indices]
-		int_q[i] += np.sum(np.sqrt(coeffs*np.conj(coeffs).real)) / (360 * n_frame * n_sample)
-		int_q_2[i] += np.sum(np.sqrt(coeffs.real**2)) / (360 * n_frame * n_sample)
-
-	plt.close('all')
-	plt.figure(0)
-	plt.imshow(cut_image, cmap='bwr')
-	plt.colorbar()
-	plt.figure(1)
-	plt.imshow(image_fft.real, cmap='bwr')
-	plt.colorbar()
-	plt.figure(2)
-	plt.imshow(fft_angle, cmap='bwr')
-	plt.colorbar()
-	plt.figure(3)
-	plt.imshow(fft_angle_2, cmap='bwr')
-	plt.colorbar()
-	plt.figure(4)
-	plt.plot(angles, int_q)
-	plt.figure(5)
-	plt.plot(angles, int_q_2)
-	plt.show()
-	#"""
+	n_bins = fourier_spec.size
 
 	for n in range(n_sample):
 
@@ -621,37 +572,56 @@ def fourier_alignment_analysis(image_shg, area, n_sample):
 
 			image_fft = np.fft.fft2(cut_image[frame])
 			image_fft[0][0] = 0
-			image_fft = np.fft.fftshift(image_fft)			
+			average_fft += np.fft.fftshift(image_fft) / (n_frame * n_sample)	
 
-			for i in range(n_bins):
-				indices = np.where(fft_angle == angles[i])
-				int_q[i] += np.sum(np.abs(image_fft[indices])) / (360 * n_frame * n_sample)
+	for i in range(n_bins):
+		indices = np.where(fft_angle == angles[i])
+		fourier_spec[i] += np.sum(np.abs(average_fft[indices])) / 360
 
-	return angles, int_q
+	return angles, fourier_spec
 	
 
-def get_fibre_vectors(pos, cell_dim, param):
+def get_fibre_vectors(traj, cell_dim, param):
+	"""
+	get_fibre_vectors(traj, cell_dim, param)
 
+	Parameters
+	----------
+
+	traj:  array_like (float); shape=(n_images, n_dim, n_bead)
+			Array of sampled configurations from a simulation
+
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
+
+	param:
+
+	Returns
+	-------
+
+	tot_vectors, tot_mag
+
+	"""
 	
+	n_image = traj.shape[0]
 	n_bond = int(np.sum(np.triu(param['bond_matrix'])))
-
-	distances = ut.get_distances(pos, cell_dim)
 	bond_index_half = np.argwhere(np.triu(param['bond_matrix']))
 	indices_half = ut.create_index(bond_index_half)
-
 	bond_list = np.zeros((param['n_dim'], n_bond))
-	for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
-	bond_list = bond_list.T
 
-	bead_vectors = ut.unit_vector(bond_list)
-	bead_vectors = np.sum(bead_vectors.reshape(param['l_fibril']-1, param['n_fibril'], 2), axis=0)
-	bead_matrices = np.hstack((bead_vectors, np.flip(bead_vectors, 1)))
-	bead_matrices *= np.tile(np.array([1, 1, 1, -1]), (param['n_fibril'], 1))
+	tot_theta = np.zeros((n_image))
 
-	O_frame = np.mean(bead_matrices, axis=0)
-	R_frame = np.mean(bead_matrices**2, axis=0)
+	for image, pos in enumerate(traj):
 
-	return O_frame, R_frame
+		distances = ut.get_distances(pos.T, cell_dim)
+		for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
+
+		bead_vectors = ut.unit_vector(bond_list.T)
+		fib_vectors = np.mean(bead_vectors.reshape(param['l_fibril']-1, param['n_fibril'], 2), axis=0)
+		theta = fib_vectors.T[0] / np.sqrt(np.sum(fib_vectors**2, axis=1))
+		tot_theta[image] += np.mean(np.arccos(theta))
+
+	return tot_theta
 
 
 def animate(n):
@@ -782,15 +752,26 @@ def analysis(current_dir, input_file_name=False):
 		dx_shg = np.array([dx_shg[i] for i in range(0, n_frame, skip)])
 		dy_shg = np.array([dy_shg[i] for i in range(0, n_frame, skip)])
 
-	O_total = np.zeros(param['n_dim']**2)
-	R_total = np.zeros(param['n_dim']**2)
+	tot_theta = get_fibre_vectors(image_md, cell_dim, param)
 
-	for pos in image_md: 
-		O_frame, R_frame = get_fibre_vectors(pos.T, cell_dim, param)
-		O_total += O_frame
-		R_total += R_frame
+	print('\n Mean fibril alignment = {}'.format(np.mean(tot_theta)))
 
-	print('\n Mean fibril alignment = {}'.format(R_total[-1]/n_frame))
+	print(' Creating Vector time series figure {}/{}_vec_time.png'.format(fig_dir, fig_name))
+	plt.figure(6)
+	plt.title('Vector Time Series')
+	plt.plot(tot_theta, label=fig_name)
+	plt.xlabel(r'step')
+	plt.ylabel(r'$\theta$')
+	plt.legend()
+	plt.savefig('{}/{}_vec_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Vector histogram figure {}/{}_vec_hist.png'.format(fig_dir, fig_name))
+	plt.figure(7)
+	plt.title('Vector Histogram')
+	plt.hist(tot_theta, bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'$\theta$')
+	plt.legend()
+	plt.savefig('{}/{}_vec_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	"Calculate intensity orientational vector n for each pixel"
 	n_vector = form_n_vector(dx_shg, dy_shg)
@@ -806,7 +787,7 @@ def analysis(current_dir, input_file_name=False):
 	ut.save_npy(sim_dir + anis_file_name, q)
 
 	print(' Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
-	plt.figure(6)
+	plt.figure(8)
 	plt.title('Anisotropy Time Series')
 	plt.plot(np.mean(q, axis=1), label=fig_name)
 	plt.xlabel(r'step')
@@ -815,7 +796,7 @@ def analysis(current_dir, input_file_name=False):
 	plt.savefig('{}/{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	print(' Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
-	plt.figure(7)
+	plt.figure(9)
 	plt.title('Anisotropy Histogram')
 	plt.hist(np.mean(q, axis=1), bins='auto', density=True, label=fig_name)
 	plt.xlabel(r'Anisotropy')
@@ -823,19 +804,26 @@ def analysis(current_dir, input_file_name=False):
 	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	#"""
-	the_array, int_q = fourier_alignment_analysis(image_shg, area, n_sample)
+	angles, fourier_spec = fourier_alignment_analysis(image_shg, area, n_sample)
 
-	print('Creating Fouier Angle Spectrum figure {}/{}_fourier.png'.format(fig_dir, fig_name))
-	plt.figure(8)
+	angles = angles[len(angles)//2:]
+	fourier_spec = fourier_spec[len(fourier_spec)//2:]
+
+	print('\n Range of Fourier Amplitudes = {}'.format(np.max(fourier_spec)-np.min(fourier_spec)))
+	print(' Std Dev of Fourier Amplitudes = {}'.format(np.std(fourier_spec)))
+
+	print(' Creating Fouier Angle Spectrum figure {}/{}_fourier.png'.format(fig_dir, fig_name))
+	plt.figure(10)
 	plt.title('Fourier Angle Spectrum')
-	plt.plot(the_array, int_q, label=fig_name)
+	plt.plot(angles, fourier_spec, label=fig_name)
 	plt.xlabel(r'Angle (deg)')
 	plt.ylabel(r'Amplitude')
 	plt.legend()
 	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
 	#"""
 	
-	print('Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
-	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, res, sharp, l_conv * cell_dim, 'SHG')
-	make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * l_conv, res, sharp, l_conv * cell_dim, 'MD')
+	print('\n Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
+	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, param, l_conv * cell_dim, 'SHG')
+	print(' Making Simulation MD Gif {}/{}.gif'.format(fig_dir, fig_name))
+	make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * l_conv, param, l_conv * cell_dim, 'MD')
 

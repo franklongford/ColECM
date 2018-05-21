@@ -64,6 +64,17 @@ Main program and analysis can be run via the following commands:
 
 You can run both modules by calling ``ColECM simulation analysis [flags]``
 
+3) ``ColECM editor [flags]``
+
+	Simulation editor
+	Flags are optional and can be entered in the command line or selected later during the analysis process.
+
+		-param	Name of simulation parameter file
+		-rst	Name of simulation restart file
+		-nrepx	Number of simulation cells to repeat in x dimension
+		-nrepy	Number of simulation cells to repeat in y dimension
+		-nrepz	Number of simulation cells to repeat in z dimension (3D only)
+
 Defaults
 --------
 
@@ -140,12 +151,14 @@ Below are some examples:
 
 	Will run and analyse a 3D simulation using the default parameter settings, usually lasing 10-20 seconds depending on system architecture.
 
-2)  ``ColECM analysis -pos test_3D -param test_3D``
+3)  ``ColECM analysis -pos test_3D -param test_3D``
 
 	Will analyse a 3D simulation as defined by position and parameter file names using the default parameter settings.
 
-2)  ``ColECM analysis -pos test_3D -param test_3D -res 10 -sharp 4``
+4)  ``ColECM analysis -pos test_3D -param test_3D -res 10 -sharp 4``
 
 	Will analyse a 3D simulation as defined by position and parameter file names using increased image resolution and sharpness.
 
- 
+5)  ``ColECM editor -rst test_3D -param test_3D -nrepx 2 -nrepy 3``
+
+	Will take in ``test_3D`` restart file any create a new system by repeating unit cell x2 in x dimension and x3 in y dimension.

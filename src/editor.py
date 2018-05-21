@@ -145,13 +145,17 @@ def editor(current_dir, input_file_name=False):
 	cell_dim = pos[-1]
 	pos = pos[:-1]
 
-	if ('-nrepx' in sys.argv): n_rep_x = int(sys.argv[sys.argv.index('-nrepx') + 1])
-	if ('-nrepy' in sys.argv): n_rep_y = int(sys.argv[sys.argv.index('-nrepy') + 1])
-	if ('-nrepz' in sys.argv): n_rep_z = int(sys.argv[sys.argv.index('-nrepz') + 1])
+	if ('-nrepx' in sys.argv): n_rep_x = int(sys.argv[sys.argv.index('-nrepx') + 1]) + 1
+	else: n_rep_x = 1
+	if ('-nrepy' in sys.argv): n_rep_y = int(sys.argv[sys.argv.index('-nrepy') + 1]) + 1
+	else: n_rep_y = 1
+	if ('-nrepz' in sys.argv): n_rep_z = int(sys.argv[sys.argv.index('-nrepz') + 1]) + 1
+	else: n_rep_z = 1
 
 	pos, vel, cell_dim, param = repeat_pos_array(pos, vel, cell_dim, param, n_rep_x, n_rep_y)
 	
 	pos, vel = setup.equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
+	pos, vel, cell_dim = setup.equilibrate_density(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
 
 	print(" Saving parameter file {}".format(file_names['param_file_name']))
 	pickle.dump(param, open(sim_dir + file_names['param_file_name'] + '.pkl', 'wb'))
