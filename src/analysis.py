@@ -332,7 +332,7 @@ def make_png(file_name, fig_dir, image, bonds, res, sharp, cell_dim, itype='MD')
 		elif n_dim == 3:
 			fig = plt.figure(figsize=(cell_dim[0]/4, cell_dim[1]/4))
 			ax = plt3d.Axes3D(fig)
-			ax.scatter(image[0], image[1], image[2], s=2*vdw_param[0]*res / l_conv, zdir='y')
+			ax.scatter(image[0], image[1], image[2], zdir='y')
 			ax.set_xlim3d([0.0, cell_dim[0]])
 			ax.set_ylim3d([0.0, cell_dim[2]])
 			ax.set_zlim3d([0.0, cell_dim[1]])
@@ -609,19 +609,23 @@ def get_fibre_vectors(traj, cell_dim, param):
 	indices_half = ut.create_index(bond_index_half)
 	bond_list = np.zeros((param['n_dim'], n_bond))
 
-	tot_theta = np.zeros((n_image))
+	tot_mag = np.zeros((n_image, param['n_fibril']))
+	tot_theta = np.zeros((n_image, param['n_fibril']))
 
 	for image, pos in enumerate(traj):
 
 		distances = ut.get_distances(pos.T, cell_dim)
 		for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
 
-		bead_vectors = ut.unit_vector(bond_list.T)
-		fib_vectors = np.mean(bead_vectors.reshape(param['l_fibril']-1, param['n_fibril'], 2), axis=0)
-		theta = fib_vectors.T[0] / np.sqrt(np.sum(fib_vectors**2, axis=1))
-		tot_theta[image] += np.mean(np.arccos(theta))
+		bead_vectors = bond_list.T
+		fib_vectors = np.sum(bead_vectors.reshape(param['l_fibril']-1, param['n_fibril'], 2), axis=0)
+		mag_vectors = np.sqrt(np.sum(fib_vectors**2, axis=1))
+		cos_theta = fib_vectors.T[1] / mag_vectors
 
-	return tot_theta
+		tot_theta[image] += np.arccos(abs(cos_theta)) * 360 / np.pi
+		tot_mag[image] += mag_vectors / (param['l_fibril'] * param['bond_r0'])
+
+	return tot_theta, tot_mag
 
 
 def animate(n):
@@ -642,26 +646,25 @@ def analysis(current_dir, input_file_name=False):
 
 	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
 
-	vdw_param = [param['vdw_sigma'], param['vdw_epsilon']]
 	rc = param['rc']
 	l_conv = param['l_conv']
 	bond_matrix = param['bond_matrix']
 	kBT = param['kBT']
 
-	res = param['res']
-	sharp = param['sharp']
-	skip = param['skip']
+	keys = ['l_conv', 'res', 'sharp', 'skip']
 
-	print(" Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
+	print("\n Analysis Parameters found:")
+	for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
+
+	print("\n Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
 	tot_energy, tot_temp, tot_press = ut.load_npy(sim_dir + file_names['output_file_name'])
 
 	print(" Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
 	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
 
 	n_frame = tot_pos.shape[0]
-	n_bead = tot_pos.shape[1]
 	cell_dim = tot_pos[0][-1]
-	n_xyz = tuple(np.array(cell_dim * l_conv * res, dtype=int))
+	n_xyz = tuple(np.array(cell_dim * param['l_conv'] * param['res'], dtype=int))
 
 	gif_dir = current_dir + '/gif'
 	if not os.path.exists(gif_dir): os.mkdir(gif_dir)
@@ -673,7 +676,7 @@ def analysis(current_dir, input_file_name=False):
 	print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
 	plt.figure(0)
 	plt.title('Energy Time Series')
-	plt.plot(tot_energy * param['l_fibril'] / n_bead, label=fig_name)
+	plt.plot(tot_energy * param['l_fibril'] / param['n_bead'], label=fig_name)
 	plt.xlabel(r'step')
 	plt.ylabel(r'Energy per fibril')
 	plt.legend()
@@ -682,7 +685,7 @@ def analysis(current_dir, input_file_name=False):
 	print(' Creating Energy histogram figure {}/{}_energy_hist.png'.format(fig_dir, fig_name))
 	plt.figure(1)
 	plt.title('Energy Histogram')
-	plt.hist(tot_energy * param['l_fibril'] / n_bead, bins='auto', density=True, label=fig_name)
+	plt.hist(tot_energy * param['l_fibril'] / param['n_bead'], bins='auto', density=True, label=fig_name)
 	plt.xlabel(r'Energy per fibril')
 	plt.legend()
 	plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
@@ -725,53 +728,62 @@ def analysis(current_dir, input_file_name=False):
 	n_image = int(n_frame / param['skip'])
 	sample_l = 50
 	n_sample = 1
-	area = int(np.min([sample_l, np.min(cell_dim[:2]) * l_conv]) * res)
+	area = int(np.min([sample_l, np.min(cell_dim[:2]) * param['l_conv']]) * param['res'])
+	conv = param['l_conv'] / param['sharp'] * param['res']
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame)], 2, 1)
 
-	image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_image_shg'.format(n_frame, res, sharp)
-	dx_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dx_shg'.format(n_frame, res, sharp)
-	dy_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dy_shg'.format(n_frame, res, sharp)
+	image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_image_shg'.format(n_frame, param['res'], param['sharp'])
+	dx_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dx_shg'.format(n_frame, param['res'], param['sharp'])
+	dy_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dy_shg'.format(n_frame, param['res'], param['sharp'])
 
-	try:
-		image_shg = ut.load_npy(sim_dir + image_file_name, range(0, n_frame, skip))	
-		dx_shg = ut.load_npy(sim_dir + dx_file_name, range(0, n_frame, skip))
-		dy_shg = ut.load_npy(sim_dir + dy_file_name, range(0, n_frame, skip))
+	ow_shg = ('-ow_shg' in sys.argv)
+
+	if not ow_shg:
+		try:
+			image_shg = ut.load_npy(sim_dir + image_file_name, range(0, n_frame, param['skip']))	
+			dx_shg = ut.load_npy(sim_dir + dx_file_name, range(0, n_frame, param['skip']))
+			dy_shg = ut.load_npy(sim_dir + dy_file_name, range(0, n_frame, param['skip']))
+		except: ow_shg = True
 	
-	except:
+	if ow_shg:
 		"Generate Gaussian convoluted images and intensity derivatives"
-		image_shg, dx_shg, dy_shg = shg_images(image_md, 2 * vdw_param[0] * l_conv / sharp * res, 
-			n_xyz, 2 * rc * l_conv / sharp * res)
+		image_shg, dx_shg, dy_shg = shg_images(image_md, param['vdw_sigma'] * conv, n_xyz, 2 * param['rc'] * conv)
 
 		print(" Saving image files {}".format(file_names['output_file_name']))
 		ut.save_npy(sim_dir + image_file_name, image_shg)
 		ut.save_npy(sim_dir + dx_file_name, dx_shg)
 		ut.save_npy(sim_dir + dy_file_name, dy_shg)
 
-		image_shg = np.array([image_shg[i] for i in range(0, n_frame, skip)])
-		dx_shg = np.array([dx_shg[i] for i in range(0, n_frame, skip)])
-		dy_shg = np.array([dy_shg[i] for i in range(0, n_frame, skip)])
+		image_shg = np.array([image_shg[i] for i in range(0, n_frame, param['skip'])])
+		dx_shg = np.array([dx_shg[i] for i in range(0, n_frame, param['skip'])])
+		dy_shg = np.array([dy_shg[i] for i in range(0, n_frame, param['skip'])])
 
-	tot_theta = get_fibre_vectors(image_md, cell_dim, param)
+	tot_theta, tot_mag = get_fibre_vectors(image_md, cell_dim, param)
+	
+	hist, bin_edges = np.histogram(tot_theta.flatten(), bins='auto', density=True)
 
-	print('\n Mean fibril alignment = {}'.format(np.mean(tot_theta)))
+	print('\n Modal Vector angle  = {:>6.4f}'.format(bin_edges[np.argmax(hist)]))
+	print(' Mean Fibril RMS = {:>6.4f}'.format(np.mean(tot_mag)))
+	print(' Expected Random Walk RMS = {:>6.4f}'.format(1. / np.sqrt(param['l_fibril'] * param['bond_r0'])))
 
-	print(' Creating Vector time series figure {}/{}_vec_time.png'.format(fig_dir, fig_name))
-	plt.figure(6)
-	plt.title('Vector Time Series')
-	plt.plot(tot_theta, label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'$\theta$')
-	plt.legend()
-	plt.savefig('{}/{}_vec_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Vector histogram figure {}/{}_vec_hist.png'.format(fig_dir, fig_name))
+	print(' Creating Vector Magnitude histogram figure {}/{}_vec_mag_hist.png'.format(fig_dir, fig_name))
 	plt.figure(7)
-	plt.title('Vector Histogram')
-	plt.hist(tot_theta, bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'$\theta$')
+	plt.title('Vector Magnitude Histogram')
+	plt.hist(tot_mag.flatten(), bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'$|R|$')
+	plt.axis([0, 2.0, 0, 3.0])
 	plt.legend()
-	plt.savefig('{}/{}_vec_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.savefig('{}/{}_vec_mag_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Vector Angular histogram figure {}/{}_vec_ang_hist.png'.format(fig_dir, fig_name))
+	plt.figure(8)
+	plt.title('Vector Angle Histogram')
+	plt.hist(tot_theta.flatten(), bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'$\theta$')
+	plt.axis([0, 180, 0, 0.05])
+	plt.legend()
+	plt.savefig('{}/{}_vec_ang_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	"Calculate intensity orientational vector n for each pixel"
 	n_vector = form_n_vector(dx_shg, dy_shg)
@@ -781,13 +793,13 @@ def analysis(current_dir, input_file_name=False):
 	q = reorder_array(eigval_shg)
 	q = q[1] - q[0]
 
-	print('\n Mean anistoropy = {}'.format(np.mean(q)))
+	print('\n Mean anistoropy = {:>6.4f}'.format(np.mean(q)))
 	anis_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_anis'
 	print(" Saving anisotropy file {}".format(file_names['output_file_name']))
 	ut.save_npy(sim_dir + anis_file_name, q)
 
 	print(' Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
-	plt.figure(8)
+	plt.figure(9)
 	plt.title('Anisotropy Time Series')
 	plt.plot(np.mean(q, axis=1), label=fig_name)
 	plt.xlabel(r'step')
@@ -796,34 +808,35 @@ def analysis(current_dir, input_file_name=False):
 	plt.savefig('{}/{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	print(' Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
-	plt.figure(9)
+	plt.figure(10)
 	plt.title('Anisotropy Histogram')
 	plt.hist(np.mean(q, axis=1), bins='auto', density=True, label=fig_name)
 	plt.xlabel(r'Anisotropy')
 	plt.legend()
 	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	#"""
 	angles, fourier_spec = fourier_alignment_analysis(image_shg, area, n_sample)
 
 	angles = angles[len(angles)//2:]
 	fourier_spec = fourier_spec[len(fourier_spec)//2:]
 
-	print('\n Range of Fourier Amplitudes = {}'.format(np.max(fourier_spec)-np.min(fourier_spec)))
-	print(' Std Dev of Fourier Amplitudes = {}'.format(np.std(fourier_spec)))
+	print('\n Modal Fourier Amplitude  = {:>6.4f}'.format(angles[np.argmax(fourier_spec)]))
+	print(' Fourier Amplitudes Range   = {:>6.4f}'.format(np.max(fourier_spec)-np.min(fourier_spec)))
+	print(' Fourier Amplitudes Std Dev = {:>6.4f}'.format(np.std(fourier_spec)))
 
 	print(' Creating Fouier Angle Spectrum figure {}/{}_fourier.png'.format(fig_dir, fig_name))
-	plt.figure(10)
+	plt.figure(11)
 	plt.title('Fourier Angle Spectrum')
 	plt.plot(angles, fourier_spec, label=fig_name)
 	plt.xlabel(r'Angle (deg)')
 	plt.ylabel(r'Amplitude')
+	plt.axis([0, 180, 0, 0.6])
 	plt.legend()
 	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
-	#"""
 	
-	print('\n Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
-	make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, param, l_conv * cell_dim, 'SHG')
-	print(' Making Simulation MD Gif {}/{}.gif'.format(fig_dir, fig_name))
-	make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * l_conv, param, l_conv * cell_dim, 'MD')
+	if ow_shg:
+		print('\n Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
+		make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, param, cell_dim * param['l_conv'], 'SHG')
+		#print(' Making Simulation MD Gif {}/{}.gif'.format(fig_dir, fig_name))
+		#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * param['l_conv]', param, cell_dim * param['l_conv]', 'MD')
 

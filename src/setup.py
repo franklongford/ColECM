@@ -49,7 +49,7 @@ def get_param_defaults():
 			'density' : 0.3,
 			'l_conv' : 3.5E-1,
 			'res' : 7.5,
-			'sharp' : 3.0,
+			'sharp' : 1.0,
 			'skip' : 1,
 			'P_0' : 1,
 			'lambda_p' : 1E-4}
@@ -283,7 +283,7 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 
 	keys = ['n_dim', 'dt', 'mass', 'vdw_sigma', 'vdw_epsilon', 'bond_r0', 'bond_k0', 'angle_theta0', 
 			'angle_k0', 'rc', 'kBT', 'gamma', 'sigma', 'l_fibril', 'n_fibril_x', 'n_fibril_y', 
-			'n_fibril_z', 'n_fibril', 'n_bead']
+			'n_fibril_z', 'n_fibril', 'n_bead', 'density']
 
 	if os.path.exists(sim_dir + file_names['param_file_name'] + '.pkl'):
 		print(" Loading parameter file {}.pkl".format(sim_dir + file_names['param_file_name']))
@@ -680,7 +680,7 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thre
 	print(" Starting pressure:     {:>10.4f}\n Max pressure:          {:>10.4f}".format(P, param['P_0']))
 	print(" Starting volume:       {:>10.4f}\n Starting temperature:  {:>10.4f}\n".format(np.prod(cell_dim), kBT))
 	print(" {:^12s} | {:^12s} | {:^12s} | {:^12s} ".format('Step', 'Av Pressure', 'Av Temperature', 'Density'))
-	print(" " + "-" * 76)
+	print(" " + "-" * 56)
 
 	while optimising:
 		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
