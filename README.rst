@@ -89,17 +89,20 @@ Simulation defaults are listed below:
 	-save_step	500
 	-mass		1
 	-vdw_sigma	1
-	-vdw_epsilon	2
-	-bond_k0		10
-	-angle_k0	10
-	-kBT		5
+	-vdw_epsilon	1
+	-bond_r0	1.122
+	-bond_k0	1
+	-angle_k0	1
+	-rc		3.0
+	-kBT		1
 	-gamma		0.5
-	-lfib		5
-	-nfibx		2
-	-nfiby		2
+	-lfib		10
+	-nfibx		3
+	-nfiby		3
 	-nfibz		1
+	-density	0.3
 	-res		7.5
-	-sharp		3
+	-sharp		1
 	-skip		1
 
 

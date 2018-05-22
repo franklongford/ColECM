@@ -30,22 +30,19 @@ def get_param_defaults():
 			'vdw_sigma' : 1,
 			'vdw_epsilon' : 1.,
 			'bond_r0' : 2.**(1./6.),
-			#'bond_r1' : 1.5 * 2.**(1./6.),
-			#'bond_rb' : 1.6 * 2.**(1./6.),
 			'bond_k0' : 1.,
-			#'bond_k1' : 50.,
 			'angle_theta0' : np.pi,
 			'angle_k0' : 1.,
 			'rc' : 3.0,
-			'kBT' : 4.,
+			'kBT' : 1.,
 			'gamma' : 0.5,
-			'sigma' : np.sqrt(0.5 * (2 - 0.5) * (4 / 1.)),
+			'sigma' : np.sqrt(0.5 * (2 - 0.5) * (1 / 1.)),
 			'n_fibril_x' : 3,
 			'n_fibril_y' : 3,
 			'n_fibril_z' : 1,
 			'n_fibril' : 9,
-			'l_fibril' : 50,
-			'n_bead' : 450,
+			'l_fibril' : 10,
+			'n_bead' : 90,
 			'density' : 0.3,
 			'l_conv' : 3.5E-1,
 			'res' : 7.5,
@@ -62,7 +59,10 @@ def get_param_defaults():
 			'vdw_sigma' : 0.35, # um
 			'vdw_epsilon' : 1.,
 			'bond_r0' : 2., # um
+			#'bond_r1' : 1.5 * 2.**(1./6.),
+			#'bond_rb' : 1.6 * 2.**(1./6.),
 			'bond_k0' : 1.,
+			#'bond_k1' : 50.,
 			'angle_theta0' : np.pi,
 			'angle_k0' : 1.,
 			'rc' : 0.07 * 3.0, # um
@@ -609,9 +609,9 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	return pos, vel
 
 
-def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2):
+def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3):
 	"""
-	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
+	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
 
 	Equilibrate density of system
 
@@ -704,7 +704,7 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thre
 		kBT_array.append(kBT)
 		den = param['n_bead'] / np.prod(cell_dim)
 
-		optimising = den <= param['density']#abs(P_diff) > thresh
+		optimising = abs(den - param['density']) > thresh
 
 		if step % 5000 == 0: 
 			av_P = np.mean(P_array)

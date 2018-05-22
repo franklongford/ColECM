@@ -62,11 +62,8 @@ def simulation(current_dir, input_file_name=False):
 	init_time_stop = time.time()
 
 	print("\n Setup complete: {:5.3f} s".format(init_time_stop - init_time_start))
-	print(" Number of beads = {}".format(param['n_bead']))
-	print(" Number of fibrils = {}".format(param['n_fibril']))
 	print(" Bead radius = {} um\n Simulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
 	print(" Cell density:     {:>10.4f} bead mass um-3".format(param['n_bead'] * param['mass'] / np.prod(cell_dim * param['l_conv'])))
-	print(" Thermostat param:  kBT = {}    gamma = {}   sigma = {}".format(param['kBT'], param['gamma'], round(param['sigma'], 3)))
 	print(" Number of Simulation steps = {}".format(param['n_step']))
 
 	sim_time_start = time.time()

@@ -772,7 +772,7 @@ def analysis(current_dir, input_file_name=False):
 	plt.title('Vector Magnitude Histogram')
 	plt.hist(tot_mag.flatten(), bins='auto', density=True, label=fig_name)
 	plt.xlabel(r'$|R|$')
-	plt.axis([0, 2.0, 0, 3.0])
+	#plt.axis([0, 2.0, 0, 3.0])
 	plt.legend()
 	plt.savefig('{}/{}_vec_mag_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
@@ -781,7 +781,7 @@ def analysis(current_dir, input_file_name=False):
 	plt.title('Vector Angle Histogram')
 	plt.hist(tot_theta.flatten(), bins='auto', density=True, label=fig_name)
 	plt.xlabel(r'$\theta$')
-	plt.axis([0, 180, 0, 0.05])
+	#plt.axis([0, 180, 0, 0.05])
 	plt.legend()
 	plt.savefig('{}/{}_vec_ang_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
@@ -830,7 +830,7 @@ def analysis(current_dir, input_file_name=False):
 	plt.plot(angles, fourier_spec, label=fig_name)
 	plt.xlabel(r'Angle (deg)')
 	plt.ylabel(r'Amplitude')
-	plt.axis([0, 180, 0, 0.6])
+	#plt.axis([0, 180, 0, 0.6])
 	plt.legend()
 	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
 	
