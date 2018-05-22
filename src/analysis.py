@@ -406,9 +406,65 @@ def make_gif(file_name, fig_dir, gif_dir, n_frame, images, param, cell_dim, ityp
 			os.remove(filename)
 
 
-def form_n_vector(dx_shg, dy_shg):
+def fibre_vector_analysis(traj, cell_dim, param):
 	"""
-	form_n_vector(dx_shg, dy_shg)
+	fibre_vector_analysis(traj, cell_dim, param)
+
+	Parameters
+	----------
+
+	traj:  array_like (float); shape=(n_images, n_dim, n_bead)
+			Array of sampled configurations from a simulation
+
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
+
+	param:
+
+	Returns
+	-------
+
+	tot_vectors, tot_mag
+
+	"""
+	
+	n_image = traj.shape[0]
+	n_bond = int(np.sum(np.triu(param['bond_matrix'])))
+	bond_index_half = np.argwhere(np.triu(param['bond_matrix']))
+	indices_half = ut.create_index(bond_index_half)
+	bond_list = np.zeros((param['n_dim'], n_bond))
+
+	#tot_mag = np.zeros((n_image, param['n_fibril']))
+	#tot_theta = np.zeros((n_image, param['n_fibril']))
+
+	tot_mag = np.zeros((n_image, n_bond))
+	tot_theta = np.zeros((n_image, n_bond))
+
+	for image, pos in enumerate(traj):
+
+		distances = ut.get_distances(pos.T, cell_dim)
+		for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
+
+		bead_vectors = bond_list.T
+		mag_vectors = np.sqrt(np.sum(bead_vectors**2, axis=1))
+		#cos_theta = bead_vectors.T[0] / mag_vectors
+		sin_theta = bead_vectors.T[1] / mag_vectors
+
+		#fib_vectors = np.sum(bead_vectors.reshape(param['l_fibril']-1, param['n_fibril'], param['n_dim']), axis=0)
+		#mag_vectors = np.sqrt(np.sum(fib_vectors**2, axis=1))
+		#cos_theta = fib_vectors.T[0] / mag_vectors
+		#sin_theta = fib_vectors.T[1] / mag_vectors
+
+		tot_theta[image] += np.arcsin(sin_theta) * 360 / np.pi
+		#tot_theta[image] += np.arccos(cos_theta) * 360 / np.pi
+		tot_mag[image] += mag_vectors / (param['l_fibril'] * param['bond_r0'])
+
+	return tot_theta, tot_mag
+
+
+def form_nematic_tensor(dx_shg, dy_shg):
+	"""
+	form_nematic_tensor(dx_shg, dy_shg)
 
 	Create local nematic tensor n for each pixel in dx_shg, dy_shg
 
@@ -450,9 +506,9 @@ def form_n_vector(dx_shg, dy_shg):
 	return n_vector
 
 
-def tensor_alignment_analysis(n_vector, area, n_sample):
+def nematic_tensor_analysis(n_vector, area, n_sample):
 	"""
-	tensor_alignment_analysis(n_vector, area, n_frame, n_sample)
+	nematic_tensor_analysis(n_vector, area, n_frame, n_sample)
 
 	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
 
@@ -510,9 +566,9 @@ def tensor_alignment_analysis(n_vector, area, n_sample):
 	return av_eigval, av_eigvec
 	
 
-def fourier_alignment_analysis(image_shg, area, n_sample):
+def fourier_transform_analysis(image_shg, area, n_sample):
 	"""
-	fourier_alignment_analysis(image_shg, area, n_sample)
+	fourier_transform_analysis(image_shg, area, n_sample)
 
 	Calculates fourier amplitude spectrum of over area^2 pixels for n_samples
 
@@ -579,53 +635,6 @@ def fourier_alignment_analysis(image_shg, area, n_sample):
 		fourier_spec[i] += np.sum(np.abs(average_fft[indices])) / 360
 
 	return angles, fourier_spec
-	
-
-def get_fibre_vectors(traj, cell_dim, param):
-	"""
-	get_fibre_vectors(traj, cell_dim, param)
-
-	Parameters
-	----------
-
-	traj:  array_like (float); shape=(n_images, n_dim, n_bead)
-			Array of sampled configurations from a simulation
-
-	cell_dim: array_like, dtype=float
-		Array with simulation cell dimensions
-
-	param:
-
-	Returns
-	-------
-
-	tot_vectors, tot_mag
-
-	"""
-	
-	n_image = traj.shape[0]
-	n_bond = int(np.sum(np.triu(param['bond_matrix'])))
-	bond_index_half = np.argwhere(np.triu(param['bond_matrix']))
-	indices_half = ut.create_index(bond_index_half)
-	bond_list = np.zeros((param['n_dim'], n_bond))
-
-	tot_mag = np.zeros((n_image, param['n_fibril']))
-	tot_theta = np.zeros((n_image, param['n_fibril']))
-
-	for image, pos in enumerate(traj):
-
-		distances = ut.get_distances(pos.T, cell_dim)
-		for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
-
-		bead_vectors = bond_list.T
-		fib_vectors = np.sum(bead_vectors.reshape(param['l_fibril']-1, param['n_fibril'], 2), axis=0)
-		mag_vectors = np.sqrt(np.sum(fib_vectors**2, axis=1))
-		cos_theta = fib_vectors.T[1] / mag_vectors
-
-		tot_theta[image] += np.arccos(abs(cos_theta)) * 360 / np.pi
-		tot_mag[image] += mag_vectors / (param['l_fibril'] * param['bond_r0'])
-
-	return tot_theta, tot_mag
 
 
 def animate(n):
@@ -643,35 +652,23 @@ def analysis(current_dir, input_file_name=False):
 	print("\n " + " " * 15 + "----Beginning Analysis----\n")
 
 	sim_dir = current_dir + '/sim/'
-
-	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
-
-	rc = param['rc']
-	l_conv = param['l_conv']
-	bond_matrix = param['bond_matrix']
-	kBT = param['kBT']
-
-	keys = ['l_conv', 'res', 'sharp', 'skip']
-
-	print("\n Analysis Parameters found:")
-	for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
-
-	print("\n Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
-	tot_energy, tot_temp, tot_press = ut.load_npy(sim_dir + file_names['output_file_name'])
-
-	print(" Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
-	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
-
-	n_frame = tot_pos.shape[0]
-	cell_dim = tot_pos[0][-1]
-	n_xyz = tuple(np.array(cell_dim * param['l_conv'] * param['res'], dtype=int))
-
 	gif_dir = current_dir + '/gif'
 	if not os.path.exists(gif_dir): os.mkdir(gif_dir)
 	fig_dir = current_dir + '/fig'
 	if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
+	ow_shg = ('-ow_shg' in sys.argv)
+	mk_gif = ('-mk_gif' in sys.argv)
+
+	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
 	fig_name = file_names['gif_file_name'].split('/')[-1]
+
+	keys = ['l_conv', 'res', 'sharp', 'skip']
+	print("\n Analysis Parameters found:")
+	for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
+
+	print("\n Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
+	tot_energy, tot_temp, tot_press = ut.load_npy(sim_dir + file_names['output_file_name'])
 
 	print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
 	plt.figure(0)
@@ -724,11 +721,17 @@ def analysis(current_dir, input_file_name=False):
 	plt.legend()
 	plt.savefig('{}/{}_press_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	
+	print("\n Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
+	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
+
+	n_frame = tot_pos.shape[0]
 	n_image = int(n_frame / param['skip'])
-	sample_l = 50
+	cell_dim = tot_pos[0][-1]
+	n_xyz = tuple(np.array(cell_dim * param['l_conv'] * param['res'], dtype=int))
+	
+	l_sample = 50
 	n_sample = 1
-	area = int(np.min([sample_l, np.min(cell_dim[:2]) * param['l_conv']]) * param['res'])
+	area_sample = int(np.min([l_sample, np.min(cell_dim[:2]) * param['l_conv']]) * param['res'])
 	conv = param['l_conv'] / param['sharp'] * param['res']
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame)], 2, 1)
@@ -736,8 +739,6 @@ def analysis(current_dir, input_file_name=False):
 	image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_image_shg'.format(n_frame, param['res'], param['sharp'])
 	dx_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dx_shg'.format(n_frame, param['res'], param['sharp'])
 	dy_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dy_shg'.format(n_frame, param['res'], param['sharp'])
-
-	ow_shg = ('-ow_shg' in sys.argv)
 
 	if not ow_shg:
 		try:
@@ -750,7 +751,7 @@ def analysis(current_dir, input_file_name=False):
 		"Generate Gaussian convoluted images and intensity derivatives"
 		image_shg, dx_shg, dy_shg = shg_images(image_md, param['vdw_sigma'] * conv, n_xyz, 2 * param['rc'] * conv)
 
-		print(" Saving image files {}".format(file_names['output_file_name']))
+		print("\n Saving image files {}".format(file_names['output_file_name']))
 		ut.save_npy(sim_dir + image_file_name, image_shg)
 		ut.save_npy(sim_dir + dx_file_name, dx_shg)
 		ut.save_npy(sim_dir + dy_file_name, dy_shg)
@@ -759,8 +760,9 @@ def analysis(current_dir, input_file_name=False):
 		dx_shg = np.array([dx_shg[i] for i in range(0, n_frame, param['skip'])])
 		dy_shg = np.array([dy_shg[i] for i in range(0, n_frame, param['skip'])])
 
-	tot_theta, tot_mag = get_fibre_vectors(image_md, cell_dim, param)
-	
+
+	"Perform Fibre Vector analysis"
+	tot_theta, tot_mag = fibre_vector_analysis(image_md, cell_dim, param)
 	hist, bin_edges = np.histogram(tot_theta.flatten(), bins='auto', density=True)
 
 	print('\n Modal Vector angle  = {:>6.4f}'.format(bin_edges[np.argmax(hist)]))
@@ -781,14 +783,15 @@ def analysis(current_dir, input_file_name=False):
 	plt.title('Vector Angle Histogram')
 	plt.hist(tot_theta.flatten(), bins='auto', density=True, label=fig_name)
 	plt.xlabel(r'$\theta$')
-	#plt.axis([0, 180, 0, 0.05])
+	plt.xlim(-180, 180)
 	plt.legend()
 	plt.savefig('{}/{}_vec_ang_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	"Calculate intensity orientational vector n for each pixel"
-	n_vector = form_n_vector(dx_shg, dy_shg)
+
+	"Perform Nematic Tensor Analysis"
+	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
 	"Sample average orientational anisotopy"
-	eigval_shg, eigvec_shg = tensor_alignment_analysis(n_vector, area, n_sample)
+	eigval_shg, eigvec_shg = nematic_tensor_analysis(n_tensor, area_sample, n_sample)
 
 	q = reorder_array(eigval_shg)
 	q = q[1] - q[0]
@@ -815,10 +818,12 @@ def analysis(current_dir, input_file_name=False):
 	plt.legend()
 	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	angles, fourier_spec = fourier_alignment_analysis(image_shg, area, n_sample)
 
-	angles = angles[len(angles)//2:]
-	fourier_spec = fourier_spec[len(fourier_spec)//2:]
+	"Perform Fourier Analysis"
+	angles, fourier_spec = fourier_transform_analysis(image_shg, area_sample, n_sample)
+
+	#angles = angles[len(angles)//2:]
+	#fourier_spec = 2 * fourier_spec[len(fourier_spec)//2:]
 
 	print('\n Modal Fourier Amplitude  = {:>6.4f}'.format(angles[np.argmax(fourier_spec)]))
 	print(' Fourier Amplitudes Range   = {:>6.4f}'.format(np.max(fourier_spec)-np.min(fourier_spec)))
@@ -830,11 +835,13 @@ def analysis(current_dir, input_file_name=False):
 	plt.plot(angles, fourier_spec, label=fig_name)
 	plt.xlabel(r'Angle (deg)')
 	plt.ylabel(r'Amplitude')
-	#plt.axis([0, 180, 0, 0.6])
+	plt.xlim(-180, 180)
 	plt.legend()
 	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	"Make Gif of SHG Images"
 	
-	if ow_shg:
+	if ow_shg or mk_gif:
 		print('\n Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
 		make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, param, cell_dim * param['l_conv'], 'SHG')
 		#print(' Making Simulation MD Gif {}/{}.gif'.format(fig_dir, fig_name))

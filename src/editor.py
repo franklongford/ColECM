@@ -98,9 +98,9 @@ def repeat_pos_array(pos, vel, cell_dim, param, n_rep_x=1, n_rep_y=1, n_rep_z=1)
 	elif param['n_dim'] == 3:
 		size_x = cell_dim[0] 
 		size_y = cell_dim[1]
-		size_y = cell_dim[2]
+		size_z = cell_dim[2]
 
-		for i in range(n_rep_z):
+		for k in range(n_rep_z):
 			for i in range(n_rep_x):
 				for j in range(n_rep_y):
 				
@@ -111,7 +111,7 @@ def repeat_pos_array(pos, vel, cell_dim, param, n_rep_x=1, n_rep_y=1, n_rep_z=1)
 					pos_z = pos.T[2][bead_list] + size_z * k
 
 					rep_pos[bead_list + param['n_bead'] * cell] += np.array((pos_x, pos_y, pos_z)).T
-					rep_vel[bead_list + param['n_bead'] * cell] += vel.T
+					rep_vel[bead_list + param['n_bead'] * cell] += vel
 
 		cell_dim *= np.array([n_rep_x, n_rep_y, n_rep_z])
 
@@ -152,7 +152,7 @@ def editor(current_dir, input_file_name=False):
 	if ('-nrepz' in sys.argv): n_rep_z = int(sys.argv[sys.argv.index('-nrepz') + 1]) + 1
 	else: n_rep_z = 1
 
-	pos, vel, cell_dim, param = repeat_pos_array(pos, vel, cell_dim, param, n_rep_x, n_rep_y)
+	pos, vel, cell_dim, param = repeat_pos_array(pos, vel, cell_dim, param, n_rep_x, n_rep_y, n_rep_z)
 	
 	pos, vel = setup.equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
 	pos, vel, cell_dim = setup.equilibrate_density(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)

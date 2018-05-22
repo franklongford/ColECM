@@ -26,6 +26,7 @@ def get_param_defaults():
 		    	'dt' : 0.004,
 			'n_step' : 10000,
 			'save_step' : 500,
+			'print_step' : 1000,
 			'mass' : 1.,
 			'vdw_sigma' : 1,
 			'vdw_epsilon' : 1.,
@@ -49,7 +50,9 @@ def get_param_defaults():
 			'sharp' : 1.0,
 			'skip' : 1,
 			'P_0' : 1,
-			'lambda_p' : 1E-4}
+			'lambda_p' : 1E-4,
+			'bond_matrix' : None,
+			'vdw_matrix' : None}
 	"""
 	defaults = {	'n_dim' : 2,
 		    	'dt' : 0.004,
@@ -80,7 +83,9 @@ def get_param_defaults():
 			'sharp' : 3.0,
 			'skip' : 1,
 			'P_0' : 1,
-			'lambda_p' : 4E-5}
+			'lambda_p' : 4E-5,
+			'bond_matrix' : None,
+			'vdw_matrix' : None}
 	"""
 
 	return defaults

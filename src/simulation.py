@@ -105,6 +105,8 @@ def simulation(current_dir, input_file_name=False):
 
 			ut.save_npy(sim_dir + file_names['restart_file_name'], (tot_pos[i], tot_vel[i]))
 
+		if step % param['print_step'] == 0:
+
 			sim_time = (time.time() - sim_time_start) * (param['n_step'] / step - 1) 
 			time_hour = int(sim_time / 60**2)
 			time_min = int((sim_time / 60) % 60)
