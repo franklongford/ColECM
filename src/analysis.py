@@ -63,78 +63,6 @@ def dx_gaussian(x, mean, std):
 	return (mean - x) / std**2 * gaussian(x, mean, std)
 
 
-def shg_images(traj, sigma, n_xyz, cut):
-	"""
-	shg_images(traj, sigma, n_xyz_md, cut)
-
-	Form a set of imitation SHG images from Gaussian convolution of a set of trajectories
-
-	Parameters
-	----------
-
-	traj:  array_like (float); shape=(n_images, n_dim, n_bead)
-		Array of sampled configurations from a simulation
-
-	sigma:  float
-		Parameter to determine variance of Guassian distribution
-
-	n_xyz:  tuple (int); shape(n_dim)
-		Number of pixels in each image dimension
-
-	cut:  float
-		Cutoff radius for convolution
-
-	Returns
-	-------
-
-	image_shg:  array_like (float); shape=(n_images, n_x, n_y)
-		Array of images corresponding to each trajectory configuration
-	"""
-
-	n_image = traj.shape[0]
-	n_dim = traj.shape[1]
-
-	image_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
-	dx_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
-	dy_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
-
-	"Calculate distances between grid points"
-	if n_dim == 2: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1]]
-	elif n_dim == 3: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1], 0:n_xyz[2]]
-
-	"Enforce periodic boundaries"
-	for i in range(n_dim): dxdydz[i] -= n_xyz[i] * np.array(2 * dxdydz[i] / n_xyz[i], dtype=int)
-
-	"Calculate radial distances"
-	r2 = np.sum(dxdydz**2, axis=0)
-
-	"Find indicies within cutoff radius"
-	cutoff = np.where(r2 <= cut**2)
-	"""
-	"Form a filter for cutoff radius"
-	filter_ = np.zeros(n_xyz)
-	filter_[cutoff] += 1
-	"""
-	"Get all non-zero radii"
-	non_zero = np.zeros(n_xyz)
-	non_zero[cutoff] += 1
-	non_zero[0][0] = 0
-
-	"Form a matrix of radial distances corresponding to filter"
-	r = np.sqrt(r2)
-	r_cut = np.zeros(n_xyz)
-	r_cut[cutoff] += np.sqrt(r2[cutoff])
-
-	for image in range(n_image):
-		sys.stdout.write(" Processing image {} out of {}\r".format(image, n_image))
-		sys.stdout.flush()
-		
-		hist, image_shg[image] = create_image(traj[image], sigma, n_xyz, r)
-		dx_shg[image], dy_shg[image] = fibril_align(hist, sigma, n_xyz, dxdydz, r_cut, non_zero)
-
-	return image_shg, dx_shg, dy_shg
-
-
 def create_image(pos, std, n_xyz, r):
 	"""
 	create_image(pos_x, pos_y, sigma, n_xyz, r)
@@ -209,9 +137,9 @@ def create_image(pos, std, n_xyz, r):
 	return histogram, image
 
 
-def fibril_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
+def fibril_align(histogram, std, n_xyz, dxdydz, r, non_zero):
 	"""
-	create_image(pos_x, pos_y, sigma, n_x, n_y, r_cut, non_zero)
+	create_image(pos_x, pos_y, sigma, n_x, n_y, r, non_zero)
 
 	Create Gaussian convoluted image from a set of bead positions
 
@@ -253,7 +181,8 @@ def fibril_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 	n_dim = len(n_xyz)
 
 	if n_dim == 3: 
-		r_cut = reorder_array(r_cut)
+		r = reorder_array(r)
+		#r_cut = reorder_array(r_cut)
 		non_zero = reorder_array(non_zero)
 		dxdydz = np.moveaxis(dxdydz, (0, 3, 1, 2), (0, 1, 2, 3))
 
@@ -264,6 +193,7 @@ def fibril_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 
 	for i, index in enumerate(indices):
 	
+		"""
 		if n_dim == 2:
 			r_cut_shift = move_array_centre(r_cut, index)
 			non_zero_shift = move_array_centre(non_zero, index)
@@ -282,10 +212,105 @@ def fibril_align(histogram, std, n_xyz, dxdydz, r_cut, non_zero):
 		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
 							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
 
+		"""
+		if n_dim == 2:
+			r_shift = move_array_centre(r, index)
+			non_zero_shift = move_array_centre(non_zero, index)
+			dx_shift = move_array_centre(dxdydz[0], index)
+			dy_shift = move_array_centre(dxdydz[1], index)
+
+		elif n_dim == 3:
+
+			r_shift = move_array_centre(r[-index[0]], index[1:])
+			non_zero_shift = move_array_centre(non_zero[-index[0]], index[1:])
+			dx_shift = move_array_centre(dxdydz[0][-index[0]], index[1:])
+			dy_shift = move_array_centre(dxdydz[1][-index[0]], index[1:])
+			
+		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
+		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
+
+		#"""
+
+
 	dx_grid = dx_grid.T
 	dy_grid = dy_grid.T
 
 	return dx_grid, dy_grid
+
+
+def shg_images(traj, sigma, n_xyz, cut):
+	"""
+	shg_images(traj, sigma, n_xyz_md, cut)
+
+	Form a set of imitation SHG images from Gaussian convolution of a set of trajectories
+
+	Parameters
+	----------
+
+	traj:  array_like (float); shape=(n_images, n_dim, n_bead)
+		Array of sampled configurations from a simulation
+
+	sigma:  float
+		Parameter to determine variance of Guassian distribution
+
+	n_xyz:  tuple (int); shape(n_dim)
+		Number of pixels in each image dimension
+
+	cut:  float
+		Cutoff radius for convolution
+
+	Returns
+	-------
+
+	image_shg:  array_like (float); shape=(n_images, n_x, n_y)
+		Array of images corresponding to each trajectory configuration
+	"""
+
+	n_image = traj.shape[0]
+	n_dim = traj.shape[1]
+
+	image_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
+	dx_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
+	dy_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
+
+	"Calculate distances between grid points"
+	if n_dim == 2: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1]]
+	elif n_dim == 3: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1], 0:n_xyz[2]]
+
+	"Enforce periodic boundaries"
+	for i in range(n_dim): dxdydz[i] -= n_xyz[i] * np.array(2 * dxdydz[i] / n_xyz[i], dtype=int)
+
+	"Calculate radial distances"
+	r2 = np.sum(dxdydz**2, axis=0)
+
+	"Find indicies within cutoff radius"
+	cutoff = np.where(r2 <= cut**2)
+	"""
+	"Form a filter for cutoff radius"
+	filter_ = np.zeros(n_xyz)
+	filter_[cutoff] += 1
+	"""
+	"Get all non-zero radii"
+	non_zero = np.zeros(n_xyz)
+	non_zero[cutoff] += 1
+	non_zero[0][0] = 0
+
+	"Form a matrix of radial distances corresponding to filter"
+	r = np.sqrt(r2)
+	#r_cut = np.zeros(n_xyz)
+	#r_cut[cutoff] += np.sqrt(r2[cutoff])
+
+	for image in range(n_image):
+		sys.stdout.write(" Processing image {} out of {}\r".format(image, n_image))
+		sys.stdout.flush()
+		
+		hist, image_shg[image] = create_image(traj[image], sigma, n_xyz, r)
+		dx_shg[image], dy_shg[image] = fibril_align(hist, sigma, n_xyz, dxdydz, r, non_zero)
+
+	return image_shg, dx_shg, dy_shg
+
 
 
 def make_png(file_name, fig_dir, image, bonds, res, sharp, cell_dim, itype='MD'):
@@ -330,6 +355,7 @@ def make_png(file_name, fig_dir, image, bonds, res, sharp, cell_dim, itype='MD')
 			plt.xlim(0, cell_dim[0])
 			plt.ylim(0, cell_dim[1])
 		elif n_dim == 3:
+			plt.close('all')
 			fig = plt.figure(figsize=(cell_dim[0]/4, cell_dim[1]/4))
 			ax = plt3d.Axes3D(fig)
 			ax.scatter(image[0], image[1], image[2], zdir='y')
@@ -434,10 +460,10 @@ def fibre_vector_analysis(traj, cell_dim, param):
 	indices_half = ut.create_index(bond_index_half)
 	bond_list = np.zeros((param['n_dim'], n_bond))
 
-	#tot_mag = np.zeros((n_image, param['n_fibril']))
+	tot_mag = np.zeros((n_image, param['n_fibril']))
 	#tot_theta = np.zeros((n_image, param['n_fibril']))
 
-	tot_mag = np.zeros((n_image, n_bond))
+	#tot_mag = np.zeros((n_image, n_bond))
 	tot_theta = np.zeros((n_image, n_bond))
 
 	for image, pos in enumerate(traj):
@@ -450,14 +476,15 @@ def fibre_vector_analysis(traj, cell_dim, param):
 		#cos_theta = bead_vectors.T[0] / mag_vectors
 		sin_theta = bead_vectors.T[1] / mag_vectors
 
-		#fib_vectors = np.sum(bead_vectors.reshape(param['l_fibril']-1, param['n_fibril'], param['n_dim']), axis=0)
-		#mag_vectors = np.sqrt(np.sum(fib_vectors**2, axis=1))
+		norm_vectors = bead_vectors / np.resize(mag_vectors, bead_vectors.shape)
+		fib_vectors = np.sum(norm_vectors.reshape(param['l_fibril']-1, param['n_fibril'], param['n_dim']), axis=0)
+		mag_vectors = np.sqrt(np.sum(fib_vectors**2, axis=1))
 		#cos_theta = fib_vectors.T[0] / mag_vectors
 		#sin_theta = fib_vectors.T[1] / mag_vectors
 
 		tot_theta[image] += np.arcsin(sin_theta) * 360 / np.pi
 		#tot_theta[image] += np.arccos(cos_theta) * 360 / np.pi
-		tot_mag[image] += mag_vectors / (param['l_fibril'] * param['bond_r0'])
+		tot_mag[image] += mag_vectors / (param['l_fibril']-1)
 
 	return tot_theta, tot_mag
 
@@ -599,11 +626,11 @@ def fourier_transform_analysis(image_shg, area, n_sample):
 	n_y = image_shg.shape[1]
 	n_x = image_shg.shape[2]
 
-	pad = int(area / 2 - 1)
+	pad = area // 2
 
-	cut_image = image_shg[0, 0: 2*pad, 0: 2*pad]
+	cut_image = image_shg[0, : area, : area]
 
-	image_fft =np.fft.fft2(cut_image)
+	image_fft = np.fft.fft2(cut_image)
 	image_fft[0][0] = 0
 	image_fft = np.fft.fftshift(image_fft)
 	average_fft = np.zeros(image_fft.shape, dtype=complex)
@@ -635,6 +662,75 @@ def fourier_transform_analysis(image_shg, area, n_sample):
 		fourier_spec[i] += np.sum(np.abs(average_fft[indices])) / 360
 
 	return angles, fourier_spec
+
+
+def plot_gallery(n, title, images, n_col, n_row, image_shape):
+
+	plt.figure(n, figsize=(2. * n_col, 2.26 * n_row))
+	plt.suptitle(title, size=16)
+
+	for i, comp in enumerate(images):
+		plt.subplot(n_row, n_col, i + 1)
+		vmax = max(comp.max(), -comp.min())
+		plt.imshow(comp.reshape(image_shape), cmap=plt.cm.gray,
+			   interpolation='nearest',
+			   vmin=-vmax, vmax=vmax)
+		plt.xticks(())
+		plt.yticks(())
+
+	plt.subplots_adjust(0.01, 0.05, 0.99, 0.93, 0.04, 0.)
+
+
+def nmf_analysis(image_shg, area, n_sample, n_components):
+	"""
+	nmf_analysis(image_shg, area, n_sample)
+
+	Calculates non-negative matrix factorisation of over area^2 pixels for n_samples
+
+	Parameters
+	----------
+
+	image_shg:  array_like (float); shape=(n_images, n_x, n_y)
+		Array of images corresponding to each trajectory configuration
+
+	area:  int
+		Unit length of sample area
+
+	n_sample:  int
+		Number of randomly selected areas to sample
+
+
+	Returns
+	-------
+
+	"""
+
+	from sklearn.decomposition import NMF
+	from sklearn.datasets import fetch_olivetti_faces
+
+	n_frame = image_shg.shape[0]
+	n_y = image_shg.shape[1]
+	n_x = image_shg.shape[2]
+	rng = np.random.RandomState(0)
+
+	model = NMF(n_components=n_components, init='random', random_state=0)
+	pad = area // 2
+
+	for n in range(n_sample):
+
+		try: start_x = np.random.randint(pad, n_x - pad)
+		except: start_x = pad-1
+		try: start_y = np.random.randint(pad, n_y - pad) 
+		except: start_y = pad-1
+
+		cut_image = image_shg[:, start_y-pad: start_y+pad, 
+					 start_x-pad: start_x+pad].reshape(n_frame, area**2)
+
+		model.fit(cut_image)
+
+		nmf_components = model.components_
+
+	return nmf_components
 
 
 def animate(n):
@@ -729,12 +825,36 @@ def analysis(current_dir, input_file_name=False):
 	cell_dim = tot_pos[0][-1]
 	n_xyz = tuple(np.array(cell_dim * param['l_conv'] * param['res'], dtype=int))
 	
-	l_sample = 50
-	n_sample = 1
-	area_sample = int(np.min([l_sample, np.min(cell_dim[:2]) * param['l_conv']]) * param['res'])
 	conv = param['l_conv'] / param['sharp'] * param['res']
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame)], 2, 1)
+
+	"Perform Fibre Vector analysis"
+	tot_theta, tot_mag = fibre_vector_analysis(image_md, cell_dim, param)
+	hist, bin_edges = np.histogram(tot_theta.flatten(), bins='auto', density=True)
+
+	print('\n Modal Vector angle  = {:>6.4f}'.format(bin_edges[np.argmax(hist)]))
+	print(' Mean Fibril RMS = {:>6.4f}'.format(np.mean(tot_mag)))
+	print(' Expected Random Walk RMS = {:>6.4f}'.format(1. / np.sqrt(param['l_fibril']-1)))
+
+	print(' Creating Vector Magnitude histogram figure {}/{}_vec_mag_hist.png'.format(fig_dir, fig_name))
+	plt.figure(7)
+	plt.title('Vector Magnitude Histogram')
+	plt.hist(tot_mag.flatten(), bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'$|R|$')
+	#plt.axis([0, 2.0, 0, 3.0])
+	plt.legend()
+	plt.savefig('{}/{}_vec_mag_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Vector Angular histogram figure {}/{}_vec_ang_hist.png'.format(fig_dir, fig_name))
+	plt.figure(8)
+	plt.title('Vector Angle Histogram')
+	plt.hist(tot_theta.flatten(), bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'$\theta$')
+	plt.xlim(-180, 180)
+	plt.legend()
+	plt.savefig('{}/{}_vec_ang_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
 
 	image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_image_shg'.format(n_frame, param['res'], param['sharp'])
 	dx_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dx_shg'.format(n_frame, param['res'], param['sharp'])
@@ -761,34 +881,14 @@ def analysis(current_dir, input_file_name=False):
 		dy_shg = np.array([dy_shg[i] for i in range(0, n_frame, param['skip'])])
 
 
-	"Perform Fibre Vector analysis"
-	tot_theta, tot_mag = fibre_vector_analysis(image_md, cell_dim, param)
-	hist, bin_edges = np.histogram(tot_theta.flatten(), bins='auto', density=True)
-
-	print('\n Modal Vector angle  = {:>6.4f}'.format(bin_edges[np.argmax(hist)]))
-	print(' Mean Fibril RMS = {:>6.4f}'.format(np.mean(tot_mag)))
-	print(' Expected Random Walk RMS = {:>6.4f}'.format(1. / np.sqrt(param['l_fibril'] * param['bond_r0'])))
-
-	print(' Creating Vector Magnitude histogram figure {}/{}_vec_mag_hist.png'.format(fig_dir, fig_name))
-	plt.figure(7)
-	plt.title('Vector Magnitude Histogram')
-	plt.hist(tot_mag.flatten(), bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'$|R|$')
-	#plt.axis([0, 2.0, 0, 3.0])
-	plt.legend()
-	plt.savefig('{}/{}_vec_mag_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Vector Angular histogram figure {}/{}_vec_ang_hist.png'.format(fig_dir, fig_name))
-	plt.figure(8)
-	plt.title('Vector Angle Histogram')
-	plt.hist(tot_theta.flatten(), bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'$\theta$')
-	plt.xlim(-180, 180)
-	plt.legend()
-	plt.savefig('{}/{}_vec_ang_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
+	fig_name += '_{}_{}'.format(param['res'], param['sharp'])
 
 	"Perform Nematic Tensor Analysis"
+
+	l_sample = 30
+	n_sample = 10
+	area_sample = int(2 * (np.min((l_sample,) + image_shg.shape[1:]) // 2))
+
 	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
 	"Sample average orientational anisotopy"
 	eigval_shg, eigvec_shg = nematic_tensor_analysis(n_tensor, area_sample, n_sample)
@@ -807,6 +907,7 @@ def analysis(current_dir, input_file_name=False):
 	plt.plot(np.mean(q, axis=1), label=fig_name)
 	plt.xlabel(r'step')
 	plt.ylabel(r'Anisotropy')
+	plt.ylim(0, 1)
 	plt.legend()
 	plt.savefig('{}/{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
@@ -815,6 +916,7 @@ def analysis(current_dir, input_file_name=False):
 	plt.title('Anisotropy Histogram')
 	plt.hist(np.mean(q, axis=1), bins='auto', density=True, label=fig_name)
 	plt.xlabel(r'Anisotropy')
+	plt.xlim(0, 1)
 	plt.legend()
 	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
@@ -836,14 +938,27 @@ def analysis(current_dir, input_file_name=False):
 	plt.xlabel(r'Angle (deg)')
 	plt.ylabel(r'Amplitude')
 	plt.xlim(-180, 180)
+	plt.ylim(0, 1.00)
 	plt.legend()
 	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
+
+	"Perform Non-Negative Matrix Factorisation"
+	n_components = 9
+	pad = int(area_sample / 2 - 1)
+
+	nmf_components = nmf_analysis(image_shg, area_sample, n_sample, n_components)
+
+	print('\n Creating NMF Gallery {}/{}_nmf.png'.format(fig_dir, fig_name))
+	plot_gallery(12, 'NMF Main Components', nmf_components[:n_components], np.sqrt(n_components), np.sqrt(n_components), (area_sample, area_sample))
+	plt.savefig('{}/{}_nmf.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+
 	"Make Gif of SHG Images"
-	
 	if ow_shg or mk_gif:
 		print('\n Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
 		make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, param, cell_dim * param['l_conv'], 'SHG')
-		#print(' Making Simulation MD Gif {}/{}.gif'.format(fig_dir, fig_name))
-		#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * param['l_conv]', param, cell_dim * param['l_conv]', 'MD')
+
+	#print(' Making Simulation MD Gif {}/{}.gif'.format(fig_dir, fig_name))
+	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * param['l_conv'], param, cell_dim * param['l_conv'], 'MD')
 

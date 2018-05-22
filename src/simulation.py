@@ -62,7 +62,7 @@ def simulation(current_dir, input_file_name=False):
 	init_time_stop = time.time()
 
 	print("\n Setup complete: {:5.3f} s".format(init_time_stop - init_time_start))
-	print(" Bead radius = {} um\n Simulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
+	print(" Fibre diameter = {} um\n Simulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
 	print(" Cell density:     {:>10.4f} bead mass um-3".format(param['n_bead'] * param['mass'] / np.prod(cell_dim * param['l_conv'])))
 	print(" Number of Simulation steps = {}".format(param['n_step']))
 

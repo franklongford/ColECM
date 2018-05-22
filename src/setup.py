@@ -45,9 +45,9 @@ def get_param_defaults():
 			'l_fibril' : 10,
 			'n_bead' : 90,
 			'density' : 0.3,
-			'l_conv' : 3.5E-1,
+			'l_conv' : 1,
 			'res' : 7.5,
-			'sharp' : 1.0,
+			'sharp' : 1.5,
 			'skip' : 1,
 			'P_0' : 1,
 			'lambda_p' : 1E-4,
@@ -305,7 +305,7 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 		"""
 
 		for key in keys: param[key] = param_file[key]		
-		for key in ['bond_matrix', 'vdw_matrix', 'l_conv']: param[key] = param_file[key]
+		for key in ['bond_matrix', 'vdw_matrix']: param[key] = param_file[key]
 
 	else:
 		if input_file_name: _, param = read_input_file(input_file_name, simulation=True, param=param)
@@ -863,9 +863,9 @@ def import_files(sim_dir, file_names, param):
 
 		param['bond_matrix'] = bond_matrix
 		param['vdw_matrix'] = vdw_matrix
-		param['l_conv'] = 1 / (2 * param['vdw_sigma'])
+		#param['l_conv'] = 1. / param['vdw_sigma']
 
-		keys = ['bond_matrix', 'vdw_matrix', 'l_conv']
+		keys = ['bond_matrix', 'vdw_matrix']#, 'l_conv']
 		for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
 
 		print(" Saving input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
