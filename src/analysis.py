@@ -886,7 +886,7 @@ def analysis(current_dir, input_file_name=False):
 	"Perform Nematic Tensor Analysis"
 
 	l_sample = 30
-	n_sample = 10
+	n_sample = 1
 	area_sample = int(2 * (np.min((l_sample,) + image_shg.shape[1:]) // 2))
 
 	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
@@ -938,7 +938,7 @@ def analysis(current_dir, input_file_name=False):
 	plt.xlabel(r'Angle (deg)')
 	plt.ylabel(r'Amplitude')
 	plt.xlim(-180, 180)
-	plt.ylim(0, 1.00)
+	plt.ylim(0, 0.25)
 	plt.legend()
 	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
