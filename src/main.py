@@ -10,8 +10,13 @@ Last Modified: 12/04/2018
 
 import sys, os
 import utilities as ut
+from mpi4py import MPI
 
-ut.logo()
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
+
+if rank == 0: ut.logo()
 current_dir = os.getcwd()
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -28,7 +33,7 @@ else: input_file_name = False
 
 if ('simulation' in modules):
 	from simulation import simulation
-	simulation(current_dir, input_file_name)
+	simulation(current_dir, comm, input_file_name, size, rank)
 if ('analysis' in modules):
 	from analysis import analysis
 	analysis(current_dir, input_file_name)

@@ -420,9 +420,51 @@ def get_distances(pos, cell_dim):
 
 	temp_pos = np.moveaxis(pos, 0, 1)
 
-	dxyz = np.array([np.tile(temp_pos[0], (n_bead, 1)), np.tile(temp_pos[1], (n_bead, 1))])
+	#dxyz = np.array([np.tile(temp_pos[0], (n_bead, 1)), np.tile(temp_pos[1], (n_bead, 1))])
 	dxyz = np.reshape(np.tile(temp_pos, (1, n_bead)), (n_dim, n_bead, n_bead))
 	dxyz = np.transpose(dxyz, axes=(0, 2, 1)) - dxyz
+
+	for i in range(n_dim): dxyz[i] -= cell_dim[i] * np.array(2 * dxyz[i] / cell_dim[i], dtype=int)
+
+	return dxyz
+
+
+def get_distances_mpi(pos, indices, cell_dim):
+	"""
+	get_distances(pos, cell_dim)
+
+	Calculate distance vector between two beads
+
+	Parameters
+	----------
+
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Positions of n_bead beads in n_dim
+
+	cell_dim:  array_like (float); shape=(n_dim)
+		Simulation cell dimensions in n_dim dimensions
+		
+	Returns
+	-------
+
+	dx:  array_like (float); shape=(n_bead, n_bead)
+		Displacement along x axis between each bead
+
+	dy:  array_like (float); shape=(n_bead, n_bead)
+		Displacement along y axis between each bead
+
+	"""
+
+	n_bead = pos.shape[0]
+	n_bead_proc = indices.shape[0]
+	n_dim = cell_dim.shape[0]
+
+	temp_pos_1 = np.moveaxis(pos, 0, 1)
+	temp_pos_2 = np.moveaxis(pos[indices], 0, 1)
+
+	dxyz_1 = np.reshape(np.tile(temp_pos_1, (1, n_bead_proc)), (n_dim, n_bead_proc, n_bead))
+	dxyz_2 = np.repeat(temp_pos_2, n_bead, axis=1).reshape((n_dim, n_bead_proc, n_bead))
+	dxyz = dxyz_1 - dxyz_2
 
 	for i in range(n_dim): dxyz[i] -= cell_dim[i] * np.array(2 * dxyz[i] / cell_dim[i], dtype=int)
 
@@ -479,6 +521,56 @@ def kin_energy(vel, mass, n_dim):
 	return 0.5 * np.sum(mass * vel**2)
 
 
+
+def update_bond_lists_mpi(bond_matrix):
+	"""
+	update_bond_lists(bond_matrix)
+
+	Return atom indicies of angular terms
+	"""
+
+	N = bond_matrix.shape[0]
+
+	"Get indicies of bonded beads"
+	bond_index_half = np.argwhere(np.triu(bond_matrix))
+	bond_index_full = np.argwhere(bond_matrix)
+
+	"Create index lists for referring to in 2D arrays"
+	indices_half = create_index(bond_index_half)
+	indices_full = create_index(bond_index_full)
+
+	angle_indices = []
+	angle_bond_indices = []
+
+	"Count number of unique bonds"
+	count = np.unique(bond_index_full.T[0]).shape[0]
+
+	"Find indicies of ends of fibrils"
+	fib_end_check = np.argwhere(np.sum(bond_matrix, axis=1) <= 1)
+	n_fib_end = fib_end_check.shape[0]
+	fib_end_check_ind = np.tile(fib_end_check, n_fib_end)
+	fib_end_check_ind = np.stack((fib_end_check_ind, fib_end_check_ind.T), axis=2)
+	fib_end_check_ind = create_index(fib_end_check_ind[np.where(~np.eye(n_fib_end,dtype=bool))])
+
+	fib_end = np.zeros(bond_matrix.shape)
+	fib_end[fib_end_check_ind] += 1
+
+	for n in range(N):
+		slice_full = np.argwhere(bond_index_full.T[0] == n)
+
+		if slice_full.shape[0] > 1:
+			angle_indices.append(np.unique(bond_index_full[slice_full].flatten()))
+			angle_bond_indices.append(bond_index_full[slice_full][::-1])
+
+	angle_indices = np.array(angle_indices)
+	angle_bond_indices = np.reshape(angle_bond_indices, (len(angle_bond_indices), 2, 2))
+	r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(angle_bond_indices**2, axis=1)]).flatten()
+
+	#angle_bond_indices = np.reshape(angle_bond_indices, (2 * len(angle_bond_indices), 2))
+	#r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(angle_bond_indices**2, axis=1)]).flatten()
+
+	return bond_index_full, angle_indices, angle_bond_indices, r_index, fib_end
+
 def update_bond_lists(bond_matrix):
 	"""
 	update_bond_lists(bond_matrix)
@@ -496,8 +588,8 @@ def update_bond_lists(bond_matrix):
 	indices_half = create_index(bond_index_half)
 	indices_full = create_index(bond_index_full)
 
-	bond_beads = []
-	dist_index = []
+	angle_indices = []
+	angle_bond_indices = []
 
 	"Count number of unique bonds"
 	count = np.unique(bond_index_full.T[0]).shape[0]
@@ -514,17 +606,16 @@ def update_bond_lists(bond_matrix):
 
 	for n in range(N):
 		slice_full = np.argwhere(bond_index_full.T[0] == n)
-		slice_half = np.argwhere(bond_index_half.T[0] == n)
 
 		if slice_full.shape[0] > 1:
-			bond_beads.append(np.unique(bond_index_full[slice_full].flatten()))
-			dist_index.append(bond_index_full[slice_full][::-1])
+			angle_indices.append(np.unique(bond_index_full[slice_full].flatten()))
+			angle_bond_indices.append(bond_index_full[slice_full][::-1])
 
-	bond_beads = np.array(bond_beads)
-	dist_index = np.reshape(dist_index, (2 * len(dist_index), 2))
-	r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(dist_index**2, axis=1)]).flatten()
+	angle_indices = np.array(angle_indices)
+	angle_bond_indices = np.reshape(angle_bond_indices, (2 * len(angle_bond_indices), 2))
+	r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(angle_bond_indices**2, axis=1)]).flatten()
 
-	return bond_beads, dist_index, r_index, fib_end
+	return bond_index_full, angle_indices, angle_bond_indices, r_index, fib_end
 
 
 def centre_of_mass(pos, mass, n_fibril, l_fibril, n_dim):

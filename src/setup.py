@@ -380,7 +380,7 @@ def grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200
 		pos[index] = np.random.random((param['n_dim'])) * param['vdw_sigma'] * 2
 
 	else:
-		bond_beads, dist_index, r_index, _ = ut.update_bond_lists(bond_matrix)
+		_, bond_beads, dist_index, r_index, _ = ut.update_bond_lists(bond_matrix)
 
 		energy = max_energy + 1
 		attempt = 0
@@ -508,10 +508,113 @@ def create_pos_array(param):
 
 		cell_dim = np.array([np.max(pos.T[0]) + param['vdw_sigma'] / 2, np.max(pos.T[1]) + param['vdw_sigma'] / 2, np.max(pos.T[2]) + param['vdw_sigma'] / 2])
 
-	return pos, cell_dim, bond_matrix, vdw_matrix
+	param['bond_matrix'] = bond_matrix
+	param['vdw_matrix'] = vdw_matrix
+
+	return pos, cell_dim, param
 
 
-def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, inc=0.1, thresh=5E-2):
+def calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0):
+	"""
+	calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param)
+	
+	Calculate state of simulation using starting configuration and parameters provided
+
+	Parameters
+	----------
+
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Positions of n_bead beads in n_dim
+
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
+
+	bond_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a bond is present between two beads
+
+	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a non-bonded interaction is present between two beads
+
+	param:  dict
+		Dictionary of simulation and analysis parameters
+	
+	Returns
+	-------
+
+	frc: array_like, dtype=float
+		Forces acting upon each bead in all collagen fibrils
+
+	verlet_list: array_like, dtype=int
+		Matrix determining whether two beads are within rc radial distance
+
+	pot_energy:  float
+		Total potential energy of system
+
+	virial_tensor:  array_like, (float); shape=(n_dim, n_dim)
+		Virial components of pressure tensor of system
+
+	bond_beads:  array_like, (int); shape=(n_angle, 3)
+		Array containing indicies in pos array all 3-bead angular interactions
+
+	dist_index:  array_like, (int); shape=(n_bond, 2)
+		Array containing indicies in distance arrays of all bonded interactions
+
+	r_index:  array_like, (int); shape=(n_bond, 2)
+		Array containing indicies in r array of all bonded interactions
+	
+	"""
+
+	import time
+
+	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces, calc_energy_forces_mpi
+	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
+
+	bond_indices, angle_indices, angle_bond_indices, r_index, fib_end = ut.update_bond_lists_mpi(bond_matrix)
+
+	bond_indices = np.array_split(bond_indices, size)[rank]
+	angle_indices = np.array_split(angle_indices, size)[rank]
+	angle_bond_indices = np.array_split(angle_bond_indices, size)[rank]
+	angle_bond_indices = angle_bond_indices.reshape((2 * len(angle_bond_indices), 2))
+	r_index = np.array_split(r_index, size)[rank]
+
+	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
+	vdw_mat = np.array_split(vdw_matrix, size)[rank]
+	vdw_indices = np.array_split(np.mgrid[:param['n_bead'], :param['n_bead']], size)[rank]
+	virial_indicies = np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank])
+
+	#verlet_list_rb = ut.check_cutoff(r2, param['bond_rb']**2)
+
+	start = time.time()
+	pot_energy, frc, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, vdw_indices, vdw_mat, virial_indicies, param)
+	pot_energy = np.sum(comm.gather(pot_energy, root=0))
+	frc = np.sum(comm.gather(frc, root=0), axis=0)
+	virial_tensor = np.sum(comm.gather(virial_tensor, root=0), axis=0)
+	stop = time.time()
+
+	if rank == 0:
+		print(stop-start)
+		print(pot_energy)
+		print(frc)
+		print(virial_tensor)
+		bond_indices, angle_indices, angle_bond_indices, r_index, fib_end = ut.update_bond_lists(bond_matrix)
+		distances = ut.get_distances(pos, cell_dim)
+		r2 = np.sum(distances**2, axis=0)
+		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
+		start = time.time()
+		pot_energy, frc, virial_tensor = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list_rc, angle_indices, angle_bond_indices, r_index)
+		stop = time.time()
+		print(stop-start)
+		print(pot_energy)
+		print(frc)
+		print(virial_tensor)
+
+	sys.exit()
+
+	return frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end
+
+
+
+def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.1, thresh=5E-2):
 	"""
 	equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
 
@@ -562,7 +665,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	n_dof = param['n_dim'] * param['n_bead'] 
 	vel = np.zeros(pos.shape)
 
-	sim_state = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+	sim_state = calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size, rank)
 	frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end = sim_state
 
 	kBT = 2 * ut.kin_energy(vel, param['mass'], param['n_dim']) / n_dof
@@ -730,75 +833,7 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thre
 	return pos, vel, cell_dim
 
 
-def calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param):
-	"""
-	calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
-	
-	Calculate state of simulation using starting configuration and parameters provided
-
-	Parameters
-	----------
-
-	pos:  array_like (float); shape=(n_bead, n_dim)
-		Positions of n_bead beads in n_dim
-	
-	vel: array_like, dtype=float
-		Velocity of each bead in all collagen fibrils
-
-	cell_dim: array_like, dtype=float
-		Array with simulation cell dimensions
-
-	bond_matrix: array_like (int); shape=(n_bead, n_bead)
-		Matrix determining whether a bond is present between two beads
-
-	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
-		Matrix determining whether a non-bonded interaction is present between two beads
-
-	param:  dict
-		Dictionary of simulation and analysis parameters
-	
-	Returns
-	-------
-
-	frc: array_like, dtype=float
-		Forces acting upon each bead in all collagen fibrils
-
-	verlet_list: array_like, dtype=int
-		Matrix determining whether two beads are within rc radial distance
-
-	pot_energy:  float
-		Total potential energy of system
-
-	virial_tensor:  array_like, (float); shape=(n_dim, n_dim)
-		Virial components of pressure tensor of system
-
-	bond_beads:  array_like, (int); shape=(n_angle, 3)
-		Array containing indicies in pos array all 3-bead angular interactions
-
-	dist_index:  array_like, (int); shape=(n_bond, 2)
-		Array containing indicies in distance arrays of all bonded interactions
-
-	r_index:  array_like, (int); shape=(n_bond, 2)
-		Array containing indicies in r array of all bonded interactions
-	
-	"""
-
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
-
-	distances = ut.get_distances(pos, cell_dim)
-	r2 = np.sum(distances**2, axis=0)
-
-	verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
-	#verlet_list_rb = ut.check_cutoff(r2, param['bond_rb']**2)
-
-	bond_beads, dist_index, r_index, fib_end = ut.update_bond_lists(bond_matrix)
-	pot_energy, frc, virial_tensor = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list_rc, bond_beads, dist_index, r_index)
-
-	return frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end
-
-
-def import_files(sim_dir, file_names, param):
+def import_files(sim_dir, file_names, param, comm, size=1, rank=0):
 	"""
 	import_files(sim_dir, file_names, param)
 
@@ -833,51 +868,56 @@ def import_files(sim_dir, file_names, param):
 	"""
 
 	if os.path.exists(sim_dir + file_names['restart_file_name'] + '.npy'):
-		print(" Loading restart file {}.npy".format(sim_dir + file_names['restart_file_name']))
-		restart = ut.load_npy(sim_dir + file_names['restart_file_name'])
+		if rank == 0: 
+			print(" Loading restart file {}.npy".format(sim_dir + file_names['restart_file_name']))
+			restart = ut.load_npy(sim_dir + file_names['restart_file_name'])
+		else: restart = None
+		restart = comm.bcast(restart, root=0)
+
 		pos = restart[0]
 		vel = restart[1]
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 
-		bond_matrix = param['bond_matrix'] 
-		vdw_matrix = param['vdw_matrix'] 
-
 	elif os.path.exists(sim_dir + file_names['pos_file_name'] + '.npy'):
-		print(" Loading position file {}.npy".format(sim_dir + file_names['pos_file_name']))
-		pos = ut.load_npy(sim_dir + file_names['pos_file_name'])
+		if rank == 0:
+			print(" Loading position file {}.npy".format(sim_dir + file_names['pos_file_name']))
+			pos = ut.load_npy(sim_dir + file_names['pos_file_name'])
+		else: pos = None
+		pos = comm.bcast(pos, root=0)
+		
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * param['kBT'] / param['mass'])
 
-		bond_matrix = param['bond_matrix'] 
-		vdw_matrix = param['vdw_matrix'] 
-
 	else:
 		file_names['pos_file_name'] = ut.check_file_name(file_names['pos_file_name'], file_type='pos') + '_pos'
 
-		print(" Creating input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
+		if rank == 0: 
+			print(" Creating input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
+			pos, cell_dim, param = create_pos_array(param)
 
-		pos, cell_dim, bond_matrix, vdw_matrix = create_pos_array(param)
-		vel = np.random.normal(loc=np.sqrt(param['kBT'] / param['mass']), size=pos.shape) 
+			#param['l_conv'] = 1. / param['vdw_sigma']
 
-		param['bond_matrix'] = bond_matrix
-		param['vdw_matrix'] = vdw_matrix
-		#param['l_conv'] = 1. / param['vdw_sigma']
+			keys = ['bond_matrix', 'vdw_matrix']#, 'l_conv']
+			for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
 
-		keys = ['bond_matrix', 'vdw_matrix']#, 'l_conv']
-		for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
+			print(" Saving input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
+			ut.save_npy(sim_dir + file_names['pos_file_name'], np.vstack((pos, cell_dim)))
+		else:
+			pos = None
+			cell_dim = None
 
-		print(" Saving input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
-		ut.save_npy(sim_dir + file_names['pos_file_name'], np.vstack((pos, cell_dim)))
+		pos = comm.bcast(pos, root=0)
+		cell_dim = comm.bcast(cell_dim, root=0)
+		param = comm.bcast(param, root=0)
 
-		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param)
-		pos, vel, cell_dim = equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
+		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
+		pos, vel, cell_dim = equilibrate_density(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
 
-		print(" Saving restart file {}".format(file_names['restart_file_name']))
-		ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
-		#param['bond_matrix'] = bond_matrix
-		#ut.update_param_file(sim_dir + file_names['param_file_name'], 'bond_matrix', param['bond_matrix'])
+		if rank == 0: 
+			print(" Saving restart file {}".format(file_names['restart_file_name']))
+			ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
 
 	return pos, vel, cell_dim, param
 

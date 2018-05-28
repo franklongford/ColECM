@@ -14,7 +14,7 @@ import sys, os, time
 import utilities as ut
 import setup
 
-def simulation(current_dir, input_file_name=False):	
+def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):	
 
 	print("\n Entering Setup\n")
 	init_time_start = time.time()
@@ -22,7 +22,12 @@ def simulation(current_dir, input_file_name=False):
 	sim_dir = current_dir + '/sim/'
 	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
 
-	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
+	if rank == 0: file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
+	else:
+		file_names = None
+		param = None
+	file_names = comm.bcast(file_names, root=0)
+	param = comm.bcast(param, root=0)
 
 	if param['n_dim'] == 2: import sim_tools_2D as sim
 	elif param['n_dim'] == 3: import sim_tools_3D as sim
@@ -31,7 +36,7 @@ def simulation(current_dir, input_file_name=False):
 	dig = len(str(param['n_step']))
 	sqrt_dt = np.sqrt(param['dt'])
 
-	pos, vel, cell_dim, param = setup.import_files(sim_dir, file_names, param)
+	pos, vel, cell_dim, param = setup.import_files(sim_dir, file_names, param, comm, size, rank)
 
 	n_dof = param['n_dim'] * param['n_bead'] 
 
@@ -45,6 +50,7 @@ def simulation(current_dir, input_file_name=False):
 	tot_vol = np.zeros(param['n_step'])
 
 	sim_state = setup.calc_state(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
+
 	frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end = sim_state
 
 	tot_pos[0] += np.vstack((pos, cell_dim))
