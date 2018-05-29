@@ -11,6 +11,7 @@ Last Modified: 19/04/2018
 import numpy as np
 from scipy import constants as con
 import sys, os, pickle
+from mpi4py import MPI
 
 import utilities as ut
 
@@ -380,7 +381,7 @@ def grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200
 		pos[index] = np.random.random((param['n_dim'])) * param['vdw_sigma'] * 2
 
 	else:
-		_, bond_beads, dist_index, r_index, _ = ut.update_bond_lists(bond_matrix)
+		bond_beads, dist_index, r_index, _ = ut.update_bond_lists(bond_matrix)
 
 		energy = max_energy + 1
 		attempt = 0
@@ -569,13 +570,7 @@ def calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank
 	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces, calc_energy_forces_mpi
 	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
 
-	bond_indices, angle_indices, angle_bond_indices, r_index, fib_end = ut.update_bond_lists_mpi(bond_matrix)
-
-	bond_indices = np.array_split(bond_indices, size)[rank]
-	angle_indices = np.array_split(angle_indices, size)[rank]
-	angle_bond_indices = np.array_split(angle_bond_indices, size)[rank]
-	angle_bond_indices = angle_bond_indices.reshape((2 * len(angle_bond_indices), 2))
-	r_index = np.array_split(r_index, size)[rank]
+	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists_mpi(bond_matrix, size, rank)
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
 	vdw_mat = np.array_split(vdw_matrix, size)[rank]
@@ -584,34 +579,28 @@ def calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank
 
 	#verlet_list_rb = ut.check_cutoff(r2, param['bond_rb']**2)
 
-	start = time.time()
-	pot_energy, frc, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, vdw_indices, vdw_mat, virial_indicies, param)
-	pot_energy = np.sum(comm.gather(pot_energy, root=0))
-	frc = np.sum(comm.gather(frc, root=0), axis=0)
-	virial_tensor = np.sum(comm.gather(virial_tensor, root=0), axis=0)
-	stop = time.time()
+	pot_energy, frc, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, 
+															vdw_indices, vdw_mat, virial_indicies, param)
 
-	if rank == 0:
-		print(stop-start)
-		print(pot_energy)
-		print(frc)
-		print(virial_tensor)
-		bond_indices, angle_indices, angle_bond_indices, r_index, fib_end = ut.update_bond_lists(bond_matrix)
+	if size > 1:
+		pot_energy = np.sum(comm.allreduce(pot_energy, op=MPI.SUM))
+		frc = comm.allreduce(frc, op=MPI.SUM)
+		virial_tensor = comm.allreduce(virial_tensor, op=MPI.SUM)
+
+
+	return frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices
+
+	"""
+	else:
+		angle_indices, angle_bond_indices, r_index, fib_end = ut.update_bond_lists(bond_matrix)
+
 		distances = ut.get_distances(pos, cell_dim)
 		r2 = np.sum(distances**2, axis=0)
 		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
-		start = time.time()
 		pot_energy, frc, virial_tensor = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list_rc, angle_indices, angle_bond_indices, r_index)
-		stop = time.time()
-		print(stop-start)
-		print(pot_energy)
-		print(frc)
-		print(virial_tensor)
 
-	sys.exit()
-
-	return frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end
-
+		return frc, pot_energy, virial_tensor, angle_indices, angle_bond_indices, r_index, fib_end
+	"""
 
 
 def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.1, thresh=5E-2):
@@ -656,9 +645,9 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 
 	"""
 
-	print("\n" + " " * 15 + "----Equilibrating Temperature----\n")
+	if rank == 0: print("\n" + " " * 15 + "----Equilibrating Temperature----\n")
 
-	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg
+	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg, velocity_verlet_alg_mpi
 	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg
 
 	sqrt_dt = np.sqrt(param['dt'] / 2)
@@ -666,7 +655,13 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	vel = np.zeros(pos.shape)
 
 	sim_state = calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size, rank)
-	frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end = sim_state
+
+	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
+
+	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
+	vdw_mat = np.array_split(vdw_matrix, size)[rank]
+	vdw_indices = np.array_split(np.mgrid[:param['n_bead'], :param['n_bead']], size)[rank]
+	virial_indicies = np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank])
 
 	kBT = 2 * ut.kin_energy(vel, param['mass'], param['n_dim']) / n_dof
 	step = 1
@@ -676,19 +671,24 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	param['kBT'] = inc
 	param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
 
-	print(" Starting kBT:    {:>10.4f}\n Reference kBT:   {:>10.4f}\n".format(kBT, param['kBT']))
-	print(" {:^18s} | {:^18s} | {:^18s}".format('Step', 'Ref kBT', 'kBT'))
-	print(" " + "-" * 60)
+	if rank == 0:
+		print(" Starting kBT:    {:>10.4f}\n Reference kBT:   {:>10.4f}\n".format(kBT, param['kBT']))
+		print(" {:^18s} | {:^18s} | {:^18s}".format('Step', 'Ref kBT', 'kBT'))
+		print(" " + "-" * 60)
 
 	while optimising:
-		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
-			verlet_list_rc, bond_beads, dist_index, r_index, param['dt']/2, sqrt_dt, cell_dim)
+		
+		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, angle_indices, 
+			angle_bond_indices, vdw_mat, vdw_indices, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank,)
 
-		(pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2) = sim_state
-
-		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
+		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
+		
 		"""
 		"DYNAMIC BONDS - not yet implemented fully"
+		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
+			verlet_list_rc, bond_beads, dist_index, r_index, param['dt']/2, sqrt_dt, cell_dim)
+		(pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2) = sim_state
+		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
 		if step % 1 == 0: 
 			param['bond_matrix'], update = ut.bond_check(param['bond_matrix'], fib_end, r2, param['rc'], param['bond_rb'], param['vdw_sigma'])
 			if update:
@@ -700,7 +700,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 		if step % 250 == 0: 
 			av_kBT = np.mean(kBT_array)
 			kBT_array = [kBT]
-			print(" {:18d} | {:>18.4f} | {:>18.4f}".format(step, param['kBT'], av_kBT))
+			if rank == 0: print(" {:18d} | {:>18.4f} | {:>18.4f}".format(step, param['kBT'], av_kBT))
 			if abs(av_kBT - param['kBT']) <= thresh:
 				param['kBT'] += inc
 				param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
@@ -711,13 +711,14 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	param['kBT'] = ref_kBT
 	param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
 
-	print("\n No. iterations:   {:>10d}".format(step))
-	print(" Final kBT:   {:>10.4f}".format(kBT))
+	if rank == 0:
+		print("\n No. iterations:   {:>10d}".format(step))
+		print(" Final kBT:   {:>10.4f}".format(kBT))
 
 	return pos, vel
 
 
-def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3):
+def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, thresh=2E-3):
 	"""
 	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
 
@@ -763,16 +764,21 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thre
 	"""
 
 
-	print("\n" + " " * 15 + "----Equilibrating Density----\n")
+	if rank == 0: print("\n" + " " * 15 + "----Equilibrating Density----\n")
 
-	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg
+	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg, velocity_verlet_alg_mpi
 	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg
 
 	sqrt_dt = np.sqrt(param['dt'])
 	n_dof = param['n_dim'] * param['n_bead']
 
-	sim_state = calc_state(pos, vel, cell_dim, bond_matrix, vdw_matrix, param)
-	frc, verlet_list_rc, pot_energy, virial_tensor, bond_beads, dist_index, r_index, fib_end = sim_state
+	sim_state = calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size, rank)
+	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
+
+	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
+	vdw_mat = np.array_split(vdw_matrix, size)[rank]
+	vdw_indices = np.array_split(np.mgrid[:param['n_bead'], :param['n_bead']], size)[rank]
+	virial_indicies = np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank])
 
 	kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
 	P = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
@@ -784,20 +790,25 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thre
 	step = 1
 	optimising = True
 
-	print(" Starting density:      {:>10.4f}\n Reference density:     {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim), param['density']))
-	print(" Starting pressure:     {:>10.4f}\n Max pressure:          {:>10.4f}".format(P, param['P_0']))
-	print(" Starting volume:       {:>10.4f}\n Starting temperature:  {:>10.4f}\n".format(np.prod(cell_dim), kBT))
-	print(" {:^12s} | {:^12s} | {:^12s} | {:^12s} ".format('Step', 'Av Pressure', 'Av Temperature', 'Density'))
-	print(" " + "-" * 56)
+	if rank == 0:
+		print(" Starting density:      {:>10.4f}\n Reference density:     {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim), param['density']))
+		print(" Starting pressure:     {:>10.4f}\n Max pressure:          {:>10.4f}".format(P, param['P_0']))
+		print(" Starting volume:       {:>10.4f}\n Starting temperature:  {:>10.4f}\n".format(np.prod(cell_dim), kBT))
+		print(" {:^12s} | {:^12s} | {:^12s} | {:^12s} ".format('Step', 'Av Pressure', 'Av Temperature', 'Density'))
+		print(" " + "-" * 56)
 
 	while optimising:
-		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
-			verlet_list_rc, bond_beads, dist_index, r_index, param['dt'], sqrt_dt, cell_dim, NPT=True)
 
-		(pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2) = sim_state
+		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, angle_indices, 
+			angle_bond_indices, vdw_mat, vdw_indices, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank, NPT=True)
 
-		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
+		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
+
 		"""
+		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
+			verlet_list_rc, bond_beads, dist_index, r_index, param['dt']/2, sqrt_dt, cell_dim, NPT=True)
+		(pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2) = sim_state
+		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
 		"DYNAMIC BONDS - not yet implemented fully"
 		if step % 1 == 0: 
 			param['bond_matrix'], update = ut.bond_check(param['bond_matrix'], fib_end, r2, param['rc'], param['bond_rb'], param['vdw_sigma'])
@@ -813,6 +824,7 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thre
 		den = param['n_bead'] / np.prod(cell_dim)
 
 		optimising = abs(den - param['density']) > thresh
+		optimising *= den < param['density']
 
 		if step % 5000 == 0: 
 			av_P = np.mean(P_array)
@@ -822,13 +834,14 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thre
 			kBT_array = [kBT]
 
 			if av_P >= param['P_0']: optimising = False
-			print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, av_P, av_kBT, den))
+			if rank == 0: print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, av_P, av_kBT, den))
 
 		step += 1
 
-	print("\n No. iterations:   {:>10d}".format(step))
-	print(" Final density:   {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim)))
-	print(" Final volume:     {:>10.4f}".format(np.prod(cell_dim)))
+	if rank == 0:
+		print("\n No. iterations:   {:>10d}".format(step))
+		print(" Final density:   {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim)))
+		print(" Final volume:     {:>10.4f}".format(np.prod(cell_dim)))
 
 	return pos, vel, cell_dim
 
@@ -888,7 +901,8 @@ def import_files(sim_dir, file_names, param, comm, size=1, rank=0):
 		
 		cell_dim = pos[-1]
 		pos = pos[:-1]
-		vel = (np.random.random(pos.shape) - 0.5) * np.sqrt(2 * param['kBT'] / param['mass'])
+
+		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
 
 	else:
 		file_names['pos_file_name'] = ut.check_file_name(file_names['pos_file_name'], file_type='pos') + '_pos'
