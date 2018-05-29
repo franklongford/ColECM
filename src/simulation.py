@@ -10,14 +10,17 @@ Last Modified: 19/04/2018
 
 import numpy as np
 import sys, os, time
+from mpi4py import MPI
 
 import utilities as ut
 import setup
 
+
 def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):	
 
-	print("\n Entering Setup\n")
-	init_time_start = time.time()
+	if rank == 0: 
+		print("\n " + " " * 15 + "----Entering Setup----\n")
+		setup_time_start = time.time()
 
 	sim_dir = current_dir + '/sim/'
 	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
@@ -51,10 +54,10 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 		tot_vol = np.zeros(param['n_step'])
 
 	sim_state = setup.calc_state(pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
-	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
+	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices, r_indices = sim_state
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
-	vdw_mat = np.array_split(param['vdw_matrix'], size)[rank]
+	vdw_coeff = np.array_split(param['vdw_matrix'], size)[rank]
 	vdw_indices = np.array_split(np.mgrid[:param['n_bead'], :param['n_bead']], size)[rank]
 	virial_indicies = np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank])
 
@@ -72,9 +75,14 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 		tot_press[0] = pressure
 		tot_vol[0] = np.prod(cell_dim)
 
-		init_time_stop = time.time()
+		setup_time_stop = time.time()
+		setup_time = setup_time_stop - setup_time_start
+		time_hour = int(setup_time / 60**2)
+		time_min = int((setup_time / 60) % 60)
+		time_sec = int(setup_time) % 60
 
-		print("\n Setup complete: {:5.3f} s".format(init_time_stop - init_time_start))
+		print("\n " + " " * 15 + "----Setup Complete----\n")
+		print(" {:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, setup_time))
 		print(" Fibre diameter = {} um\n Simulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
 		print(" Cell density:     {:>10.4f} bead mass um-3".format(param['n_bead'] * param['mass'] / np.prod(cell_dim * param['l_conv'])))
 		print(" Number of Simulation steps = {}".format(param['n_step']))
@@ -86,7 +94,7 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 	for step in range(1, param['n_step']):
 
 		sim_state = sim.velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, angle_indices, 
-			angle_bond_indices, vdw_mat, vdw_indices, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank)
+			angle_bond_indices, r_indices, vdw_coeff, vdw_indices, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
 
@@ -166,3 +174,128 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 
 		print(" Saving output file {}".format(file_names['output_file_name']))
 		ut.save_npy(sim_dir + file_names['output_file_name'], (tot_energy, tot_temp, tot_press))
+
+
+def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
+	"""
+	calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param)
+	
+	Calculate state of simulation using starting configuration and parameters provided
+
+	Parameters
+	----------
+
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Positions of n_bead beads in n_dim
+
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
+
+	bond_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a bond is present between two beads
+
+	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a non-bonded interaction is present between two beads
+
+	param:  dict
+		Dictionary of simulation and analysis parameters
+	
+	Returns
+	-------
+
+	frc: array_like, dtype=float
+		Forces acting upon each bead in all collagen fibrils
+
+	verlet_list: array_like, dtype=int
+		Matrix determining whether two beads are within rc radial distance
+
+	pot_energy:  float
+		Total potential energy of system
+
+	virial_tensor:  array_like, (float); shape=(n_dim, n_dim)
+		Virial components of pressure tensor of system
+
+	bond_beads:  array_like, (int); shape=(n_angle, 3)
+		Array containing indicies in pos array all 3-bead angular interactions
+
+	dist_index:  array_like, (int); shape=(n_bond, 2)
+		Array containing indicies in distance arrays of all bonded interactions
+
+	r_index:  array_like, (int); shape=(n_bond, 2)
+		Array containing indicies in r array of all bonded interactions
+	
+	"""
+
+	import time
+
+	if rank == 0: setup_time_start = time.time()
+
+	sim_dir = current_dir + '/sim/'
+	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
+
+	if rank == 0: file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name, verbosity=False)
+	else:
+		file_names = None
+		param = None
+	file_names = comm.bcast(file_names, root=0)
+	param = comm.bcast(param, root=0)
+
+	if param['n_dim'] == 2: import sim_tools_2D as sim
+	elif param['n_dim'] == 3: import sim_tools_3D as sim
+
+	n_frames = int(param['n_step'] / param['save_step'])
+	dig = len(str(param['n_step']))
+	sqrt_dt = np.sqrt(param['dt'])
+
+	pos, vel, cell_dim, param = setup.import_files(sim_dir, file_names, param, comm, size, rank, verbosity=False)
+
+	n_dof = param['n_dim'] * param['n_bead'] 
+
+	if rank == 0:
+		tot_pos = np.zeros((n_frames, param['n_bead'] + 1, param['n_dim']))
+		tot_vel = np.zeros((n_frames, param['n_bead'], param['n_dim']))
+		tot_frc = np.zeros((n_frames, param['n_bead'], param['n_dim']))
+
+		tot_temp = np.zeros(param['n_step'])
+		tot_energy = np.zeros(param['n_step'])
+		tot_press = np.zeros(param['n_step'])
+		tot_vol = np.zeros(param['n_step'])
+
+	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces, calc_energy_forces_mpi
+	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces, calc_energy_forces_mpi
+
+	bond_indices, angle_indices, angle_bond_indices, r_indices = ut.update_bond_lists_mpi(param['bond_matrix'], comm, size, rank)
+
+	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
+	vdw_mat = np.array_split(param['vdw_matrix'], size)[rank]
+	vdw_indices = np.array_split(np.mgrid[:param['n_bead'], :param['n_bead']], size)[rank]
+	virial_indicies = np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank])
+
+	calc_times = []
+	overhead_times = []
+	if ('-ntrial' in sys.argv): n_trial = int(sys.argv[sys.argv.index('-ntrial') + 1])
+	else: n_trial = 2000
+
+	for i in range(n_trial):
+		start_time = time.time()
+
+		pot_energy, frc, virial_tensor = sim.calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, 
+									r_indices, vdw_indices, vdw_mat, virial_indicies, param)
+
+		stop_time_1 = time.time()
+		calc_times.append(stop_time_1 - start_time)
+
+		pot_energy = np.sum(comm.gather(pot_energy))
+		frc = comm.allreduce(frc, op=MPI.SUM)
+		virial_tensor = comm.allreduce(virial_tensor, op=MPI.SUM)
+
+		stop_time_2 = time.time()
+		overhead_times.append(stop_time_2 - stop_time_1)
+
+	calc_times = np.sum(comm.gather(calc_times, root=0))
+	overhead_times = np.sum(comm.gather(overhead_times, root=0))
+
+	if rank == 0:
+		calc_times /= (size * n_trial) 
+		overhead_times /= (size * n_trial) 
+		print("Proc = {}   force calc time = {:4.5f} s    mpi overhead time = {:4.5f} s    total time = {:4.5f} s".format(size, calc_times, overhead_times, calc_times + overhead_times))

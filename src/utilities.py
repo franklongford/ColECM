@@ -522,7 +522,7 @@ def kin_energy(vel, mass, n_dim):
 
 
 
-def update_bond_lists_mpi(bond_matrix, size, rank):
+def update_bond_lists_mpi(bond_matrix, comm, size, rank):
 	"""
 	update_bond_lists(bond_matrix)
 
@@ -564,17 +564,35 @@ def update_bond_lists_mpi(bond_matrix, size, rank):
 			angle_indices.append(np.unique(bond_index_full[slice_full].flatten()))
 			angle_bond_indices.append(bond_index_full[slice_full][::-1])
 
-	angle_indices = np.array(angle_indices)
-	angle_bond_indices = np.reshape(angle_bond_indices, (len(angle_bond_indices), 2, 2))
-	
-	#angle_bond_indices = np.reshape(angle_bond_indices, (2 * len(angle_bond_indices), 2))
-	#r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(angle_bond_indices**2, axis=1)]).flatten()
+	#if rank == 0: print(rank, np.array(angle_indices).shape, np.array(angle_bond_indices).reshape((2 * len(angle_indices), 2)).shape, dist_indices)
 
 	bond_indices = np.array_split(bond_index_full, size)[rank]
 	angle_indices = np.array_split(angle_indices, size)[rank]
 	angle_bond_indices = np.array_split(angle_bond_indices, size)[rank].reshape((2 * len(angle_indices), 2))
 
-	return bond_indices, angle_indices, angle_bond_indices
+	dist_indices = []
+	for i, x in enumerate(angle_bond_indices):
+		for j, y in enumerate(bond_indices):
+			if np.array_equiv(x, y):
+				dist_indices.append(j)
+				break
+
+	dist_indices = np.array(dist_indices)
+
+	"""
+	proc_check = comm.gather(angle_bond_indices.shape[0] == dist_indices.shape[0], root=0)
+	if rank == 0: proceed = np.all(proc_check)
+	else: proceed = None
+	proceed = comm.bcast(proceed, root = 0)
+
+	if not proceed: 
+		if rank == 0:
+			print("\n Bond angles incorrectly assigned on processor {}\n Number of processors ({}) is too high for system size\n".format(proc_check.index(False), size))
+			print("              -------------ABORTING------------\n")
+		sys.exit() 
+	"""
+
+	return bond_indices, angle_indices, angle_bond_indices, dist_indices
 
 
 def update_bond_lists(bond_matrix):

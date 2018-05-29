@@ -164,7 +164,7 @@ def calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_lis
 
 			"Make array of vectors rij, rjk for all connected bonds"
 			vector = np.stack((distances[0][indices_dxy], distances[1][indices_dxy]), axis=1)
-			n_vector = int(vector.shape[0])
+			n_vector = vector.shape[0]
 
 			"Find |rij| values for each vector"
 			r_vector = r_half[r_index]
@@ -220,6 +220,7 @@ def calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_lis
 	frc_beads = np.transpose(np.array([f_beads_x, f_beads_y]))
 	
 	return pot_energy, frc_beads, virial_tensor
+
 
 def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, verlet_list, 
 				bond_beads, dist_index, r_index, dt, sqrt_dt, cell_dim, NPT=False):
@@ -324,8 +325,8 @@ def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_ma
 	return pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2
 
 
-def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, vdw_indices, 
-							vdw_mat, virial_indicies, param):
+def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, r_indices,
+				vdw_indices, vdw_coeff, virial_indicies, param):
 	"""
 	calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, bond_beads, dist_index, r_index, param)
 
@@ -394,6 +395,7 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indic
 
 		bond_indices = ut.create_index(bond_indices)
 		bond_dist = (pos[bond_indices[0]] - pos[bond_indices[1]]).T
+		for i in range(param['n_dim']): bond_dist[i] -= cell_dim[i] * np.array(2 * bond_dist[i] / cell_dim[i], dtype=int)
 		bond_r2 = np.sum(bond_dist**2, axis=0)
 		bond_r = np.sqrt(bond_r2)
 		bond_r_half = bond_r[np.arange(0, len(bond_r), 2)]
@@ -419,7 +421,9 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indic
 		try:
 
 			angle_bond_indices = ut.create_index(angle_bond_indices)
+			#angle_dist = bond_dist.T[r_indices].T
 			angle_dist = (pos[angle_bond_indices[0]] - pos[angle_bond_indices[1]]).T
+			for i in range(param['n_dim']): angle_dist[i] -= cell_dim[i] * np.array(2 * angle_dist[i] / cell_dim[i], dtype=int)
 			angle_r2 = np.sum(angle_dist**2, axis=0)
 
 			"Make array of vectors rij, rjk for all connected bonds"
@@ -428,6 +432,7 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indic
 
 			"Find |rij| values for each vector"
 			r_vector = np.sqrt(angle_r2)
+			#r_vector = bond_r[r_indices]
 			cos_the, sin_the, r_prod = cos_sin_theta(vector, r_vector)
 			pot_energy += param['angle_k0'] * np.sum(cos_the + 1)
 
@@ -467,10 +472,10 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indic
 	verlet_list = ut.check_cutoff(vdw_r2, param['rc']**2)
 	non_zero = np.nonzero(vdw_r2 * verlet_list)
 
-	nonbond_pot = vdw_mat[non_zero] * ut.pot_vdw((vdw_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_pot
+	nonbond_pot = vdw_coeff[non_zero] * ut.pot_vdw((vdw_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_pot
 	pot_energy += np.nansum(nonbond_pot) / 2
 
-	nonbond_frc = vdw_mat[non_zero] * ut.force_vdw((vdw_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_frc
+	nonbond_frc = vdw_coeff[non_zero] * ut.force_vdw((vdw_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_frc
 	temp_xy = np.zeros(vdw_dist.shape)
 	
 	virial_indicies = ut.create_index(virial_indicies)
@@ -489,7 +494,7 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indic
 
 
 def velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, angle_indices, 
-			angle_bond_indices, vdw_mat, vdw_indices, virial_indicies, dt, sqrt_dt, cell_dim, comm, size, rank, NPT=False):
+			angle_bond_indices, r_indices, vdw_mat, vdw_indices, virial_indicies, dt, sqrt_dt, cell_dim, comm, size, rank, NPT=False):
 	"""
 	velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_indices, angle_indices, 
 			angle_bond_indices, vdw_mat, vdw_indices, virial_indicies, dt, sqrt_dt, cell_dim, NPT=False, P_0 = 1, lambda_p = 1E-5)
@@ -587,9 +592,9 @@ def velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bo
 	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
 	
 	pot_energy, frc, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, 
-															vdw_indices, vdw_mat, virial_indicies, param)
+							r_indices, vdw_indices, vdw_mat, virial_indicies, param)
 
-	pot_energy = np.sum(comm.allreduce(pot_energy, op=MPI.SUM))
+	pot_energy = np.sum(comm.gather(pot_energy, root=0))
 	frc = comm.allreduce(frc, op=MPI.SUM)
 	virial_tensor = comm.allreduce(virial_tensor, op=MPI.SUM)
 

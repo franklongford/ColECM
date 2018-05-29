@@ -75,6 +75,17 @@ You can run both modules by calling ``ColECM simulation analysis [flags]``
 		-nrepy	Number of simulation cells to repeat in y dimension
 		-nrepz	Number of simulation cells to repeat in z dimension (3D only)
 
+A speed test can be used to estimate the optimum number of processors to use for a MPI run
+
+3) ``~/ColECM/tests/speed_test [flags]``
+
+	Simulation editor
+	Flags are optional and can be entered in the command line or selected later during the analysis process.
+
+		-param	Name of simulation parameter file
+		-rst	Name of simulation restart file
+		-ntrial  Number of trial calculations to perform in speed test (default=1000)
+
 Defaults
 --------
 

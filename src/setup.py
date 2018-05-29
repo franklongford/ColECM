@@ -247,7 +247,7 @@ def manual_input_param(param=False):
 	return param
 
 
-def read_shell_input(current_dir, sim_dir, input_file_name=False):
+def read_shell_input(current_dir, sim_dir, input_file_name=False, verbosity=True):
 	"""
 	read_shell_input(current_dir, sim_dir)
 
@@ -292,7 +292,7 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 			'n_fibril_z', 'n_fibril', 'n_bead', 'density']
 
 	if os.path.exists(sim_dir + file_names['param_file_name'] + '.pkl'):
-		print(" Loading parameter file {}.pkl".format(sim_dir + file_names['param_file_name']))
+		if verbosity: print(" Loading parameter file {}.pkl".format(sim_dir + file_names['param_file_name']))
 		param_file = ut.read_param_file(sim_dir + file_names['param_file_name'])
 
 		"""
@@ -312,7 +312,7 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 		if input_file_name: _, param = read_input_file(input_file_name, simulation=True, param=param)
 		param = check_sim_param(sys.argv, param)
 
-		print(" Creating parameter file {}.pkl".format(sim_dir + file_names['param_file_name'])) 
+		if verbosity: print(" Creating parameter file {}.pkl".format(sim_dir + file_names['param_file_name'])) 
 		ut.make_param_file(sim_dir + file_names['param_file_name'])
 		for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
 		
@@ -324,8 +324,9 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False):
 
 	param = check_analysis_param(sys.argv, param)
 
-	print(" Parameters found:")
-	for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
+	if verbosity: 
+		print(" Parameters found:")
+		for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
 
 	return file_names, param
 
@@ -568,9 +569,9 @@ def calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank
 	import time
 
 	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces, calc_energy_forces_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces, calc_energy_forces_mpi
 
-	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists_mpi(bond_matrix, size, rank)
+	bond_indices, angle_indices, angle_bond_indices, r_indices = ut.update_bond_lists_mpi(bond_matrix, comm, size, rank)
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
 	vdw_mat = np.array_split(vdw_matrix, size)[rank]
@@ -580,27 +581,28 @@ def calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank
 	#verlet_list_rb = ut.check_cutoff(r2, param['bond_rb']**2)
 
 	pot_energy, frc, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, 
-															vdw_indices, vdw_mat, virial_indicies, param)
+									r_indices, vdw_indices, vdw_mat, virial_indicies, param)
 
-	if size > 1:
-		pot_energy = np.sum(comm.allreduce(pot_energy, op=MPI.SUM))
-		frc = comm.allreduce(frc, op=MPI.SUM)
-		virial_tensor = comm.allreduce(virial_tensor, op=MPI.SUM)
-
-
-	return frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices
+	pot_energy = np.sum(comm.gather(pot_energy))
+	frc = comm.allreduce(frc, op=MPI.SUM)
+	virial_tensor = comm.allreduce(virial_tensor, op=MPI.SUM)
 
 	"""
-	else:
-		angle_indices, angle_bond_indices, r_index, fib_end = ut.update_bond_lists(bond_matrix)
-
+	if rank == 0:
+		angle_indices, angle_bond_indices, r_indices, _ = ut.update_bond_lists(bond_matrix)
 		distances = ut.get_distances(pos, cell_dim)
 		r2 = np.sum(distances**2, axis=0)
 		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
-		pot_energy, frc, virial_tensor = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list_rc, angle_indices, angle_bond_indices, r_index)
+		pot_energy, frc, virial_tensor = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list_rc, angle_indices, angle_bond_indices, r_indices)
 
-		return frc, pot_energy, virial_tensor, angle_indices, angle_bond_indices, r_index, fib_end
+		print((pot_energy_mpi - pot_energy) < 1E-10)
+		print(np.sum(frc_mpi - frc) < 1E-10)
+		print(np.sum(virial_tensor_mpi - virial_tensor) < 1E-10)
+
+	sys.exit()
 	"""
+
+	return frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices, r_indices
 
 
 def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.1, thresh=5E-2):
@@ -648,15 +650,14 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	if rank == 0: print("\n" + " " * 15 + "----Equilibrating Temperature----\n")
 
 	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg, velocity_verlet_alg_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg
+	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg, velocity_verlet_alg_mpi
 
 	sqrt_dt = np.sqrt(param['dt'] / 2)
 	n_dof = param['n_dim'] * param['n_bead'] 
 	vel = np.zeros(pos.shape)
 
 	sim_state = calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size, rank)
-
-	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
+	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices, r_indices = sim_state
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
 	vdw_mat = np.array_split(vdw_matrix, size)[rank]
@@ -676,19 +677,28 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 		print(" {:^18s} | {:^18s} | {:^18s}".format('Step', 'Ref kBT', 'kBT'))
 		print(" " + "-" * 60)
 
-	while optimising:
-		
-		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, angle_indices, 
-			angle_bond_indices, vdw_mat, vdw_indices, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank,)
+	distances = ut.get_distances(pos, cell_dim)
+	r2 = np.sum(distances**2, axis=0)
+	verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
 
-		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
-		
-		"""
-		"DYNAMIC BONDS - not yet implemented fully"
+	while optimising:
+	
+		"""	
 		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_matrix, 
-			verlet_list_rc, bond_beads, dist_index, r_index, param['dt']/2, sqrt_dt, cell_dim)
+			verlet_list_rc, angle_indices, angle_bond_indices, r_indices, param['dt']/2, sqrt_dt, cell_dim)
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2) = sim_state
 		verlet_list_rc = ut.check_cutoff(r2, param['rc']**2)
+
+		#"""
+		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, angle_indices, 
+			angle_bond_indices, r_indices, vdw_mat, vdw_indices, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank,)
+
+		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
+		#"""		
+
+		"""
+		"DYNAMIC BONDS - not yet implemented fully"
+		
 		if step % 1 == 0: 
 			param['bond_matrix'], update = ut.bond_check(param['bond_matrix'], fib_end, r2, param['rc'], param['bond_rb'], param['vdw_sigma'])
 			if update:
@@ -767,13 +777,13 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 	if rank == 0: print("\n" + " " * 15 + "----Equilibrating Density----\n")
 
 	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg, velocity_verlet_alg_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg
+	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg, velocity_verlet_alg_mpi
 
 	sqrt_dt = np.sqrt(param['dt'])
 	n_dof = param['n_dim'] * param['n_bead']
 
 	sim_state = calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size, rank)
-	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
+	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices, r_indices = sim_state
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
 	vdw_mat = np.array_split(vdw_matrix, size)[rank]
@@ -800,7 +810,7 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 	while optimising:
 
 		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, angle_indices, 
-			angle_bond_indices, vdw_mat, vdw_indices, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank, NPT=True)
+			angle_bond_indices, r_indices, vdw_mat, vdw_indices, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank, NPT=True)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
 
@@ -846,7 +856,7 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 	return pos, vel, cell_dim
 
 
-def import_files(sim_dir, file_names, param, comm, size=1, rank=0):
+def import_files(sim_dir, file_names, param, comm, size=1, rank=0, verbosity=True):
 	"""
 	import_files(sim_dir, file_names, param)
 
@@ -882,7 +892,7 @@ def import_files(sim_dir, file_names, param, comm, size=1, rank=0):
 
 	if os.path.exists(sim_dir + file_names['restart_file_name'] + '.npy'):
 		if rank == 0: 
-			print(" Loading restart file {}.npy".format(sim_dir + file_names['restart_file_name']))
+			if verbosity: print(" Loading restart file {}.npy".format(sim_dir + file_names['restart_file_name']))
 			restart = ut.load_npy(sim_dir + file_names['restart_file_name'])
 		else: restart = None
 		restart = comm.bcast(restart, root=0)
@@ -894,7 +904,7 @@ def import_files(sim_dir, file_names, param, comm, size=1, rank=0):
 
 	elif os.path.exists(sim_dir + file_names['pos_file_name'] + '.npy'):
 		if rank == 0:
-			print(" Loading position file {}.npy".format(sim_dir + file_names['pos_file_name']))
+			if verbosity: print(" Loading position file {}.npy".format(sim_dir + file_names['pos_file_name']))
 			pos = ut.load_npy(sim_dir + file_names['pos_file_name'])
 		else: pos = None
 		pos = comm.bcast(pos, root=0)
@@ -908,7 +918,7 @@ def import_files(sim_dir, file_names, param, comm, size=1, rank=0):
 		file_names['pos_file_name'] = ut.check_file_name(file_names['pos_file_name'], file_type='pos') + '_pos'
 
 		if rank == 0: 
-			print(" Creating input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
+			if verbosity: print(" Creating input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
 			pos, cell_dim, param = create_pos_array(param)
 
 			#param['l_conv'] = 1. / param['vdw_sigma']
@@ -916,7 +926,7 @@ def import_files(sim_dir, file_names, param, comm, size=1, rank=0):
 			keys = ['bond_matrix', 'vdw_matrix']#, 'l_conv']
 			for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
 
-			print(" Saving input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
+			if verbosity: print(" Saving input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
 			ut.save_npy(sim_dir + file_names['pos_file_name'], np.vstack((pos, cell_dim)))
 		else:
 			pos = None
@@ -930,7 +940,7 @@ def import_files(sim_dir, file_names, param, comm, size=1, rank=0):
 		pos, vel, cell_dim = equilibrate_density(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
 
 		if rank == 0: 
-			print(" Saving restart file {}".format(file_names['restart_file_name']))
+			if verbosity: print(" Saving restart file {}".format(file_names['restart_file_name']))
 			ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
 
 	return pos, vel, cell_dim, param

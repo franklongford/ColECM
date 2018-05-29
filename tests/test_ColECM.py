@@ -231,3 +231,15 @@ def test_grow_fibril():
 
 	for i in range(n_attempts): setup.create_pos_array(param)
 
+def test_mpi():
+
+	from mpi4py import MPI
+
+	param = setup.get_param_defaults()
+	param['l_fibril'] = 10
+	param['n_bead'] = param['n_fibril'] * param['l_fibril'] 
+
+	if rank == 0: pos, cell_dim, param = setup.create_pos_array(param)
+
+	
+
