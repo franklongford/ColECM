@@ -464,7 +464,7 @@ def get_distances_mpi(pos, indices, cell_dim):
 
 	dxyz_1 = np.reshape(np.tile(temp_pos_1, (1, n_bead_proc)), (n_dim, n_bead_proc, n_bead))
 	dxyz_2 = np.repeat(temp_pos_2, n_bead, axis=1).reshape((n_dim, n_bead_proc, n_bead))
-	dxyz = dxyz_1 - dxyz_2
+	dxyz = dxyz_2 - dxyz_1
 
 	for i in range(n_dim): dxyz[i] -= cell_dim[i] * np.array(2 * dxyz[i] / cell_dim[i], dtype=int)
 
@@ -521,7 +521,6 @@ def kin_energy(vel, mass, n_dim):
 	return 0.5 * np.sum(mass * vel**2)
 
 
-
 def update_bond_lists_mpi(bond_matrix, comm, size, rank):
 	"""
 	update_bond_lists(bond_matrix)
@@ -532,11 +531,9 @@ def update_bond_lists_mpi(bond_matrix, comm, size, rank):
 	N = bond_matrix.shape[0]
 
 	"Get indicies of bonded beads"
-	bond_index_half = np.argwhere(np.triu(bond_matrix))
 	bond_index_full = np.argwhere(bond_matrix)
 
 	"Create index lists for referring to in 2D arrays"
-	indices_half = create_index(bond_index_half)
 	indices_full = create_index(bond_index_full)
 
 	angle_indices = []
@@ -564,35 +561,11 @@ def update_bond_lists_mpi(bond_matrix, comm, size, rank):
 			angle_indices.append(np.unique(bond_index_full[slice_full].flatten()))
 			angle_bond_indices.append(bond_index_full[slice_full][::-1])
 
-	#if rank == 0: print(rank, np.array(angle_indices).shape, np.array(angle_bond_indices).reshape((2 * len(angle_indices), 2)).shape, dist_indices)
-
-	bond_indices = np.array_split(bond_index_full, size)[rank]
+	bond_indices = np.nonzero(np.array_split(bond_matrix, size)[rank])
 	angle_indices = np.array_split(angle_indices, size)[rank]
-	angle_bond_indices = np.array_split(angle_bond_indices, size)[rank].reshape((2 * len(angle_indices), 2))
-
-	dist_indices = []
-	for i, x in enumerate(angle_bond_indices):
-		for j, y in enumerate(bond_indices):
-			if np.array_equiv(x, y):
-				dist_indices.append(j)
-				break
-
-	dist_indices = np.array(dist_indices)
-
-	"""
-	proc_check = comm.gather(angle_bond_indices.shape[0] == dist_indices.shape[0], root=0)
-	if rank == 0: proceed = np.all(proc_check)
-	else: proceed = None
-	proceed = comm.bcast(proceed, root = 0)
-
-	if not proceed: 
-		if rank == 0:
-			print("\n Bond angles incorrectly assigned on processor {}\n Number of processors ({}) is too high for system size\n".format(proc_check.index(False), size))
-			print("              -------------ABORTING------------\n")
-		sys.exit() 
-	"""
-
-	return bond_indices, angle_indices, angle_bond_indices, dist_indices
+	angle_bond_indices = create_index(np.array_split(angle_bond_indices, size)[rank].reshape((2 * len(angle_indices), 2)))
+	
+	return bond_indices, angle_indices, angle_bond_indices
 
 
 def update_bond_lists(bond_matrix):

@@ -325,8 +325,8 @@ def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_matrix, vdw_ma
 	return pos, vel, frc, cell_dim, pot_energy, virial_tensor, r2
 
 
-def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, r_indices,
-				vdw_indices, vdw_coeff, virial_indicies, param):
+def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, angle_indices, angle_bond_indices, 
+				vdw_coeff, virial_indicies, param):
 	"""
 	calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, bond_beads, dist_index, r_index, param)
 
@@ -389,39 +389,37 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indic
 	cut_frc = ut.force_vdw(param['rc']**2, param['vdw_sigma'], param['vdw_epsilon'])
 	cut_pot = ut.pot_vdw(param['rc']**2, param['vdw_sigma'], param['vdw_epsilon'])
 	virial_tensor = np.zeros((2, 2))
-	nbond = len(bond_indices)
+	nbond = bond_indices[0].shape[0]
+
+	pair_dist = ut.get_distances_mpi(pos, pos_indices, cell_dim)
+	pair_r2 = np.sum(pair_dist**2, axis=0)
 
 	if nbond > 0:
 
-		bond_indices = ut.create_index(bond_indices)
-		bond_dist = (pos[bond_indices[0]] - pos[bond_indices[1]]).T
-		for i in range(param['n_dim']): bond_dist[i] -= cell_dim[i] * np.array(2 * bond_dist[i] / cell_dim[i], dtype=int)
-		bond_r2 = np.sum(bond_dist**2, axis=0)
-		bond_r = np.sqrt(bond_r2)
-		bond_r_half = bond_r[np.arange(0, len(bond_r), 2)]
-
 		"Bond Lengths"
+		bond_r = np.sqrt(pair_r2[bond_indices])
 		#verlet_list_r0 = ut.check_cutoff(r_half, param['bond_r0'])
 		#verlet_list_r1 = ut.check_cutoff(r_half, param['bond_r1'])
 
-		bond_pot = ut.pot_harmonic(bond_r_half, param['bond_r0'], param['bond_k0'])# * verlet_list_r0
+		bond_pot = ut.pot_harmonic(bond_r, param['bond_r0'], param['bond_k0'])# * verlet_list_r0
 		#bond_pot_1 = ut.pot_harmonic(r_half, param['bond_r1'], param['bond_k1']) * verlet_list_r1
-		pot_energy += np.sum(bond_pot)# + np.sum(bond_pot_1)
+		pot_energy += 0.5 * np.sum(bond_pot)# + np.sum(bond_pot_1)
 
 		bond_frc = ut.force_harmonic(bond_r, param['bond_r0'], param['bond_k0'])# * verlet_list_r0
 		#bond_frc_1 = ut.force_harmonic(r_half, param['bond_r1'], param['bond_k1']) * verlet_list_r1
 
-		f_beads_x[bond_indices[0]] += bond_frc * bond_dist[0] / bond_r
-		f_beads_y[bond_indices[0]] += bond_frc * bond_dist[1] / bond_r
+		temp_frc = np.zeros((2,) + param['bond_matrix'].shape)
+		temp_frc[0][frc_indices] += bond_frc * pair_dist[0][bond_indices] / bond_r
+		temp_frc[1][frc_indices] += bond_frc * pair_dist[1][bond_indices] / bond_r
+
+		f_beads_x += np.sum(temp_frc[0], axis=1)
+		f_beads_y += np.sum(temp_frc[1], axis=1)
 
 		#for i in range(2):
 		#	for j in range(2): virial_tensor[i][j] += np.sum(bond_frc / r_half * distances[i][indices_half] * distances[j][indices_half])
 
 		"Bond Angles"
 		try:
-
-			angle_bond_indices = ut.create_index(angle_bond_indices)
-			#angle_dist = bond_dist.T[r_indices].T
 			angle_dist = (pos[angle_bond_indices[0]] - pos[angle_bond_indices[1]]).T
 			for i in range(param['n_dim']): angle_dist[i] -= cell_dim[i] * np.array(2 * angle_dist[i] / cell_dim[i], dtype=int)
 			angle_r2 = np.sum(angle_dist**2, axis=0)
@@ -432,7 +430,6 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indic
 
 			"Find |rij| values for each vector"
 			r_vector = np.sqrt(angle_r2)
-			#r_vector = bond_r[r_indices]
 			cos_the, sin_the, r_prod = cos_sin_theta(vector, r_vector)
 			pot_energy += param['angle_k0'] * np.sum(cos_the + 1)
 
@@ -467,23 +464,19 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indic
 
 		except IndexError: pass
 	
-	vdw_dist = ut.get_distances_mpi(pos, pos_indices, cell_dim)
-	vdw_r2 = np.sum(vdw_dist**2, axis=0)
-	verlet_list = ut.check_cutoff(vdw_r2, param['rc']**2)
-	non_zero = np.nonzero(vdw_r2 * verlet_list)
+	verlet_list = ut.check_cutoff(pair_r2, param['rc']**2)
+	non_zero = np.nonzero(pair_r2 * verlet_list)
 
-	nonbond_pot = vdw_coeff[non_zero] * ut.pot_vdw((vdw_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_pot
+	nonbond_pot = vdw_coeff[non_zero] * ut.pot_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_pot
 	pot_energy += np.nansum(nonbond_pot) / 2
 
-	nonbond_frc = vdw_coeff[non_zero] * ut.force_vdw((vdw_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_frc
-	temp_xy = np.zeros(vdw_dist.shape)
+	nonbond_frc = vdw_coeff[non_zero] * ut.force_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_frc
+	temp_xy = np.zeros(pair_dist.shape)
 	
-	virial_indicies = ut.create_index(virial_indicies)
-
 	for i in range(2):
-		temp_xy[i][non_zero] -= nonbond_frc * (vdw_dist[i][non_zero] / vdw_r2[non_zero])
+		temp_xy[i][non_zero] += nonbond_frc * (pair_dist[i][non_zero] / pair_r2[non_zero])
 		for j in range(2):
-			virial_tensor[i][j] += np.sum((temp_xy[i] * vdw_dist[i] * vdw_dist[j])[virial_indicies])
+			virial_tensor[i][j] += np.sum((temp_xy[i] * pair_dist[i] * pair_dist[j])[virial_indicies])
 
 	f_beads_x += np.sum(temp_xy[0], axis=0)
 	f_beads_y += np.sum(temp_xy[1], axis=0)
@@ -493,8 +486,8 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indic
 	return pot_energy, frc_beads, virial_tensor
 
 
-def velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, angle_indices, 
-			angle_bond_indices, r_indices, vdw_mat, vdw_indices, virial_indicies, dt, sqrt_dt, cell_dim, comm, size, rank, NPT=False):
+def velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
+				angle_bond_indices, vdw_coeff, virial_indicies, dt, sqrt_dt, cell_dim, comm, size, rank, NPT=False):
 	"""
 	velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_indices, angle_indices, 
 			angle_bond_indices, vdw_mat, vdw_indices, virial_indicies, dt, sqrt_dt, cell_dim, NPT=False, P_0 = 1, lambda_p = 1E-5)
@@ -591,8 +584,8 @@ def velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bo
 	cell = np.tile(cell_dim, (param['n_bead'], 1)) 
 	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
 	
-	pot_energy, frc, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, 
-							r_indices, vdw_indices, vdw_mat, virial_indicies, param)
+	pot_energy, frc, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
+							angle_indices, angle_bond_indices, vdw_coeff, virial_indicies, param)
 
 	pot_energy = np.sum(comm.gather(pot_energy, root=0))
 	frc = comm.allreduce(frc, op=MPI.SUM)

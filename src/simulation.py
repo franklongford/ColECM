@@ -54,12 +54,12 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 		tot_vol = np.zeros(param['n_step'])
 
 	sim_state = setup.calc_state(pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
-	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices, r_indices = sim_state
+	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
+	frc_indices = (bond_indices[0] + pos_indices[0], bond_indices[1])
 	vdw_coeff = np.array_split(param['vdw_matrix'], size)[rank]
-	vdw_indices = np.array_split(np.mgrid[:param['n_bead'], :param['n_bead']], size)[rank]
-	virial_indicies = np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank])
+	virial_indicies = ut.create_index(np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank]))
 
 	kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
 	pressure = 1 / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
@@ -93,8 +93,8 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 
 	for step in range(1, param['n_step']):
 
-		sim_state = sim.velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, angle_indices, 
-			angle_bond_indices, r_indices, vdw_coeff, vdw_indices, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank)
+		sim_state = sim.velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
+				angle_bond_indices, vdw_coeff, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, comm, size, rank)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
 
@@ -264,12 +264,12 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces, calc_energy_forces_mpi
 	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces, calc_energy_forces_mpi
 
-	bond_indices, angle_indices, angle_bond_indices, r_indices = ut.update_bond_lists_mpi(param['bond_matrix'], comm, size, rank)
-
+	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists_mpi(param['bond_matrix'], comm, size, rank)
+	
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
-	vdw_mat = np.array_split(param['vdw_matrix'], size)[rank]
-	vdw_indices = np.array_split(np.mgrid[:param['n_bead'], :param['n_bead']], size)[rank]
-	virial_indicies = np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank])
+	frc_indices = (bond_indices[0] + pos_indices[0], bond_indices[1])
+	vdw_coeff = np.array_split(param['vdw_matrix'], size)[rank]
+	virial_indicies = ut.create_index(np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank]))
 
 	calc_times = []
 	overhead_times = []
@@ -279,8 +279,8 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 	for i in range(n_trial):
 		start_time = time.time()
 
-		pot_energy, frc, virial_tensor = sim.calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, angle_indices, angle_bond_indices, 
-									r_indices, vdw_indices, vdw_mat, virial_indicies, param)
+		pot_energy, frc, virial_tensor = sim.calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
+							angle_indices, angle_bond_indices, vdw_coeff, virial_indicies, param)
 
 		stop_time_1 = time.time()
 		calc_times.append(stop_time_1 - start_time)
