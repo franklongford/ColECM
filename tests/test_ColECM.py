@@ -146,10 +146,9 @@ def test_get_dxyz():
 def test_cos_sin_theta():
 
 	dx, dy = ut.get_distances(pos_2D, cell_dim_2D)
-	bond_beads, dxdy_index, r_index = ut.update_bond_lists(bond_matrix)
-	indices_dxy = ut.create_index(dxdy_index)
+	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
 
-	vector = np.stack((dx[indices_dxy], dy[indices_dxy]), axis=1)
+	vector = np.stack((dx[angle_bond_indices], dy[angle_bond_indices]), axis=1)
 	n_vector = int(vector.shape[0])
 
 	"Find |rij| values for each vector"
@@ -162,10 +161,9 @@ def test_cos_sin_theta():
 	assert abs(np.sum(sin_the - check_sin_the)) <= THRESH
 
 	dx, dy, dz = ut.get_distances(pos_3D, cell_dim_3D)
-	bond_beads, dxdydz_index, r_index = ut.update_bond_lists(bond_matrix)
-	indices_dxyz = ut.create_index(dxdy_index)
+	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
 
-	vector = np.stack((dx[indices_dxyz], dy[indices_dxyz], dz[indices_dxyz]), axis=1)
+	vector = np.stack((dx[angle_bond_indices], dy[angle_bond_indices], dz[angle_bond_indices]), axis=1)
 	n_vector = int(vector.shape[0])
 
 	"Find |rij| values for each vector"
@@ -185,37 +183,37 @@ def test_pot_energy_frc():
 	param['n_fibril_y'] = 1
 	param['n_fibril_z'] = 1
 	param['l_fibril'] = 3
+	param['n_bead'] = param['n_fibril_x'] * param['n_fibril_y'] * param['n_fibril_z'] * param['l_fibril']
 
-	distances = ut.get_distances(pos_2D, cell_dim_2D)
-	bond_beads, dxdy_index, r_index = ut.update_bond_lists(bond_matrix)
-	r2 = np.sum(distances**2, axis=0)
-	verlet_list = ut.check_cutoff(r2, param['rc']**2)
-	
-	pot_energy, new_frc, _ = sim_2D.calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, 
-					verlet_list, bond_beads, dxdy_index, r_index)
+	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
+	pos_indices = np.arange(param['n_bead'])
+	virial_indicies = ut.create_index(np.argwhere(np.tri(param['n_bead']).T))
+
+	pot_energy, frc, virial_tensor = sim_2D.calc_energy_forces(pos_2D, cell_dim_2D, pos_indices, bond_indices, bond_indices, 
+							angle_indices, angle_bond_indices, vdw_matrix, virial_indicies, param)
 
 	check_frc = np.array([[ 12277.59052347,  -6225.74404829],
  			      [ 41.48708925,  -1095.43380772],
  			      [-12319.07761272,   7321.17785601]])
 
-	assert abs(pot_energy - 423.5238450131211) <= THRESH
-	assert abs(np.sum(new_frc - check_frc)) <= THRESH
+	assert abs(pot_energy - 405.08269116652315) <= THRESH
+	assert abs(np.sum(frc - check_frc)) <= THRESH
 
 	param['n_dim'] = 3
-	distances = ut.get_distances(pos_3D, cell_dim_3D)
-	bond_beads, dxdydz_index, r_index = ut.update_bond_lists(bond_matrix)
-	r2 = np.sum(distances**2, axis=0)
-	verlet_list = ut.check_cutoff(r2, param['rc']**2)
-	
-	pot_energy, new_frc, _ = sim_3D.calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, 
-					verlet_list, bond_beads, dxdy_index, r_index)
+
+	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
+	pos_indices = np.arange(param['n_bead'])
+	virial_indicies = ut.create_index(np.argwhere(np.tri(param['n_bead']).T))
+
+	pot_energy, frc, virial_tensor = sim_3D.calc_energy_forces(pos_3D, cell_dim_3D, pos_indices, bond_indices, bond_indices, 
+							angle_indices, angle_bond_indices, vdw_matrix, virial_indicies, param)
 
 	check_frc = np.array([[  23.97941507,  770.44703468, -238.8615784 ],
  			      [  27.2045763,  -777.5797729,   172.30544761],
 			      [ -51.18399136,    7.13273822,   66.55613079]])
 
-	assert abs(pot_energy - 31.332909531802844) <= THRESH
-	assert abs(np.sum(new_frc - check_frc)) <= THRESH
+	assert abs(pot_energy - 13.594451775093999) <= THRESH
+	assert abs(np.sum(frc - check_frc)) <= THRESH
 
 
 def test_grow_fibril():
@@ -231,15 +229,4 @@ def test_grow_fibril():
 
 	for i in range(n_attempts): setup.create_pos_array(param)
 
-def test_mpi():
-
-	from mpi4py import MPI
-
-	param = setup.get_param_defaults()
-	param['l_fibril'] = 10
-	param['n_bead'] = param['n_fibril'] * param['l_fibril'] 
-
-	if rank == 0: pos, cell_dim, param = setup.create_pos_array(param)
-
-	
 

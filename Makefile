@@ -1,5 +1,6 @@
 PYTHON=python
-PIP=pip3
+PIP=pip
+
 BIN=~/.conda/envs/python_3/bin/ "Enter binary folder here"
 
 NAME=ColECM
@@ -9,6 +10,7 @@ init: check install test
 
 
 check:
+	@echo $(PYTHON)
 	@echo
 	@echo "Checking default python version:"
 	@$(PYTHON) --version || (echo "No python distribution detected"; exit 1)
@@ -21,9 +23,8 @@ install:
 	@echo
 	@echo "Installing ColECM"
 	@echo
+	@$(PIP) install -r requirements.txt
 	@$(PYTHON) make.py install $(NAME) $(BIN) || (echo "Installation failed"; exit 1)
-	@$(PIP) install -r requirements.txt 
-
 
 test:
 	@echo
@@ -37,6 +38,7 @@ uninstall:
 		
 
 clean:
+	@rm -f -r bin
 	@rm -f -r tests/__pycache__
 	@rm -f -r src/__pycache__
 	@rm -f src/*.pyc

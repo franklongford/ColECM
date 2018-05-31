@@ -578,11 +578,9 @@ def update_bond_lists(bond_matrix):
 	N = bond_matrix.shape[0]
 
 	"Get indicies of bonded beads"
-	bond_index_half = np.argwhere(np.triu(bond_matrix))
 	bond_index_full = np.argwhere(bond_matrix)
 
 	"Create index lists for referring to in 2D arrays"
-	indices_half = create_index(bond_index_half)
 	indices_full = create_index(bond_index_full)
 
 	angle_indices = []
@@ -591,6 +589,7 @@ def update_bond_lists(bond_matrix):
 	"Count number of unique bonds"
 	count = np.unique(bond_index_full.T[0]).shape[0]
 
+	"""
 	"Find indicies of ends of fibrils"
 	fib_end_check = np.argwhere(np.sum(bond_matrix, axis=1) <= 1)
 	n_fib_end = fib_end_check.shape[0]
@@ -600,6 +599,7 @@ def update_bond_lists(bond_matrix):
 
 	fib_end = np.zeros(bond_matrix.shape)
 	fib_end[fib_end_check_ind] += 1
+	"""
 
 	for n in range(N):
 		slice_full = np.argwhere(bond_index_full.T[0] == n)
@@ -608,11 +608,11 @@ def update_bond_lists(bond_matrix):
 			angle_indices.append(np.unique(bond_index_full[slice_full].flatten()))
 			angle_bond_indices.append(bond_index_full[slice_full][::-1])
 
+	bond_indices = np.nonzero(bond_matrix)
 	angle_indices = np.array(angle_indices)
-	angle_bond_indices = np.reshape(angle_bond_indices, (2 * len(angle_bond_indices), 2))
-	r_index = np.array([np.argwhere(np.sum(bond_index_half**2, axis=1) == x).flatten() for x in np.sum(angle_bond_indices**2, axis=1)]).flatten()
+	angle_bond_indices = create_index(np.array(angle_bond_indices).reshape((2 * len(angle_indices), 2)))
 
-	return angle_indices, angle_bond_indices, r_index, fib_end
+	return bond_indices, angle_indices, angle_bond_indices
 
 
 def centre_of_mass(pos, mass, n_fibril, l_fibril, n_dim):

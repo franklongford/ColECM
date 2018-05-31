@@ -18,19 +18,19 @@ import setup
 
 def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):	
 
-	if rank == 0: 
+	sim_dir = current_dir + '/sim/'
+
+	if rank == 0:
 		print("\n " + " " * 15 + "----Entering Setup----\n")
 		setup_time_start = time.time()
-
-	sim_dir = current_dir + '/sim/'
-	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
-
-	if rank == 0: file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
+		if not os.path.exists(sim_dir): os.mkdir(sim_dir)
+		file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
 	else:
 		file_names = None
 		param = None
 	file_names = comm.bcast(file_names, root=0)
 	param = comm.bcast(param, root=0)
+
 
 	if param['n_dim'] == 2: import sim_tools_2D as sim
 	elif param['n_dim'] == 3: import sim_tools_3D as sim
@@ -228,12 +228,12 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 
 	import time
 
-	if rank == 0: setup_time_start = time.time()
-
 	sim_dir = current_dir + '/sim/'
-	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
 
-	if rank == 0: file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name, verbosity=False)
+	if rank == 0: 
+		setup_time_start = time.time()
+		if not os.path.exists(sim_dir): os.mkdir(sim_dir)
+		file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name, verbosity=False)
 	else:
 		file_names = None
 		param = None
@@ -261,8 +261,8 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 		tot_press = np.zeros(param['n_step'])
 		tot_vol = np.zeros(param['n_step'])
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces, calc_energy_forces_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces, calc_energy_forces_mpi
+	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists_mpi(param['bond_matrix'], comm, size, rank)
 	
@@ -279,7 +279,7 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 	for i in range(n_trial):
 		start_time = time.time()
 
-		pot_energy, frc, virial_tensor = sim.calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
+		pot_energy, frc, virial_tensor = sim.calc_energy_forces(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
 							angle_indices, angle_bond_indices, vdw_coeff, virial_indicies, param)
 
 		stop_time_1 = time.time()

@@ -331,9 +331,9 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False, verbosity=True
 	return file_names, param
 
 
-def grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_attempt=200):
+def grow_fibril(index, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_attempt=200):
 	"""
-	grow_fibril(index, bead, pos, n_bead, param, max_energy, max_attempt=200)
+	grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_attempt=200
 
 	Grow collagen fibril consisting of beads
 
@@ -378,11 +378,13 @@ def grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200
 
 	cell_dim = np.array([param['vdw_sigma']**2 * param['n_bead']] * param['n_dim'])
 
-	if bead == 0:
+	if index == 0:
 		pos[index] = np.random.random((param['n_dim'])) * param['vdw_sigma'] * 2
 
 	else:
-		bond_beads, dist_index, r_index, _ = ut.update_bond_lists(bond_matrix)
+		bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
+		virial_indicies = ut.create_index(np.argwhere(np.tri(pos.shape[0]).T))
+		pos_indices = np.arange(pos.shape[0])
 
 		energy = max_energy + 1
 		attempt = 0
@@ -390,16 +392,14 @@ def grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200
 		while energy > max_energy:
 			new_vec = ut.rand_vector(param['n_dim']) * param['bond_r0']	
 			pos[index] = pos[index-1] + new_vec
-			distances = ut.get_distances(pos[:bead+1], cell_dim)
-			r2 = np.sum(distances**2, axis=0)
-			verlet_list = ut.check_cutoff(r2, param['rc']**2)
 
-			energy, _, _ = calc_energy_forces(distances, r2, param, bond_matrix, vdw_matrix, verlet_list, bond_beads, dist_index, r_index)
+			energy, _, _ = calc_energy_forces(pos, cell_dim, pos_indices, bond_indices, bond_indices, 
+							angle_indices, angle_bond_indices, vdw_matrix, virial_indicies, param)
 
 			attempt += 1
 			if attempt > max_attempt: raise RuntimeError
 
-	return pos
+	return pos[index]
 
 
 def create_pos_array(param):
@@ -434,14 +434,16 @@ def create_pos_array(param):
 
 	pos = np.zeros((param['n_bead'], param['n_dim']), dtype=float)
 	bond_matrix = np.zeros((param['n_bead'], param['n_bead']), dtype=int)
-	vdw_matrix = np.zeros(param['n_bead'], dtype=int)
+	vdw_matrix = np.ones((param['n_bead'], param['n_bead']), dtype=int)
+	temp_vdw = np.ones(param['n_bead'], dtype=int)
 
 	for bead in range(param['n_bead']):
-		if bead % param['l_fibril'] == 0: vdw_matrix[bead] += 10
-		elif bead % param['l_fibril'] == param['l_fibril']-1: vdw_matrix[bead] += 10
-		else: vdw_matrix[bead] += 1
+		if bead % param['l_fibril'] == 0: temp_vdw[bead] = 10
+		elif bead % param['l_fibril'] == param['l_fibril']-1: temp_vdw[bead] = 10
 
-	vdw_matrix = np.reshape(np.tile(vdw_matrix, (1, param['n_bead'])), (param['n_bead'], param['n_bead']))
+	for row in range(param['n_bead']):
+		if row % param['l_fibril'] == 0: vdw_matrix[row] = temp_vdw
+		elif row % param['l_fibril'] == param['l_fibril']-1: vdw_matrix[row] = temp_vdw
 
 	for bead in range(param['n_bead']): vdw_matrix[bead][bead] = 0
 
@@ -458,7 +460,8 @@ def create_pos_array(param):
 
 	while bead < param['l_fibril']:
 		try:
-			init_pos = grow_fibril(bead, bead, init_pos, param,
+
+			init_pos[bead] = grow_fibril(bead, init_pos[ : bead+1], param,
 						bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]],
 						vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]], 
 						max_energy=50 * param['bond_k0'])
@@ -568,8 +571,8 @@ def calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank
 
 	import time
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces, calc_energy_forces_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces, calc_energy_forces_mpi
+	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists_mpi(bond_matrix, comm, size, rank)
 
@@ -580,7 +583,7 @@ def calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank
 
 	#verlet_list_rb = ut.check_cutoff(r2, param['bond_rb']**2)
 
-	pot_energy, frc, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
+	pot_energy, frc, virial_tensor = calc_energy_forces(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
 							angle_indices, angle_bond_indices, vdw_coeff, virial_indicies, param)
 
 	pot_energy = np.sum(comm.gather(pot_energy))
@@ -837,7 +840,7 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 		optimising = abs(den - param['density']) > thresh
 		optimising *= den < param['density']
 
-		if step % 5000 == 0: 
+		if step % 2000 == 0: 
 			av_P = np.mean(P_array)
 			av_kBT = np.mean(kBT_array)
 
@@ -846,10 +849,12 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 
 			if av_P >= param['P_0']: optimising = False
 			if rank == 0: print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, av_P, av_kBT, den))
-
 		step += 1
 
 	if rank == 0:
+		av_P = np.mean(P_array)
+		av_kBT = np.mean(kBT_array)
+		print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, av_P, av_kBT, den))
 		print("\n No. iterations:   {:>10d}".format(step))
 		print(" Final density:   {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim)))
 		print(" Final volume:     {:>10.4f}".format(np.prod(cell_dim)))

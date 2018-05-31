@@ -34,11 +34,13 @@ if task == 'install':
 
 	print("Creating {} executable\n".format(program_name))
 
-	with open(program_name, 'w') as outfile:
+	if not os.path.exists(ColECM_dir + '/bin'): os.mkdir(ColECM_dir + '/bin')
+
+	with open(ColECM_dir + '/bin/' + program_name, 'w') as outfile:
 		outfile.write('#!/bin/bash\n\n')
 		outfile.write('{} {}/src/main.py "$@"'.format(python_command, ColECM_dir))
 
-	with open(ColECM_dir + '/tests/' + speed_test_name, 'w') as outfile:
+	with open(ColECM_dir + '/bin/' + speed_test_name, 'w') as outfile:
 		outfile.write('#!/bin/bash\n\n')
 		outfile.write('n=1\nnproc={}\n'.format(multiprocessing.cpu_count()))
 		outfile.write('echo Running ColECM MPI Speed Test\n')
@@ -47,13 +49,17 @@ if task == 'install':
 		outfile.write('		((n++))\n')
 		outfile.write('		done\n')
 
-	bashCommand = "chmod +x {}".format(program_name)
+	bashCommand = "chmod +x {}".format(ColECM_dir + '/bin/' + program_name)
+	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	output, error = process.communicate()
+
+	bashCommand = "chmod +x {}".format(ColECM_dir + '/bin/' + speed_test_name)
 	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, error = process.communicate()
 
 	print("Copying {} executable to {}\n".format(program_name, bin_dir))
 
-	bashCommand = "cp {} {}".format(program_name, bin_dir)
+	bashCommand = "cp {} {}".format(ColECM_dir + '/bin/' + program_name, bin_dir)
 	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, error = process.communicate()
 	if error:

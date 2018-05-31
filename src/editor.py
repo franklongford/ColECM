@@ -10,6 +10,7 @@ Last Modified: 15/05/2018
 
 import numpy as np
 import sys, os, pickle
+from mpi4py import MPI
 
 import utilities as ut
 import setup
@@ -130,37 +131,48 @@ def repeat_pos_array(pos, vel, cell_dim, param, n_rep_x=1, n_rep_y=1, n_rep_z=1)
 	return rep_pos, rep_vel, cell_dim, param
 
 
-def editor(current_dir, input_file_name=False):	
+def editor(current_dir, comm, input_file_name=False, size=1, rank=0):	
 
 	print("\n Entering Editor\n")
 
 	sim_dir = current_dir + '/sim/'
-	if not os.path.exists(sim_dir): os.mkdir(sim_dir)
 
-	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
-	print("\n Loading restart file {}.npy\n".format(sim_dir + file_names['restart_file_name']))
-	restart = ut.load_npy(sim_dir + file_names['restart_file_name'])
-	pos = restart[0]
-	vel = restart[1]
-	cell_dim = pos[-1]
-	pos = pos[:-1]
+	if rank == 0:
+		file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
+		print("\n Loading restart file {}.npy\n".format(sim_dir + file_names['restart_file_name']))
+		restart = ut.load_npy(sim_dir + file_names['restart_file_name'])
+		pos = restart[0]
+		vel = restart[1]
+		cell_dim = pos[-1]
+		pos = pos[:-1]
 
-	if ('-nrepx' in sys.argv): n_rep_x = int(sys.argv[sys.argv.index('-nrepx') + 1]) + 1
-	else: n_rep_x = 1
-	if ('-nrepy' in sys.argv): n_rep_y = int(sys.argv[sys.argv.index('-nrepy') + 1]) + 1
-	else: n_rep_y = 1
-	if ('-nrepz' in sys.argv): n_rep_z = int(sys.argv[sys.argv.index('-nrepz') + 1]) + 1
-	else: n_rep_z = 1
+		if ('-nrepx' in sys.argv): n_rep_x = int(sys.argv[sys.argv.index('-nrepx') + 1]) + 1
+		else: n_rep_x = 1
+		if ('-nrepy' in sys.argv): n_rep_y = int(sys.argv[sys.argv.index('-nrepy') + 1]) + 1
+		else: n_rep_y = 1
+		if ('-nrepz' in sys.argv): n_rep_z = int(sys.argv[sys.argv.index('-nrepz') + 1]) + 1
+		else: n_rep_z = 1
 
-	pos, vel, cell_dim, param = repeat_pos_array(pos, vel, cell_dim, param, n_rep_x, n_rep_y, n_rep_z)
-	
-	pos, vel = setup.equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
-	pos, vel, cell_dim = setup.equilibrate_density(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
+		pos, vel, cell_dim, param = repeat_pos_array(pos, vel, cell_dim, param, n_rep_x, n_rep_y, n_rep_z)
 
-	print(" Saving parameter file {}".format(file_names['param_file_name']))
-	pickle.dump(param, open(sim_dir + file_names['param_file_name'] + '.pkl', 'wb'))
+	else:
+		file_names = None
+		pos = None
+		cell_dim = None
+		param = None
 
-	print(" Saving restart file {}".format(file_names['restart_file_name']))
-	ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
+	file_names = comm.bcast(file_names, root=0)
+	pos = comm.bcast(pos, root=0)
+	cell_dim = comm.bcast(cell_dim, root=0)
+	param = comm.bcast(param, root=0)
+
+	pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
+
+	if rank == 0:
+		print(" Saving parameter file {}".format(file_names['param_file_name']))
+		pickle.dump(param, open(sim_dir + file_names['param_file_name'] + '.pkl', 'wb'))
+
+		print(" Saving restart file {}".format(file_names['restart_file_name']))
+		ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
 
 

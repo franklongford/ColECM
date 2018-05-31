@@ -45,7 +45,7 @@ if ('analysis' in modules):
 	analysis(current_dir, input_file_name)
 if ('editor' in modules):
 	from editor import editor
-	editor(current_dir, input_file_name)
+	editor(current_dir, comm, input_file_name, size, rank)
 if ('speed' in modules):
 	from simulation import speed_test
 	speed_test(current_dir, comm, input_file_name, size, rank)
