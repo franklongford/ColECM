@@ -28,7 +28,7 @@ def logo():
 	print( "  | | |   \___  \___/  |__ |___  \___ |      |  | | |")
 	print( "  |_|_|                  _____                  |_|_|")
 	print( " /_____\\" + ' ' * 16 + "/_____\\"  + ' ' * 16 + "/_____\\")
-	print( "|_______|" + '_' * 14 + "|_______|" + '_' * 14 + "|_______|" + '  v1.2.0')
+	print( "|_______|" + '_' * 14 + "|_______|" + '_' * 14 + "|_______|" + '  v1.3.0')
 	print( "\n              Collagen ECM Simulation\n")
 
 
@@ -672,3 +672,4 @@ def bond_check(bond_matrix, fib_end, r2, rc, bond_rb, vdw_sigma):
 		return bond_matrix, True
 
 	else: return bond_matrix, False
+

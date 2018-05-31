@@ -8,7 +8,7 @@ python_command = 'python'
 python_version = sys.version_info
 ColECM_dir = os.getcwd()
 
-if task == 'install':
+if task in ['install', 'install_mpi']:
 
 	print("Checking python executable version\n")
 
@@ -36,24 +36,30 @@ if task == 'install':
 
 	if not os.path.exists(ColECM_dir + '/bin'): os.mkdir(ColECM_dir + '/bin')
 
-	with open(ColECM_dir + '/bin/' + program_name, 'w') as outfile:
-		outfile.write('#!/bin/bash\n\n')
-		outfile.write('{} {}/src/main.py "$@"'.format(python_command, ColECM_dir))
+	if task == 'install':
+		with open(ColECM_dir + '/bin/' + program_name, 'w') as outfile:
+			outfile.write('#!/bin/bash\n\n')
+			outfile.write('{} {}/src/main.py "$@"'.format(python_command, ColECM_dir))
 
-	with open(ColECM_dir + '/bin/' + speed_test_name, 'w') as outfile:
-		outfile.write('#!/bin/bash\n\n')
-		outfile.write('n=1\nnproc={}\n'.format(multiprocessing.cpu_count()))
-		outfile.write('echo Running ColECM MPI Speed Test\n')
-		outfile.write('while [ $n -lt $nproc ]\n 	do\n')
-		outfile.write('		mpirun -n $n {} {}/src/main.py speed "$@"\n'.format(python_command, ColECM_dir))
-		outfile.write('		((n++))\n')
-		outfile.write('		done\n')
+	else:
+		with open(ColECM_dir + '/bin/' + program_name, 'w') as outfile:
+			outfile.write('#!/bin/bash\n\n')
+			outfile.write('{} {}/src/main_mpi.py "$@"'.format(python_command, ColECM_dir))
+
+		with open(ColECM_dir + '/bin/' + speed_test_name, 'w') as outfile:
+			outfile.write('#!/bin/bash\n\n')
+			outfile.write('n=1\nnproc={}\n'.format(multiprocessing.cpu_count()))
+			outfile.write('{} {}/src/main.py speed "$@"\n'.format(python_command, ColECM_dir))
+			outfile.write('\nwhile [ $n -lt $nproc ]\n 	do\n')
+			outfile.write('		mpirun -n $n {} {}/src/main_mpi.py speed "$@"\n'.format(python_command, ColECM_dir))
+			outfile.write('		((n++))\n')
+			outfile.write('		done\n')
+
+		bashCommand = "chmod +x {}".format(ColECM_dir + '/bin/' + speed_test_name)
+		process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		output, error = process.communicate()
 
 	bashCommand = "chmod +x {}".format(ColECM_dir + '/bin/' + program_name)
-	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	output, error = process.communicate()
-
-	bashCommand = "chmod +x {}".format(ColECM_dir + '/bin/' + speed_test_name)
 	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, error = process.communicate()
 
@@ -68,7 +74,7 @@ if task == 'install':
 		print('!' * 67 + '\n')
 
 
-if task == 'uninstall':
+if task in ['uninstall', 'uninstall_mpi']:
 
 	bashCommand = "rm {}".format(program_name)
 	try: 

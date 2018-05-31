@@ -186,33 +186,27 @@ def test_pot_energy_frc():
 	param['n_bead'] = param['n_fibril_x'] * param['n_fibril_y'] * param['n_fibril_z'] * param['l_fibril']
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
-	pos_indices = np.arange(param['n_bead'])
-	virial_indicies = ut.create_index(np.argwhere(np.tri(param['n_bead']).T))
 
-	pot_energy, frc, virial_tensor = sim_2D.calc_energy_forces(pos_2D, cell_dim_2D, pos_indices, bond_indices, bond_indices, 
-							angle_indices, angle_bond_indices, vdw_matrix, virial_indicies, param)
+	frc, pot_energy, virial_tensor = sim_2D.calc_energy_forces(pos_2D, cell_dim_2D, bond_indices, angle_indices, angle_bond_indices, vdw_matrix, param)
 
 	check_frc = np.array([[ 12277.59052347,  -6225.74404829],
  			      [ 41.48708925,  -1095.43380772],
  			      [-12319.07761272,   7321.17785601]])
 
-	assert abs(pot_energy - 405.08269116652315) <= THRESH
+	assert abs(pot_energy - 404.84698800947655) <= THRESH
 	assert abs(np.sum(frc - check_frc)) <= THRESH
 
 	param['n_dim'] = 3
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
-	pos_indices = np.arange(param['n_bead'])
-	virial_indicies = ut.create_index(np.argwhere(np.tri(param['n_bead']).T))
 
-	pot_energy, frc, virial_tensor = sim_3D.calc_energy_forces(pos_3D, cell_dim_3D, pos_indices, bond_indices, bond_indices, 
-							angle_indices, angle_bond_indices, vdw_matrix, virial_indicies, param)
+	frc, pot_energy, virial_tensor = sim_3D.calc_energy_forces(pos_3D, cell_dim_3D, bond_indices, angle_indices, angle_bond_indices, vdw_matrix, param)
 
 	check_frc = np.array([[  23.97941507,  770.44703468, -238.8615784 ],
  			      [  27.2045763,  -777.5797729,   172.30544761],
 			      [ -51.18399136,    7.13273822,   66.55613079]])
 
-	assert abs(pot_energy - 13.594451775093999) <= THRESH
+	assert abs(pot_energy - 13.349525850814166) <= THRESH
 	assert abs(np.sum(frc - check_frc)) <= THRESH
 
 

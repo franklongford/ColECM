@@ -4,6 +4,7 @@ PIP=pip
 BIN=~/.conda/envs/python_3/bin/ "Enter binary folder here"
 
 NAME=ColECM
+NAME_MPI=ColECM_mpi
 
 
 init: check install test
@@ -26,16 +27,26 @@ install:
 	@$(PIP) install -r requirements.txt
 	@$(PYTHON) make.py install $(NAME) $(BIN) || (echo "Installation failed"; exit 1)
 
+install_mpi:
+	@echo
+	@echo "Installing ColECM"
+	@echo
+	@$(PIP) install -r requirements.txt
+	@$(PYTHON) make.py install_mpi $(NAME_MPI) $(BIN) || (echo "Installation failed"; exit 1)
+
 test:
 	@echo
 	@echo "Running unit tests"
 	@echo
-	@pytest tests/ -v
+	@pytest tests/ -v -l
 
 
 uninstall:
 	@$(PYTHON) make.py uninstall $(NAME) $(BIN) || (echo "Uninstallation failed"; exit 1)
 		
+
+uninstall_mpi:
+	@$(PYTHON) make.py uninstall_mpi $(NAME) $(BIN) || (echo "Uninstallation failed"; exit 1)
 
 clean:
 	@rm -f -r bin

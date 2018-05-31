@@ -743,7 +743,7 @@ def heatmap_animation(n):
 	ax.pcolor(image_pos[n], cmap='viridis')
 
 
-def analysis(current_dir, input_file_name=False):
+def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 
 	sim_dir = current_dir + '/sim/'
 	gif_dir = current_dir + '/gif'
@@ -752,72 +752,82 @@ def analysis(current_dir, input_file_name=False):
 	ow_shg = ('-ow_shg' in sys.argv)
 	mk_gif = ('-mk_gif' in sys.argv)
 
-	print("\n " + " " * 15 + "----Beginning Analysis----\n")
-	if not os.path.exists(gif_dir): os.mkdir(gif_dir)
-	if not os.path.exists(fig_dir): os.mkdir(fig_dir)
+	if rank == 0:
+		print("\n " + " " * 15 + "----Beginning Analysis----\n")
+		if not os.path.exists(gif_dir): os.mkdir(gif_dir)
+		if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
-	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
+		file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
 
-	keys = ['l_conv', 'res', 'sharp', 'skip']
-	print("\n Analysis Parameters found:")
-	for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
+		keys = ['l_conv', 'res', 'sharp', 'skip']
+		print("\n Analysis Parameters found:")
+		for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
 
-	print("\n Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
-	tot_energy, tot_temp, tot_press = ut.load_npy(sim_dir + file_names['output_file_name'])
+		print("\n Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
+		tot_energy, tot_temp, tot_press = ut.load_npy(sim_dir + file_names['output_file_name'])
 
-	print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
-	plt.figure(0)
-	plt.title('Energy Time Series')
-	plt.plot(tot_energy * param['l_fibril'] / param['n_bead'], label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'Energy per fibril')
-	plt.legend()
-	plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+		print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
+		plt.figure(0)
+		plt.title('Energy Time Series')
+		plt.plot(tot_energy * param['l_fibril'] / param['n_bead'], label=fig_name)
+		plt.xlabel(r'step')
+		plt.ylabel(r'Energy per fibril')
+		plt.legend()
+		plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print(' Creating Energy histogram figure {}/{}_energy_hist.png'.format(fig_dir, fig_name))
-	plt.figure(1)
-	plt.title('Energy Histogram')
-	plt.hist(tot_energy * param['l_fibril'] / param['n_bead'], bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Energy per fibril')
-	plt.legend()
-	plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+		print(' Creating Energy histogram figure {}/{}_energy_hist.png'.format(fig_dir, fig_name))
+		plt.figure(1)
+		plt.title('Energy Histogram')
+		plt.hist(tot_energy * param['l_fibril'] / param['n_bead'], bins='auto', density=True, label=fig_name)
+		plt.xlabel(r'Energy per fibril')
+		plt.legend()
+		plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print(' Creating Temperature time series figure {}/{}_temp_time.png'.format(fig_dir, fig_name))
-	plt.figure(2)
-	plt.title('Temperature Time Series')
-	plt.plot(tot_temp, label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'Temp (kBT)')
-	plt.legend()
-	plt.savefig('{}/{}_temp_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+		print(' Creating Temperature time series figure {}/{}_temp_time.png'.format(fig_dir, fig_name))
+		plt.figure(2)
+		plt.title('Temperature Time Series')
+		plt.plot(tot_temp, label=fig_name)
+		plt.xlabel(r'step')
+		plt.ylabel(r'Temp (kBT)')
+		plt.legend()
+		plt.savefig('{}/{}_temp_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print(' Creating Temperature histogram figure {}/{}_temp_hist.png'.format(fig_dir, fig_name))
-	plt.figure(3)
-	plt.title('Temperature Histogram')
-	plt.hist(tot_temp, bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Temp (kBT)')
-	plt.legend()
-	plt.savefig('{}/{}_temp_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+		print(' Creating Temperature histogram figure {}/{}_temp_hist.png'.format(fig_dir, fig_name))
+		plt.figure(3)
+		plt.title('Temperature Histogram')
+		plt.hist(tot_temp, bins='auto', density=True, label=fig_name)
+		plt.xlabel(r'Temp (kBT)')
+		plt.legend()
+		plt.savefig('{}/{}_temp_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print(' Creating Pressure time series figure {}/{}_press_time.png'.format(fig_dir, fig_name))
-	plt.figure(4)
-	plt.title('Pressure Time Series')
-	plt.plot(tot_press, label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'Pressure')
-	plt.legend()
-	plt.savefig('{}/{}_press_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+		print(' Creating Pressure time series figure {}/{}_press_time.png'.format(fig_dir, fig_name))
+		plt.figure(4)
+		plt.title('Pressure Time Series')
+		plt.plot(tot_press, label=fig_name)
+		plt.xlabel(r'step')
+		plt.ylabel(r'Pressure')
+		plt.legend()
+		plt.savefig('{}/{}_press_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print(' Creating Pressure histogram figure {}/{}_press_hist.png'.format(fig_dir, fig_name))
-	plt.figure(5)
-	plt.title('Pressure Histogram')
-	plt.hist(tot_press, bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Pressure')
-	plt.legend()
-	plt.savefig('{}/{}_press_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+		print(' Creating Pressure histogram figure {}/{}_press_hist.png'.format(fig_dir, fig_name))
+		plt.figure(5)
+		plt.title('Pressure Histogram')
+		plt.hist(tot_press, bins='auto', density=True, label=fig_name)
+		plt.xlabel(r'Pressure')
+		plt.legend()
+		plt.savefig('{}/{}_press_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
-	print("\n Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
-	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
+		print("\n Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
+		tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
+
+	else:
+		file_names = None
+		param = None
+		tot_pos = None
+
+	file_names = comm.bcast(file_names, root=0)
+	param = comm.bcast(param, root=0)
+	tot_pos = comm.bcast(tot_pos, root=0)
 
 	fig_name = file_names['gif_file_name'].split('/')[-1]
 	

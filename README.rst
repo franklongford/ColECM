@@ -14,13 +14,17 @@ run ``make``
 
 Note: system must have working versions of Python and pip for python >= 3.0. Installation will check for common executables (``python, python3``) - please edit ``PYTHON`` and ``PIP`` macros on Makefile if local installations are named differently.
 
+For parallel version:
+
+run ``make install_mpi``
+
 
 Instructions:
 -------------
 
 Main program and analysis can be run via the following commands:
 
-1) ``ColECM simulation [flags]``
+1) ``ColECM simulation [flags]``  or  ``mpirun -n [nproc] ColECM_mpi simulation [flags]``
 
 	Runs the main simulation routine for collagen fibrils in the ECM. Each fibril is approximated to be 1 um long.
 	All flags except ``-pos`` and ``-param`` are optional and can be entered in the command line or selected later during the setup process. 
@@ -62,7 +66,7 @@ Main program and analysis can be run via the following commands:
 		-sharp	Image sharpness parameter (1-10)
 		-skip	Number of sampled frames between each png
 
-You can run both modules by calling ``ColECM simulation analysis [flags]``
+You can run both modules in serial by calling ``ColECM simulation analysis [flags]``
 
 3) ``ColECM editor [flags]``
 
@@ -75,9 +79,9 @@ You can run both modules by calling ``ColECM simulation analysis [flags]``
 		-nrepy	Number of simulation cells to repeat in y dimension
 		-nrepz	Number of simulation cells to repeat in z dimension (3D only)
 
-A speed test can be used to estimate the optimum number of processors to use for a MPI run
+A speed test can be found in the binary folder to estimate the optimum number of processors to use for a MPI run. The number of processors available will be automatically detected, but can be changed in the ``speed_test`` executable
 
-3) ``~/ColECM/tests/speed_test [flags]``
+3) ``~/ColECM/bin/speed_test [flags]``
 
 	Simulation editor
 	Flags are optional and can be entered in the command line or selected later during the analysis process.
@@ -149,7 +153,7 @@ Output of main routine will produce following file tree structure in the current
 Uninstallation:
 -------------
 
-run ``make uninstall`` and ``make clean``
+run ``make uninstall`` or ``make uninstall_mpi`` and ``make clean``
 
 
 Examples:
@@ -161,18 +165,22 @@ Below are some examples:
 
 	Will run and analyse a 2D simulation using the default parameter settings, usually lasing 10-20 seconds depending on system architecture.
 
-2)  ``ColECM simulation analysis -pos test_3D -param test_3D -ndim 3``
+2)  ``mpirun -n 4 ColECM_mpi simulation -pos test_defaults -param test_defaults``
+
+	Will run a 2D simulation on 4 processors using the default parameter settings, usually lasing 10-20 seconds depending on system architecture.
+
+3)  ``ColECM simulation analysis -pos test_3D -param test_3D -ndim 3``
 
 	Will run and analyse a 3D simulation using the default parameter settings, usually lasing 10-20 seconds depending on system architecture.
 
-3)  ``ColECM analysis -pos test_3D -param test_3D``
+4)  ``ColECM analysis -pos test_3D -param test_3D``
 
 	Will analyse a 3D simulation as defined by position and parameter file names using the default parameter settings.
 
-4)  ``ColECM analysis -pos test_3D -param test_3D -res 10 -sharp 4``
+5)  ``ColECM analysis -pos test_3D -param test_3D -res 10 -sharp 4``
 
 	Will analyse a 3D simulation as defined by position and parameter file names using increased image resolution and sharpness.
 
-5)  ``ColECM editor -rst test_3D -param test_3D -nrepx 2 -nrepy 3``
+6)  ``ColECM editor -rst test_3D -param test_3D -nrepx 2 -nrepy 3``
 
 	Will take in ``test_3D`` restart file any create a new system by repeating unit cell x2 in x dimension and x3 in y dimension.
