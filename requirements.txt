@@ -5,3 +5,4 @@ imageio
 pytest
 scikit-learn
 mpi4py
+psutil

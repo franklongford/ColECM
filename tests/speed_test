@@ -1,12 +1,10 @@
 #!/bin/bash
 
-nproc=$( nproc --all )
 n=1
-
+nproc=4
 echo Running ColECM MPI Speed Test
-
 while [ $n -lt $nproc ]
-	do
-		mpirun -n $n python /home/fgjl1d17/ColECM/src/main.py speed "$@"
+ 	do
+		mpirun -n $n python3 /Users/franklongford/Documents/Postdoc/ColECM/src/main.py speed "$@"
 		((n++))
-	done
+		done

@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python3 /Users/franklongford/Documents/Postdoc/ColECM/src/main.py "$@"
