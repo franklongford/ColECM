@@ -765,6 +765,8 @@ def analysis(current_dir, input_file_name=False):
 	print("\n Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
 	tot_energy, tot_temp, tot_press = ut.load_npy(sim_dir + file_names['output_file_name'])
 
+	fig_name = file_names['gif_file_name'].split('/')[-1]
+
 	print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
 	plt.figure(0)
 	plt.title('Energy Time Series')
@@ -819,8 +821,6 @@ def analysis(current_dir, input_file_name=False):
 	print("\n Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
 	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
 
-	fig_name = file_names['gif_file_name'].split('/')[-1]
-	
 	n_frame = tot_pos.shape[0]
 	n_image = int(n_frame / param['skip'])
 	cell_dim = tot_pos[0][-1]
