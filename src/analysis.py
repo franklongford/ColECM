@@ -115,7 +115,7 @@ def print_anis_results(fig_dir, fig_name, q):
 	print(' Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
 	plt.figure(9)
 	plt.title('Anisotropy Time Series')
-	plt.plot(np.mean(q, axis=1), label=fig_name)
+	plt.plot(q, label=fig_name)
 	plt.xlabel(r'step')
 	plt.ylabel(r'Anisotropy')
 	plt.ylim(0, 1)
@@ -125,7 +125,7 @@ def print_anis_results(fig_dir, fig_name, q):
 	print(' Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
 	plt.figure(10)
 	plt.title('Anisotropy Histogram')
-	plt.hist(np.mean(q, axis=1), bins='auto', density=True, label=fig_name)
+	plt.hist(q, bins='auto', density=True, label=fig_name)
 	plt.xlabel(r'Anisotropy')
 	plt.xlim(0, 1)
 	plt.legend()
@@ -680,7 +680,7 @@ def form_nematic_tensor(dx_shg, dy_shg):
 	return n_vector
 
 
-def nematic_tensor_analysis(n_vector, area, n_sample):
+def nematic_tensor_analysis(n_vector, area, min_sample, thresh = 0.05):
 	"""
 	nematic_tensor_analysis(n_vector, area, n_frame, n_sample)
 
@@ -713,12 +713,18 @@ def nematic_tensor_analysis(n_vector, area, n_sample):
 	n_y = n_vector.shape[2]
 	n_x = n_vector.shape[3]
 
-	av_eigval = np.zeros((n_frame, n_sample, 2))
-	av_eigvec = np.zeros((n_frame, n_sample, 2, 2))
+	tot_q = np.zeros(n_frame)
+	av_q = []
 
 	pad = int(area / 2 - 1)
 
-	for n in range(n_sample):
+	analysing = True
+	sample = 1
+
+	while analysing:
+
+		av_eigval = np.zeros((n_frame, 2))
+		av_eigvec = np.zeros((n_frame, 2, 2))
 
 		try: start_x = np.random.randint(pad, n_x - pad)
 		except: start_x = pad
@@ -734,10 +740,19 @@ def nematic_tensor_analysis(n_vector, area, n_sample):
 	
 			eig_val, eig_vec = np.linalg.eigh(av_n[frame])
 
-			av_eigval[frame][n] = eig_val
-			av_eigvec[frame][n] = eig_vec
+			av_eigval[frame] = eig_val
+			av_eigvec[frame] = eig_vec
 
-	return av_eigval, av_eigvec
+		tot_q += (av_eigval.T[1] - av_eigval.T[0])
+		av_q.append(np.mean(tot_q) / sample)
+
+		if sample > min_sample:
+			q_mov_av = ut.cum_mov_average(av_q)
+			analysing = (q_mov_av[-1] - q_mov_av[-2]) > thresh
+
+		sample += 1
+
+	return tot_q / sample, sample
 	
 
 def fourier_transform_analysis(image_shg, area, n_sample):
@@ -946,16 +961,14 @@ def analysis(current_dir, input_file_name=False):
 
 	"Perform Nematic Tensor Analysis"
 
-	l_sample = 30
-	n_sample = 1
+	l_sample = 50
+	min_sample = 20
 	area_sample = int(2 * (np.min((l_sample,) + image_shg.shape[1:]) // 2))
 
 	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
-	"Sample average orientational anisotopy"
-	eigval_shg, eigvec_shg = nematic_tensor_analysis(n_tensor, area_sample, n_sample)
 
-	q = reorder_array(eigval_shg)
-	q = q[1] - q[0]
+	"Sample average orientational anisotopy"
+	q, n_sample = nematic_tensor_analysis(n_tensor, area_sample, min_sample)
 
 	print_anis_results(fig_dir, fig_name, q)
 
