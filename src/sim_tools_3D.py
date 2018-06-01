@@ -190,9 +190,9 @@ def calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_in
 
 			"Add angular forces to force array" 
 			for i in range(3): 
-				f_beads[i][angle_indices.T[0]] += frc_angle_ij[ij_indices].T[i]
-				f_beads[i][angle_indices.T[1]] += frc_angle_k.T[i]
-				f_beads[i][angle_indices.T[2]] += frc_angle_ij[jk_indices].T[i]
+				f_beads[i][angle_indices.T[0]] -= frc_angle_ij[ij_indices].T[i]
+				f_beads[i][angle_indices.T[1]] -= frc_angle_k.T[i]
+				f_beads[i][angle_indices.T[2]] -= frc_angle_ij[jk_indices].T[i]
 
 
 		except IndexError: pass
@@ -344,9 +344,9 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices
 
 			"Add angular forces to force array" 
 			for i in range(3): 
-				f_beads[i][angle_indices.T[0]] += frc_angle_ij[ij_indices].T[i]
-				f_beads[i][angle_indices.T[1]] += frc_angle_k.T[i]
-				f_beads[i][angle_indices.T[2]] += frc_angle_ij[jk_indices].T[i]
+				f_beads[i][angle_indices.T[0]] -= frc_angle_ij[ij_indices].T[i]
+				f_beads[i][angle_indices.T[1]] -= frc_angle_k.T[i]
+				f_beads[i][angle_indices.T[2]] -= frc_angle_ij[jk_indices].T[i]
 
 
 		except IndexError: pass

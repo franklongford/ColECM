@@ -15,7 +15,7 @@ import utilities as ut
 import setup
 
 
-def velocity_verlet_alg(pos, vel, frc, beta, virial_tensor, param, bond_indices, angle_indices, angle_bond_indices, 
+def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_indices, angle_indices, angle_bond_indices, 
 			dt, sqrt_dt, cell_dim, calc_energy_forces, NPT=False):
 	"""
 	velocity_verlet_alg(pos, vel, frc, beta, virial_tensor, param, bond_indices, angle_indices, angle_bond_indices, 
@@ -158,7 +158,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 
 	"""
 
-	if rank == 0: print("\n" + " " * 15 + "----Equilibrating Temperature----\n")
+	print("\n" + " " * 15 + "----Equilibrating Temperature----\n")
 
 	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
 	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
@@ -185,9 +185,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 
 	while optimising:
 	
-		beta = np.random.normal(0, 1, (param['n_bead'], param['n_dim']))
-
-		sim_state = velocity_verlet_alg(pos, vel, frc, beta, virial_tensor, param, bond_indices, angle_indices, angle_bond_indices, 
+		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_indices, angle_indices, angle_bond_indices, 
 			dt, sqrt_dt, cell_dim, calc_energy_forces)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
@@ -206,7 +204,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 		if step % 250 == 0: 
 			av_kBT = np.mean(kBT_array)
 			kBT_array = [kBT]
-			if rank == 0: print(" {:18d} | {:>18.4f} | {:>18.4f}".format(step, param['kBT'], av_kBT))
+			print(" {:18d} | {:>18.4f} | {:>18.4f}".format(step, param['kBT'], av_kBT))
 			if abs(av_kBT - param['kBT']) <= thresh:
 				param['kBT'] += inc
 				param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
@@ -222,7 +220,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	return pos, vel
 
 
-def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, thresh=2E-3):
+def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, inc=0.05, thresh=2E-3):
 	"""
 	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
 
@@ -268,10 +266,10 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 	"""
 
 
-	if rank == 0: print("\n" + " " * 15 + "----Equilibrating Density----\n")
+	print("\n" + " " * 15 + "----Equilibrating Density----\n")
 
-	if param['n_dim'] == 2: from sim_tools_2D import velocity_verlet_alg, velocity_verlet_alg_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import velocity_verlet_alg, velocity_verlet_alg_mpi
+	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
 
 	dt = param['dt'] / 2
 	sqrt_dt = np.sqrt(dt)
@@ -281,26 +279,25 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
 
 	kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
-	P = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
+	pressure = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
 	kBT = 2 * kin_energy / n_dof
-	step = 1
+
+	P_array = [pressure]
 	kBT_array = [kBT]
-	P_array = [P]
+	den = param['n_bead'] / np.prod(cell_dim)
 
 	step = 1
-	optimising = True
-
+	optimising = abs(den - param['density']) > thresh
+	
 	print(" Starting density:      {:>10.4f}\n Reference density:     {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim), param['density']))
-	print(" Starting pressure:     {:>10.4f}\n Max pressure:          {:>10.4f}".format(P, param['P_0']))
+	print(" Starting pressure:     {:>10.4f}\n Reference pressure:    {:>10.4f}".format(pressure, param['P_0']))
 	print(" Starting volume:       {:>10.4f}\n Starting temperature:  {:>10.4f}\n".format(np.prod(cell_dim), kBT))
-	print(" {:^12s} | {:^12s} | {:^12s} | {:^12s} ".format('Step', 'Av Pressure', 'Av Temperature', 'Density'))
-	print(" " + "-" * 56)
+	print(" {:^12s} | {:^12s} | {:^12s} | {:^12s} | {:^12s} ".format('Step', 'Ref Pressure', 'Av Pressure', 'Av Temperature', 'Density'))
+	print(" " + "-" * 72)
 
 	while optimising:
 
-		beta = np.random.normal(0, 1, (param['n_bead'], param['n_dim']))
-
-		sim_state = velocity_verlet_alg(pos, vel, frc, beta, virial_tensor, param, bond_indices, angle_indices, angle_bond_indices, 
+		sim_state = velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_indices, angle_indices, angle_bond_indices, 
 			dt, sqrt_dt, cell_dim, calc_energy_forces, NPT=True)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
@@ -317,30 +314,31 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 				bond_beads, dist_index, r_index, fib_end = ut.update_bond_lists(bond_matrix)
 		"""
 		kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
-		P = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
+		pressure = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
 		kBT = 2 * kin_energy / n_dof
 
-		P_array.append(P)
+		P_array.append(pressure)
 		kBT_array.append(kBT)
 		den = param['n_bead'] / np.prod(cell_dim)
 
 		optimising = abs(den - param['density']) > thresh
-		optimising *= den < param['density']
+		#optimising *= den < param['density']
 
-		if step % 2000 == 0: 
+		if step % 500 == 0: 
 			av_P = np.mean(P_array)
 			av_kBT = np.mean(kBT_array)
 
-			P_array = [P]
+			P_array = [pressure]
 			kBT_array = [kBT]
 
-			if av_P >= param['P_0']: optimising = False
-			if rank == 0: print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, av_P, av_kBT, den))
+			print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, param['P_0'], av_P, av_kBT, den))
+			if np.sign(den - param['density']) != np.sign(av_P - param['P_0']): param['P_0'] -= (den - param['density']) * inc
+
 		step += 1
 
 	av_P = np.mean(P_array)
 	av_kBT = np.mean(kBT_array)
-	print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, av_P, av_kBT, den))
+	print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, param['P_0'], av_P, av_kBT, den))
 	print("\n No. iterations:   {:>10d}".format(step))
 	print(" Final density:   {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim)))
 	print(" Final volume:     {:>10.4f}".format(np.prod(cell_dim)))
@@ -580,6 +578,10 @@ def speed_test(current_dir,input_file_name=False):
 		stop_time_1 = time.time()
 		calc_times.append(stop_time_1 - start_time)
 
+	pressure = - 1 / (np.prod(cell_dim) * param['n_dim']) * 0.5 * np.sum(np.diag(virial_tensor)) 
+
 	calc_times = np.mean(calc_times)
 
-	print(" Serial energy     = {:4.5f}   calc time = {:4.5f} s                                     total time = {:4.5f} s ".format(pot_energy, calc_times, calc_times))
+	print(" {:^12s} | {:^10s} | {:^10s} | {:^15s} | {:^21s} | {:^10s} ".format('', 'energy', 'pressure', 'calc time (s)', 'mpi overhead time (s)', 'tot time (s)'))
+	print(" " + "-" * 95)
+	print(" {:<12s} | {:>10.2f} | {:>10.5f} | {:>15.5f} | {:>21s} | {:>10.5f}".format('Serial', pot_energy, pressure, calc_times, 'N/A', calc_times))

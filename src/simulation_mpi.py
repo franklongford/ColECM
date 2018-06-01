@@ -257,7 +257,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	return pos, vel
 
 
-def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, thresh=2E-3):
+def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.05, thresh=2E-3):
 	"""
 	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
 
@@ -320,21 +320,22 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 	virial_indicies = ut.create_index(np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank]))
 
 	kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
-	P = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
+	pressure = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
 	kBT = 2 * kin_energy / n_dof
-	step = 1
+
+	P_array = [pressure]
 	kBT_array = [kBT]
-	P_array = [P]
+	den = param['n_bead'] / np.prod(cell_dim)
 
 	step = 1
-	optimising = True
+	optimising = abs(den - param['density']) > thresh
 
 	if rank == 0:
 		print(" Starting density:      {:>10.4f}\n Reference density:     {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim), param['density']))
-		print(" Starting pressure:     {:>10.4f}\n Max pressure:          {:>10.4f}".format(P, param['P_0']))
+		print(" Starting pressure:     {:>10.4f}\n Reference pressure:    {:>10.4f}".format(pressure, param['P_0']))
 		print(" Starting volume:       {:>10.4f}\n Starting temperature:  {:>10.4f}\n".format(np.prod(cell_dim), kBT))
-		print(" {:^12s} | {:^12s} | {:^12s} | {:^12s} ".format('Step', 'Av Pressure', 'Av Temperature', 'Density'))
-		print(" " + "-" * 56)
+		print(" {:^12s} | {:^12s} | {:^12s} | {:^12s} | {:^12s} ".format('Step', 'Ref Pressure', 'Av Pressure', 'Av Temperature', 'Density'))
+		print(" " + "-" * 72)
 
 	while optimising:
 
@@ -355,31 +356,32 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm
 				bond_beads, dist_index, r_index, fib_end = ut.update_bond_lists(bond_matrix)
 		"""
 		kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
-		P = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
+		pressure = 1. / (np.prod(cell_dim) * param['n_dim']) * (kin_energy - 0.5 * np.sum(np.diag(virial_tensor)))
 		kBT = 2 * kin_energy / n_dof
 
-		P_array.append(P)
+		P_array.append(pressure)
 		kBT_array.append(kBT)
 		den = param['n_bead'] / np.prod(cell_dim)
 
 		optimising = abs(den - param['density']) > thresh
-		optimising *= den < param['density']
+		#optimising *= den < param['density']
 
 		if step % 2000 == 0: 
 			av_P = np.mean(P_array)
 			av_kBT = np.mean(kBT_array)
 
-			P_array = [P]
+			P_array = [pressure]
 			kBT_array = [kBT]
 
-			if av_P >= param['P_0']: optimising = False
-			if rank == 0: print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, av_P, av_kBT, den))
+			if rank == 0: print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, param['P_0'], av_P, av_kBT, den))
+			if np.sign(den - param['density']) != np.sign(av_P - param['P_0']): param['P_0'] -= (den - param['density']) * inc
+
 		step += 1
 
 	if rank == 0:
 		av_P = np.mean(P_array)
 		av_kBT = np.mean(kBT_array)
-		print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, av_P, av_kBT, den))
+		print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, param['P_0'], av_P, av_kBT, den))
 		print("\n No. iterations:   {:>10d}".format(step))
 		print(" Final density:   {:>10.4f}".format(param['n_bead'] / np.prod(cell_dim)))
 		print(" Final volume:     {:>10.4f}".format(np.prod(cell_dim)))
@@ -663,10 +665,11 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 		stop_time_2 = time.time()
 		overhead_times.append(stop_time_2 - stop_time_1)
 
+	pressure = - 1 / (np.prod(cell_dim) * param['n_dim']) * 0.5 * np.sum(np.diag(virial_tensor))
 	calc_times = np.sum(comm.gather(calc_times, root=0))
 	overhead_times = np.sum(comm.gather(overhead_times, root=0))
 
 	if rank == 0:
 		calc_times /= (size * n_trial) 
-		overhead_times /= (size * n_trial) 
-		print(" MPI {} proc energy = {:4.5f}   calc time = {:4.5f} s    mpi overhead time = {:4.5f} s    total time = {:4.5f} s".format(size, pot_energy, calc_times, overhead_times, calc_times + overhead_times))
+		overhead_times /= (size * n_trial)
+		print(" {:<12s} | {:>10.2f} | {:>10.5f} | {:>15.5f} | {:>21.5f} | {:>10.5f}".format('MPI ' + str(size) + ' proc', pot_energy, pressure, calc_times, overhead_times, calc_times + overhead_times))

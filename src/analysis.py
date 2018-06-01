@@ -756,7 +756,7 @@ def analysis(current_dir, input_file_name=False):
 	if not os.path.exists(gif_dir): os.mkdir(gif_dir)
 	if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
-	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
+	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name, verbosity=False)
 
 	keys = ['l_conv', 'res', 'sharp', 'skip']
 	print("\n Analysis Parameters found:")

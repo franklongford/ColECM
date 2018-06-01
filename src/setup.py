@@ -375,8 +375,6 @@ def grow_fibril(index, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_
 	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
 	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
 
-	cell_dim = np.array([param['vdw_sigma']**2 * param['n_bead']] * param['n_dim'])
-
 	if index == 0:
 		pos[index] = np.random.random((param['n_dim'])) * param['vdw_sigma'] * 2
 
@@ -389,6 +387,7 @@ def grow_fibril(index, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_
 		while energy > max_energy:
 			new_vec = ut.rand_vector(param['n_dim']) * param['bond_r0']	
 			pos[index] = pos[index-1] + new_vec
+			cell_dim = np.array([np.max(pos.T[0]) + param['vdw_sigma'], np.max(pos.T[1]) + param['vdw_sigma']])
 
 			_, energy, _ = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, 
 							angle_bond_indices, vdw_matrix, param)
@@ -460,8 +459,7 @@ def create_pos_array(param):
 
 			init_pos[bead] = grow_fibril(bead, init_pos[ : bead+1], param,
 						bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]],
-						vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]], 
-						max_energy=50 * param['bond_k0'])
+						vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]])
 			bead += 1
 		except RuntimeError: bead = 0
 
