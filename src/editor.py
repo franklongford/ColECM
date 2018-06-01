@@ -16,6 +16,58 @@ import utilities as ut
 import setup
 
 
+def check_edit_param(input_list, param):
+	"""
+	check_sim_param(input_list, param)
+
+	Checks input_list to overwrite simulation parameters in param dictionary during editor mode
+	"""
+
+	if not param: param = get_param_defaults()
+
+	keys = []
+
+	if ('-dt' in input_list): 
+		param['dt'] = float(input_list[input_list.index('-dt') + 1])
+		keys.append('dt')
+	if ('-mass' in input_list): 
+		param['mass'] = float(input_list[input_list.index('-mass') + 1])
+		keys.append('mass')
+	if ('-vdw_sigma' in input_list): 
+		param['vdw_sigma'] = float(input_list[input_list.index('-vdw_sigma') + 1])
+		keys.append('vdw_sigma')
+	if ('-bond_r0' in input_list): 
+		param['bond_r0'] = float(input_list[input_list.index('-bond_r0') + 1])
+		keys.append('bond_r0')
+	if ('-vdw_epsilon' in input_list): 
+		param['vdw_epsilon'] = float(input_list[input_list.index('-vdw_epsilon') + 1])
+		keys.append('vdw_epsilon')
+	if ('-bond_k0' in input_list): 
+		param['bond_k0'] = float(input_list[input_list.index('-bond_k0') + 1])
+		keys.append('bond_k0')
+	if ('-angle_k0' in input_list): 
+		param['angle_k0'] = float(input_list[input_list.index('-angle_k0') + 1])
+		keys.append('angle_k0')
+	if ('-rc' in input_list): 
+		param['rc'] = float(input_list[input_list.index('-rc') + 1])
+		keys.append('rc')
+	if ('-kBT' in input_list): 
+		param['kBT'] = float(input_list[input_list.index('-kBT') + 1])
+		keys.append('kBT')
+	if ('-gamma' in input_list): 
+		param['gamma'] = float(input_list[input_list.index('-gamma') + 1])
+		keys.append('gamma')
+	param['sigma'] = np.sqrt(param['gamma'] * (2 - param['gamma']) * (param['kBT'] / param['mass']))
+	if ('-density' in input_list): 
+		param['density'] = float(input_list[input_list.index('-density') + 1])
+		keys.append('density')
+	if ('-save_step' in input_list): 
+		param['save_step'] = int(input_list[input_list.index('-save_step') + 1])
+		keys.append('save_step')
+
+	return param, keys
+
+
 def repeat_pos_array(pos, vel, cell_dim, param, n_rep_x=1, n_rep_y=1, n_rep_z=1):
 	"""
 	create_pos_array(param)
@@ -131,48 +183,46 @@ def repeat_pos_array(pos, vel, cell_dim, param, n_rep_x=1, n_rep_y=1, n_rep_z=1)
 	return rep_pos, rep_vel, cell_dim, param
 
 
-def editor(current_dir, comm, input_file_name=False, size=1, rank=0):	
+def editor(current_dir, input_file_name=False):	
 
 	print("\n Entering Editor\n")
 
 	sim_dir = current_dir + '/sim/'
 
-	if rank == 0:
-		file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
-		print("\n Loading restart file {}.npy\n".format(sim_dir + file_names['restart_file_name']))
-		restart = ut.load_npy(sim_dir + file_names['restart_file_name'])
-		pos = restart[0]
-		vel = restart[1]
-		cell_dim = pos[-1]
-		pos = pos[:-1]
+	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
+	print("\n Loading restart file {}.npy\n".format(sim_dir + file_names['restart_file_name']))
+	restart = ut.load_npy(sim_dir + file_names['restart_file_name'])
+	pos = restart[0]
+	vel = restart[1]
+	cell_dim = pos[-1]
+	pos = pos[:-1]
 
-		if ('-nrepx' in sys.argv): n_rep_x = int(sys.argv[sys.argv.index('-nrepx') + 1]) + 1
-		else: n_rep_x = 1
-		if ('-nrepy' in sys.argv): n_rep_y = int(sys.argv[sys.argv.index('-nrepy') + 1]) + 1
-		else: n_rep_y = 1
-		if ('-nrepz' in sys.argv): n_rep_z = int(sys.argv[sys.argv.index('-nrepz') + 1]) + 1
-		else: n_rep_z = 1
+	if ('-nrepx' in sys.argv): n_rep_x = int(sys.argv[sys.argv.index('-nrepx') + 1]) + 1
+	else: n_rep_x = 1
+	if ('-nrepy' in sys.argv): n_rep_y = int(sys.argv[sys.argv.index('-nrepy') + 1]) + 1
+	else: n_rep_y = 1
+	if ('-nrepz' in sys.argv): n_rep_z = int(sys.argv[sys.argv.index('-nrepz') + 1]) + 1
+	else: n_rep_z = 1
 
+	param, keys = check_edit_param(sys.argv, param)
+
+	if (n_rep_x * n_rep_y * n_rep_z) > 1:
+		run_temp = True
+		keys += ['n_fibril_x', 'n_fibril_y', 'n_fibril_z', 'n_fibril', 'n_bead'] 
 		pos, vel, cell_dim, param = repeat_pos_array(pos, vel, cell_dim, param, n_rep_x, n_rep_y, n_rep_z)
+	else: run_temp = False
 
-	else:
-		file_names = None
-		pos = None
-		cell_dim = None
-		param = None
+	print(" New Simulation Parameters:")
+	for key in keys: print(" {:<15s} : {}".format(key, param[key]))
 
-	file_names = comm.bcast(file_names, root=0)
-	pos = comm.bcast(pos, root=0)
-	cell_dim = comm.bcast(cell_dim, root=0)
-	param = comm.bcast(param, root=0)
+	if run_temp:
+		from simulation import equilibrate_temperature 
+		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
 
-	pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
+	print("\n Saving parameter file {}".format(file_names['param_file_name']))
+	pickle.dump(param, open(sim_dir + file_names['param_file_name'] + '.pkl', 'wb'))
 
-	if rank == 0:
-		print(" Saving parameter file {}".format(file_names['param_file_name']))
-		pickle.dump(param, open(sim_dir + file_names['param_file_name'] + '.pkl', 'wb'))
-
-		print(" Saving restart file {}".format(file_names['restart_file_name']))
-		ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
+	print(" Saving restart file {}\n".format(file_names['restart_file_name']))
+	ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
 
 

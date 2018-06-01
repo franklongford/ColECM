@@ -23,10 +23,9 @@ def get_param_defaults():
 	"""
 	
 	defaults = {	'n_dim' : 2,
-		    	'dt' : 0.004,
+		    	'dt' : 0.003,
 			'n_step' : 10000,
-			'save_step' : 500,
-			'print_step' : 1000,
+			'save_step' : 1000,
 			'mass' : 1.,
 			'vdw_sigma' : 1,
 			'vdw_epsilon' : 1.,
@@ -148,10 +147,8 @@ def check_sim_param(input_list, param=False):
 
 	if not param: param = get_param_defaults()
 
-	if ('-ndim' in input_list):
-		param['n_dim'] = int(input_list[input_list.index('-ndim') + 1])
-		if param['n_dim'] == 2: param['dt'] = 0.004 
-		elif param['n_dim'] == 3: param['dt'] = 0.003 
+	if ('-ndim' in input_list): param['n_dim'] = int(input_list[input_list.index('-ndim') + 1])
+	if ('-dt' in input_list): param['dt'] = float(input_list[input_list.index('-dt') + 1])
 	if ('-mass' in input_list): param['mass'] = float(input_list[input_list.index('-mass') + 1])
 	if ('-vdw_sigma' in input_list): param['vdw_sigma'] = float(input_list[input_list.index('-vdw_sigma') + 1])
 	if ('-bond_r0' in input_list): param['bond_r0'] = float(input_list[input_list.index('-bond_r0') + 1])
@@ -640,7 +637,7 @@ def calc_state_mpi(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, 
 
 	#verlet_list_rb = ut.check_cutoff(r2, param['bond_rb']**2)
 
-	pot_energy, frc, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
+	frc, pot_energy, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
 							angle_indices, angle_bond_indices, vdw_coeff, virial_indicies, param)
 
 	pot_energy = np.sum(comm.gather(pot_energy))
@@ -777,7 +774,7 @@ def import_files_mpi(sim_dir, file_names, param, comm, size=1, rank=0, verbosity
 	"""
 
 	from mpi4py import MPI
-	from simulation_mpi import equilibrate_temperature, equilibrate_density
+	from simulation_mpi import equilibrate_temperature_mpi, equilibrate_density_mpi
 
 	if os.path.exists(sim_dir + file_names['restart_file_name'] + '.npy'):
 		if rank == 0: 
@@ -801,7 +798,7 @@ def import_files_mpi(sim_dir, file_names, param, comm, size=1, rank=0, verbosity
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 
-		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
+		pos, vel = equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
 
 	else:
 		file_names['pos_file_name'] = ut.check_file_name(file_names['pos_file_name'], file_type='pos') + '_pos'
@@ -825,8 +822,8 @@ def import_files_mpi(sim_dir, file_names, param, comm, size=1, rank=0, verbosity
 		cell_dim = comm.bcast(cell_dim, root=0)
 		param = comm.bcast(param, root=0)
 
-		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
-		pos, vel, cell_dim = equilibrate_density(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
+		pos, vel = equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
+		pos, vel, cell_dim = equilibrate_density_mpi(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
 
 		if rank == 0: 
 			if verbosity: print(" Saving restart file {}".format(file_names['restart_file_name']))

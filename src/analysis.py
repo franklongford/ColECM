@@ -23,6 +23,153 @@ SQRT2 = np.sqrt(2)
 SQRTPI = np.sqrt(np.pi)
 
 
+def print_thermo_results(fig_dir, fig_name, tot_energy, tot_temp, tot_press):
+
+
+	print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
+	plt.figure(0)
+	plt.title('Energy Time Series')
+	plt.plot(tot_energy, label=fig_name)
+	plt.xlabel(r'step')
+	plt.ylabel(r'Energy per fibril')
+	plt.legend()
+	#plt.ylim(np.mean(tot_energy) - np.std(tot_energy), np.mean(tot_energy) + np.std(tot_energy)) 
+	plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Energy histogram figure {}/{}_energy_hist.png'.format(fig_dir, fig_name))
+	plt.figure(1)
+	plt.title('Energy Histogram')
+	plt.hist(tot_energy, bins='auto', density=True, label=fig_name)#, range=[np.mean(tot_energy) - np.std(tot_energy), np.mean(tot_energy) + np.std(tot_energy)])
+	plt.xlabel(r'Energy per fibril')
+	plt.legend()
+	plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Temperature time series figure {}/{}_temp_time.png'.format(fig_dir, fig_name))
+	plt.figure(2)
+	plt.title('Temperature Time Series')
+	plt.plot(tot_temp, label=fig_name)
+	plt.xlabel(r'step')
+	plt.ylabel(r'Temp (kBT)')
+	#plt.ylim(np.mean(tot_temp) - np.std(tot_temp), np.mean(tot_temp) + np.std(tot_temp)) 
+	plt.legend()
+	plt.savefig('{}/{}_temp_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Temperature histogram figure {}/{}_temp_hist.png'.format(fig_dir, fig_name))
+	plt.figure(3)
+	plt.title('Temperature Histogram')
+	plt.hist(tot_temp, bins='auto', density=True, label=fig_name)#, range=[np.mean(tot_temp) - np.std(tot_temp), np.mean(tot_temp) + np.std(tot_temp)])
+	plt.xlabel(r'Temp (kBT)')
+	plt.legend()
+	plt.savefig('{}/{}_temp_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Pressure time series figure {}/{}_press_time.png'.format(fig_dir, fig_name))
+	plt.figure(4)
+	plt.title('Pressure Time Series')
+	plt.plot(tot_press, label=fig_name)
+	plt.xlabel(r'step')
+	plt.ylabel(r'Pressure')
+	#plt.ylim(np.mean(tot_press) - np.std(tot_press), np.mean(tot_press) + np.std(tot_press)) 
+	plt.legend()
+	plt.savefig('{}/{}_press_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Pressure histogram figure {}/{}_press_hist.png'.format(fig_dir, fig_name))
+	plt.figure(5)
+	plt.title('Pressure Histogram')
+	plt.hist(tot_press, bins='auto', density=True, range=[np.mean(tot_press) - np.std(tot_press), np.mean(tot_press) + np.std(tot_press)], label=fig_name)
+	plt.xlabel(r'Pressure')
+	plt.legend()
+	plt.savefig('{}/{}_press_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+
+def print_vector_results(fig_dir, fig_name, param, tot_mag, tot_theta):
+
+	hist, bin_edges = np.histogram(tot_theta.flatten(), bins='auto', density=True)
+
+	print('\n Modal Vector angle  = {:>6.4f}'.format(bin_edges[np.argmax(hist)]))
+	print(' Mean Fibril RMS = {:>6.4f}'.format(np.mean(tot_mag)))
+	print(' Expected Random Walk RMS = {:>6.4f}'.format(1. / np.sqrt(param['l_fibril']-1)))
+
+	print(' Creating Vector Magnitude histogram figure {}/{}_vec_mag_hist.png'.format(fig_dir, fig_name))
+	plt.figure(7)
+	plt.title('Vector Magnitude Histogram')
+	plt.hist(tot_mag.flatten(), bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'$|R|$')
+	#plt.axis([0, 2.0, 0, 3.0])
+	plt.legend()
+	plt.savefig('{}/{}_vec_mag_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Vector Angular histogram figure {}/{}_vec_ang_hist.png'.format(fig_dir, fig_name))
+	plt.figure(8)
+	plt.title('Vector Angle Histogram')
+	plt.hist(tot_theta.flatten(), bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'$\theta$')
+	plt.xlim(-180, 180)
+	plt.legend()
+	plt.savefig('{}/{}_vec_ang_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+
+def print_anis_results(fig_dir, fig_name, q):
+
+	print('\n Mean anistoropy = {:>6.4f}'.format(np.mean(q)))
+
+	print(' Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
+	plt.figure(9)
+	plt.title('Anisotropy Time Series')
+	plt.plot(np.mean(q, axis=1), label=fig_name)
+	plt.xlabel(r'step')
+	plt.ylabel(r'Anisotropy')
+	plt.ylim(0, 1)
+	plt.legend()
+	plt.savefig('{}/{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	print(' Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
+	plt.figure(10)
+	plt.title('Anisotropy Histogram')
+	plt.hist(np.mean(q, axis=1), bins='auto', density=True, label=fig_name)
+	plt.xlabel(r'Anisotropy')
+	plt.xlim(0, 1)
+	plt.legend()
+	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+
+def print_fourier_results(fig_dir, fig_name, angles, fourier_spec):
+
+	print('\n Modal Fourier Amplitude  = {:>6.4f}'.format(angles[np.argmax(fourier_spec)]))
+	print(' Fourier Amplitudes Range   = {:>6.4f}'.format(np.max(fourier_spec)-np.min(fourier_spec)))
+	print(' Fourier Amplitudes Std Dev = {:>6.4f}'.format(np.std(fourier_spec)))
+
+	print(' Creating Fouier Angle Spectrum figure {}/{}_fourier.png'.format(fig_dir, fig_name))
+	plt.figure(11)
+	plt.title('Fourier Angle Spectrum')
+	plt.plot(angles, fourier_spec, label=fig_name)
+	plt.xlabel(r'Angle (deg)')
+	plt.ylabel(r'Amplitude')
+	plt.xlim(-180, 180)
+	plt.ylim(0, 0.25)
+	plt.legend()
+	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+
+def print_nmf_results(fig_dir, fig_name, n, title, images, n_col, n_row, image_shape):
+
+	print('\n Creating NMF Gallery {}/{}_nmf.png'.format(fig_dir, fig_name))
+
+	plt.figure(n, figsize=(2. * n_col, 2.26 * n_row))
+	plt.suptitle(title, size=16)
+
+	for i, comp in enumerate(images):
+		plt.subplot(n_row, n_col, i + 1)
+		vmax = max(comp.max(), -comp.min())
+		plt.imshow(comp.reshape(image_shape), cmap=plt.cm.gray,
+			   interpolation='nearest',
+			   vmin=-vmax, vmax=vmax)
+		plt.xticks(())
+		plt.yticks(())
+
+	plt.subplots_adjust(0.01, 0.05, 0.99, 0.93, 0.04, 0.)
+	plt.savefig('{}/{}_nmf.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+
 def reorder_array(array):
 	"""
 	reorder_array(array)
@@ -664,23 +811,6 @@ def fourier_transform_analysis(image_shg, area, n_sample):
 	return angles, fourier_spec
 
 
-def plot_gallery(n, title, images, n_col, n_row, image_shape):
-
-	plt.figure(n, figsize=(2. * n_col, 2.26 * n_row))
-	plt.suptitle(title, size=16)
-
-	for i, comp in enumerate(images):
-		plt.subplot(n_row, n_col, i + 1)
-		vmax = max(comp.max(), -comp.min())
-		plt.imshow(comp.reshape(image_shape), cmap=plt.cm.gray,
-			   interpolation='nearest',
-			   vmin=-vmax, vmax=vmax)
-		plt.xticks(())
-		plt.yticks(())
-
-	plt.subplots_adjust(0.01, 0.05, 0.99, 0.93, 0.04, 0.)
-
-
 def nmf_analysis(image_shg, area, n_sample, n_components):
 	"""
 	nmf_analysis(image_shg, area, n_sample)
@@ -757,6 +887,7 @@ def analysis(current_dir, input_file_name=False):
 	if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
 	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name, verbosity=False)
+	fig_name = file_names['gif_file_name'].split('/')[-1]
 
 	keys = ['l_conv', 'res', 'sharp', 'skip']
 	print("\n Analysis Parameters found:")
@@ -764,59 +895,10 @@ def analysis(current_dir, input_file_name=False):
 
 	print("\n Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
 	tot_energy, tot_temp, tot_press = ut.load_npy(sim_dir + file_names['output_file_name'])
+	
+	tot_energy *= param['l_fibril'] / param['n_bead']
+	print_thermo_results(fig_dir, fig_name, tot_energy, tot_temp, tot_press)
 
-	fig_name = file_names['gif_file_name'].split('/')[-1]
-
-	print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
-	plt.figure(0)
-	plt.title('Energy Time Series')
-	plt.plot(tot_energy * param['l_fibril'] / param['n_bead'], label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'Energy per fibril')
-	plt.legend()
-	plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Energy histogram figure {}/{}_energy_hist.png'.format(fig_dir, fig_name))
-	plt.figure(1)
-	plt.title('Energy Histogram')
-	plt.hist(tot_energy * param['l_fibril'] / param['n_bead'], bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Energy per fibril')
-	plt.legend()
-	plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Temperature time series figure {}/{}_temp_time.png'.format(fig_dir, fig_name))
-	plt.figure(2)
-	plt.title('Temperature Time Series')
-	plt.plot(tot_temp, label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'Temp (kBT)')
-	plt.legend()
-	plt.savefig('{}/{}_temp_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Temperature histogram figure {}/{}_temp_hist.png'.format(fig_dir, fig_name))
-	plt.figure(3)
-	plt.title('Temperature Histogram')
-	plt.hist(tot_temp, bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Temp (kBT)')
-	plt.legend()
-	plt.savefig('{}/{}_temp_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Pressure time series figure {}/{}_press_time.png'.format(fig_dir, fig_name))
-	plt.figure(4)
-	plt.title('Pressure Time Series')
-	plt.plot(tot_press, label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'Pressure')
-	plt.legend()
-	plt.savefig('{}/{}_press_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Pressure histogram figure {}/{}_press_hist.png'.format(fig_dir, fig_name))
-	plt.figure(5)
-	plt.title('Pressure Histogram')
-	plt.hist(tot_press, bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Pressure')
-	plt.legend()
-	plt.savefig('{}/{}_press_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 	print("\n Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
 	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
@@ -825,38 +907,16 @@ def analysis(current_dir, input_file_name=False):
 	n_image = int(n_frame / param['skip'])
 	cell_dim = tot_pos[0][-1]
 	n_xyz = tuple(np.array(cell_dim * param['l_conv'] * param['res'], dtype=int))
-	
 	conv = param['l_conv'] / param['sharp'] * param['res']
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame)], 2, 1)
 
 	"Perform Fibre Vector analysis"
 	tot_theta, tot_mag = fibre_vector_analysis(image_md, cell_dim, param)
-	hist, bin_edges = np.histogram(tot_theta.flatten(), bins='auto', density=True)
-
-	print('\n Modal Vector angle  = {:>6.4f}'.format(bin_edges[np.argmax(hist)]))
-	print(' Mean Fibril RMS = {:>6.4f}'.format(np.mean(tot_mag)))
-	print(' Expected Random Walk RMS = {:>6.4f}'.format(1. / np.sqrt(param['l_fibril']-1)))
-
-	print(' Creating Vector Magnitude histogram figure {}/{}_vec_mag_hist.png'.format(fig_dir, fig_name))
-	plt.figure(7)
-	plt.title('Vector Magnitude Histogram')
-	plt.hist(tot_mag.flatten(), bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'$|R|$')
-	#plt.axis([0, 2.0, 0, 3.0])
-	plt.legend()
-	plt.savefig('{}/{}_vec_mag_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Vector Angular histogram figure {}/{}_vec_ang_hist.png'.format(fig_dir, fig_name))
-	plt.figure(8)
-	plt.title('Vector Angle Histogram')
-	plt.hist(tot_theta.flatten(), bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'$\theta$')
-	plt.xlim(-180, 180)
-	plt.legend()
-	plt.savefig('{}/{}_vec_ang_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	print_vector_results(fig_dir, fig_name, param, tot_mag, tot_theta)
 
 
+	"Generate SHG Images"
 	image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_image_shg'.format(n_frame, param['res'], param['sharp'])
 	dx_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dx_shg'.format(n_frame, param['res'], param['sharp'])
 	dy_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dy_shg'.format(n_frame, param['res'], param['sharp'])
@@ -897,62 +957,28 @@ def analysis(current_dir, input_file_name=False):
 	q = reorder_array(eigval_shg)
 	q = q[1] - q[0]
 
-	print('\n Mean anistoropy = {:>6.4f}'.format(np.mean(q)))
+	print_anis_results(fig_dir, fig_name, q)
+
 	anis_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_anis'
 	print(" Saving anisotropy file {}".format(file_names['output_file_name']))
 	ut.save_npy(sim_dir + anis_file_name, q)
 
-	print(' Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
-	plt.figure(9)
-	plt.title('Anisotropy Time Series')
-	plt.plot(np.mean(q, axis=1), label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'Anisotropy')
-	plt.ylim(0, 1)
-	plt.legend()
-	plt.savefig('{}/{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
-	plt.figure(10)
-	plt.title('Anisotropy Histogram')
-	plt.hist(np.mean(q, axis=1), bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Anisotropy')
-	plt.xlim(0, 1)
-	plt.legend()
-	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-
+	
 	"Perform Fourier Analysis"
 	angles, fourier_spec = fourier_transform_analysis(image_shg, area_sample, n_sample)
 
 	#angles = angles[len(angles)//2:]
 	#fourier_spec = 2 * fourier_spec[len(fourier_spec)//2:]
+	print_fourier_results(fig_dir, fig_name, angles, fourier_spec)
 
-	print('\n Modal Fourier Amplitude  = {:>6.4f}'.format(angles[np.argmax(fourier_spec)]))
-	print(' Fourier Amplitudes Range   = {:>6.4f}'.format(np.max(fourier_spec)-np.min(fourier_spec)))
-	print(' Fourier Amplitudes Std Dev = {:>6.4f}'.format(np.std(fourier_spec)))
-
-	print(' Creating Fouier Angle Spectrum figure {}/{}_fourier.png'.format(fig_dir, fig_name))
-	plt.figure(11)
-	plt.title('Fourier Angle Spectrum')
-	plt.plot(angles, fourier_spec, label=fig_name)
-	plt.xlabel(r'Angle (deg)')
-	plt.ylabel(r'Amplitude')
-	plt.xlim(-180, 180)
-	plt.ylim(0, 0.25)
-	plt.legend()
-	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-
+	
 	"Perform Non-Negative Matrix Factorisation"
 	n_components = 9
 	pad = int(area_sample / 2 - 1)
 
 	nmf_components = nmf_analysis(image_shg, area_sample, n_sample, n_components)
 
-	print('\n Creating NMF Gallery {}/{}_nmf.png'.format(fig_dir, fig_name))
-	plot_gallery(12, 'NMF Main Components', nmf_components[:n_components], np.sqrt(n_components), np.sqrt(n_components), (area_sample, area_sample))
-	plt.savefig('{}/{}_nmf.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	print_nmf_results(fig_dir, fig_name, 12, 'NMF Main Components', nmf_components[:n_components], np.sqrt(n_components), np.sqrt(n_components), (area_sample, area_sample))
 
 
 	"Make Gif of SHG Images"

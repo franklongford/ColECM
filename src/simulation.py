@@ -403,7 +403,8 @@ def simulation(current_dir, input_file_name=False):
 	print(" {:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, setup_time))
 	print(" Fibre diameter = {} um\n Simulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
 	print(" Cell density:     {:>10.4f} bead mass um-3".format(param['n_bead'] * param['mass'] / np.prod(cell_dim * param['l_conv'])))
-	print(" Number of Simulation steps = {}".format(param['n_step']))
+	print(" Number of simulation steps = {}".format(param['n_step']))
+	print(" Number of steps between saved traj = {}".format(param['save_step']))
 
 	sim_time_start = time.time()
 
@@ -442,8 +443,6 @@ def simulation(current_dir, input_file_name=False):
 
 			ut.save_npy(sim_dir + file_names['restart_file_name'], (tot_pos[i], tot_vel[i]))
 
-		if step % param['print_step'] == 0:
-
 			sim_time = (time.time() - sim_time_start) * (param['n_step'] / step - 1) 
 			time_hour = int(sim_time / 60**2)
 			time_min = int((sim_time / 60) % 60)
@@ -458,7 +457,7 @@ def simulation(current_dir, input_file_name=False):
 			print(" " + "-" * 56)
 
 		if temperature >= param['kBT'] * 1E3: 
-			if rank == 0: print("velocity exceeded, step ={}".format(step))
+			print("Max temperature exceeded: {}  ({}), step ={}".format(param['kBT'] * 1E3, temperature, step))
 			n_step = step
 			sys.exit()
 

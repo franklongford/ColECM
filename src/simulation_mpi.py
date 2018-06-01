@@ -133,7 +133,7 @@ def velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bo
 	return pos, vel, frc, cell_dim, pot_energy, virial_tensor
 
 
-def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.1, thresh=5E-2):
+def equilibrate_temperature_mpi(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.1, thresh=5E-2):
 	"""
 	equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
 
@@ -257,7 +257,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	return pos, vel
 
 
-def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.05, thresh=2E-3):
+def equilibrate_density_mpi(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.05, thresh=2E-3):
 	"""
 	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
 
@@ -444,7 +444,7 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 		tot_frc[0] += frc
 
 		tot_energy[0] = pot_energy + kin_energy
-		tot_temp[0] = 2 * kin_energy / n_dof
+		tot_temp[0] = temperature
 		tot_press[0] = pressure
 		tot_vol[0] = np.prod(cell_dim)
 
@@ -458,7 +458,8 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 		print(" {:5d} hr {:2d} min {:2d} sec ({:8.3f} sec)".format(time_hour, time_min, time_sec, setup_time))
 		print(" Fibre diameter = {} um\n Simulation cell dimensions = {} um".format(param['l_conv'], cell_dim * param['l_conv']))
 		print(" Cell density:     {:>10.4f} bead mass um-3".format(param['n_bead'] * param['mass'] / np.prod(cell_dim * param['l_conv'])))
-		print(" Number of Simulation steps = {}".format(param['n_step']))
+		print(" Number of simulation steps = {}".format(param['n_step']))
+		print(" Number of steps between saved traj = {}".format(param['save_step']))
 
 		sim_time_start = time.time()
 
@@ -485,6 +486,7 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 		temperature = 2 * kin_energy / n_dof
 	
 		if rank == 0:
+
 			tot_energy[step] += pot_energy + kin_energy
 			tot_temp[step] += temperature
 			tot_press[step] += pressure
@@ -497,8 +499,6 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 				tot_frc[i] += frc
 
 				ut.save_npy(sim_dir + file_names['restart_file_name'], (tot_pos[i], tot_vel[i]))
-
-			if step % param['print_step'] == 0:
 
 				sim_time = (time.time() - sim_time_start) * (param['n_step'] / step - 1) 
 				time_hour = int(sim_time / 60**2)
@@ -514,7 +514,7 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 				print(" " + "-" * 56)
 
 		if temperature >= param['kBT'] * 1E3: 
-			if rank == 0: print("velocity exceeded, step ={}".format(step))
+			if rank == 0: print("Max temperature exceeded: {}  ({}), step ={}".format(param['kBT'] * 1E3, temperature, step))
 			n_step = step
 			sys.exit()
 

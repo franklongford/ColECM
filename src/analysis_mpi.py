@@ -23,49 +23,9 @@ SQRT2 = np.sqrt(2)
 SQRTPI = np.sqrt(np.pi)
 
 
-def reorder_array(array):
+def create_image_mpi(pos, std, n_xyz, r):
 	"""
-	reorder_array(array)
-
-	Inverts 3D array so that outer loop is along z axis
-	"""
-
-	return np.moveaxis(array, (2, 0, 1), (0, 1, 2))
-
-
-def move_array_centre(array, centre):
-	"""
-	move_array_centre(array, centre)
-
-	Move top left corner of ND array to centre index
-	"""
-
-	n_dim = centre.shape[0]
-
-	for i, ax in enumerate(range(n_dim)): array = np.roll(array, centre[i], axis=ax)
-
-	return array
-
-
-def gaussian(x, mean, std):
-	"""
-	Return value at position x from Gaussian distribution with centre mean and standard deviation std
-	"""
-
-	return np.exp(-(x-mean)**2 / (2 * std**2)) / (SQRT2 * std * SQRTPI)
-
-
-def dx_gaussian(x, mean, std):
-	"""
-	Return derivative of value at position x from Gaussian distribution with centre mean and standard deviation std
-	"""
-
-	return (mean - x) / std**2 * gaussian(x, mean, std)
-
-
-def create_image(pos, std, n_xyz, r):
-	"""
-	create_image(pos_x, pos_y, sigma, n_xyz, r)
+	create_image_mpi(pos_x, pos_y, sigma, n_xyz, r)
 
 	Create Gaussian convoluted image from a set of bead positions
 
@@ -137,7 +97,7 @@ def create_image(pos, std, n_xyz, r):
 	return histogram, image
 
 
-def fibril_align(histogram, std, n_xyz, dxdydz, r, non_zero):
+def fibril_align_mpi(histogram, std, n_xyz, dxdydz, r, non_zero):
 	"""
 	create_image(pos_x, pos_y, sigma, n_x, n_y, r, non_zero)
 
@@ -240,7 +200,7 @@ def fibril_align(histogram, std, n_xyz, dxdydz, r, non_zero):
 	return dx_grid, dy_grid
 
 
-def shg_images(traj, sigma, n_xyz, cut):
+def shg_images_mpi(traj, sigma, n_xyz, cut):
 	"""
 	shg_images(traj, sigma, n_xyz_md, cut)
 
@@ -312,127 +272,7 @@ def shg_images(traj, sigma, n_xyz, cut):
 	return image_shg, dx_shg, dy_shg
 
 
-
-def make_png(file_name, fig_dir, image, bonds, res, sharp, cell_dim, itype='MD'):
-	"""
-	make_gif(file_name, fig_dir, image, bond, res, sharp, cell_dim, itype='MD')
-
-	Create a png out of image data
-
-	Parameters
-	----------
-
-	file_name:  str
-		Name of gif file to be created
-
-	fig_dir:  str
-		Directory of figure pngs to use in gif
-
-	image:  array_like (float); shape=(n_y, n_x)
-		SHG image to be converted into png
-
-	res:  float
-		Parameter determining resolution of SHG images
-
-	sharp:  float
-		Parameter determining sharpness of SHG images
-
-	cell_dim: array_like, dtype=float
-		Array with simulation cell dimensions
-
-	itype:  str (optional)
-		Type of figure to make, scatter plot ('MD') or imshow ('SHG')
-
-	"""
-
-	n_dim = cell_dim.shape[0]
-
-	if itype.upper() == 'MD':
-		if n_dim == 2:
-			fig, ax = plt.subplots(figsize=(cell_dim[0]/4, cell_dim[1]/4))
-			plt.scatter(image[0], image[1])
-			for bond in bonds:plt.plot(image[0][bond], image[1][bond], linestyle='dashed')
-			plt.xlim(0, cell_dim[0])
-			plt.ylim(0, cell_dim[1])
-		elif n_dim == 3:
-			plt.close('all')
-			fig = plt.figure(figsize=(cell_dim[0]/4, cell_dim[1]/4))
-			ax = plt3d.Axes3D(fig)
-			ax.scatter(image[0], image[1], image[2], zdir='y')
-			ax.set_xlim3d([0.0, cell_dim[0]])
-			ax.set_ylim3d([0.0, cell_dim[2]])
-			ax.set_zlim3d([0.0, cell_dim[1]])
-	elif itype.upper() == 'SHG':
-		fig = plt.figure()
-		plt.imshow(image, cmap='viridis', interpolation='nearest', extent=[0, cell_dim[0], 0, cell_dim[1]], origin='lower')
-		#plt.gca().set_xticks(np.linspace(0, cell_dim[0], 10))
-		#plt.gca().set_yticks(np.linspace(0, cell_dim[1], 10))
-		#plt.gca().set_xticklabels(real_x)
-		#plt.gca().set_yticklabels(real_y)
-	plt.savefig('{}/{}_ISM.png'.format(fig_dir, file_name), bbox_inches='tight')
-	plt.close()
-
-
-def make_gif(file_name, fig_dir, gif_dir, n_frame, images, param, cell_dim, itype='MD'):
-	"""
-	make_gif(file_name, fig_dir, gif_dir, n_frame, images, bond_matrix, res, sharp, cell_dim, itype='MD')
-
-	Create a gif out of a series n_frame png figures
-
-	Parameters
-	----------
-
-	file_name:  str
-		Name of gif file to be created
-
-	fig_dir:  str
-		Directory of figure pngs to use in gif
-
-	gif_dir:  str
-		Directory of gif to be created
-
-	n_frame:  int
-		Number of frames to include in gif
-
-	images:  array_like (float); shape=(n_frame, n_y, n_x)
-		SHG images to be converted into pngs
-
-	res:  float
-		Parameter determining resolution of SHG images
-
-	sharp:  float
-		Parameter determining sharpness of SHG images
-
-	cell_dim: array_like, dtype=float
-		Array with simulation cell dimensions
-
-	itype:  str (optional)
-		Type of figure to make, scatter plot ('MD') or imshow ('SHG')
-
-	"""
-
-	import imageio
-
-	image_list = []
-	file_name_plot = '{}_{}_{}'.format(file_name, param['res'], param['sharp'])
-	indices = np.arange(param['n_bead']).reshape((param['n_fibril'], param['l_fibril']))
-	
-	for frame in range(n_frame):
-		#if not os.path.exists('{}/{}_{}_ISM.png'.format(fig_dir, file_name_plot, frame)):
-		make_png("{}_{}".format(file_name_plot, frame), gif_dir, images[frame], indices, param['res'], param['sharp'], cell_dim, itype)
-		image_list.append('{}/{}_{}_ISM.png'.format(gif_dir, file_name_plot, frame))
-
-	file_name_gif = '{}_{}_{}_{}'.format(file_name, param['res'], param['sharp'], n_frame)
-	file_path_name = '{}/{}.gif'.format(gif_dir, file_name_gif)
-
-	with imageio.get_writer(file_path_name, mode='I', duration=0.3, format='GIF') as writer:
-		for filename in image_list:
-			image = imageio.imread(filename)
-			writer.append_data(image)
-			os.remove(filename)
-
-
-def fibre_vector_analysis(traj, cell_dim, param):
+def fibre_vector_analysis_mpi(traj, cell_dim, param):
 	"""
 	fibre_vector_analysis(traj, cell_dim, param)
 
@@ -489,7 +329,7 @@ def fibre_vector_analysis(traj, cell_dim, param):
 	return tot_theta, tot_mag
 
 
-def form_nematic_tensor(dx_shg, dy_shg):
+def form_nematic_tensor_mpi(dx_shg, dy_shg):
 	"""
 	form_nematic_tensor(dx_shg, dy_shg)
 
@@ -533,7 +373,7 @@ def form_nematic_tensor(dx_shg, dy_shg):
 	return n_vector
 
 
-def nematic_tensor_analysis(n_vector, area, n_sample):
+def nematic_tensor_analysis_mpi(n_vector, area, n_sample):
 	"""
 	nematic_tensor_analysis(n_vector, area, n_frame, n_sample)
 
@@ -593,7 +433,7 @@ def nematic_tensor_analysis(n_vector, area, n_sample):
 	return av_eigval, av_eigvec
 	
 
-def fourier_transform_analysis(image_shg, area, n_sample):
+def fourier_transform_analysis_mpi(image_shg, area, n_sample):
 	"""
 	fourier_transform_analysis(image_shg, area, n_sample)
 
@@ -664,24 +504,7 @@ def fourier_transform_analysis(image_shg, area, n_sample):
 	return angles, fourier_spec
 
 
-def plot_gallery(n, title, images, n_col, n_row, image_shape):
-
-	plt.figure(n, figsize=(2. * n_col, 2.26 * n_row))
-	plt.suptitle(title, size=16)
-
-	for i, comp in enumerate(images):
-		plt.subplot(n_row, n_col, i + 1)
-		vmax = max(comp.max(), -comp.min())
-		plt.imshow(comp.reshape(image_shape), cmap=plt.cm.gray,
-			   interpolation='nearest',
-			   vmin=-vmax, vmax=vmax)
-		plt.xticks(())
-		plt.yticks(())
-
-	plt.subplots_adjust(0.01, 0.05, 0.99, 0.93, 0.04, 0.)
-
-
-def nmf_analysis(image_shg, area, n_sample, n_components):
+def nmf_analysis_mpi(image_shg, area, n_sample, n_components):
 	"""
 	nmf_analysis(image_shg, area, n_sample)
 
@@ -733,17 +556,10 @@ def nmf_analysis(image_shg, area, n_sample, n_components):
 	return nmf_components
 
 
-def animate(n):
-	plt.title('Frame {}'.format(n))
-	sc.set_offsets(np.c_[tot_pos[n][0], tot_pos[n][1]])
-
-
-def heatmap_animation(n):
-	plt.title('Frame {}'.format(n))
-	ax.pcolor(image_pos[n], cmap='viridis')
-
-
 def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
+
+
+	from analysis import 
 
 	sim_dir = current_dir + '/sim/'
 	gif_dir = current_dir + '/gif'

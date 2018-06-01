@@ -23,7 +23,7 @@ modules = []
 
 if ('simulation' in sys.argv): modules.append('simulation') 
 #if ('analysis' in sys.argv): modules.append('analysis')
-#if ('editor' in sys.argv): modules.append('editor')
+if ('editor' in sys.argv): modules.append('editor')
 
 if ('speed' in sys.argv): modules.append('speed')
 else:
@@ -31,8 +31,10 @@ else:
 		ut.logo()
 		print(" Running on {} processors\n".format(size))
 
-
-if len(modules) == 0: modules = (input(' Please enter desired modules to run (SIMULATION and/or ANALYSIS or EDITOR): ').lower()).split()
+if len(modules) == 0: 
+	if rank == 0: modules = (input(' Please enter desired modules to run (SIMULATION and/or ANALYSIS or EDITOR): ').lower()).split()
+	else: modules = False
+	modules = comm.bcast(modules, root=0)
 
 if ('-input' in sys.argv): input_file_name = current_dir + '/' + sys.argv[sys.argv.index('-input') + 1]
 else: input_file_name = False
@@ -44,7 +46,7 @@ if ('analysis' in modules):
 	from analysis_mpi import analysis
 	analysis(current_dir, input_file_name)
 if ('editor' in modules):
-	from editor_mpi import analysis_mpi
+	from editor_mpi import editor
 	editor(current_dir, comm, input_file_name, size, rank)
 if ('speed' in modules):
 	from simulation_mpi import speed_test
