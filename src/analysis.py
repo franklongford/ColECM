@@ -939,7 +939,6 @@ def analysis(current_dir, input_file_name=False):
 	
 	"Perform Fourier Analysis"
 	angles, fourier_spec = fourier_transform_analysis(image_shg, area_sample, n_sample)
-
 	#angles = angles[len(angles)//2:]
 	#fourier_spec = 2 * fourier_spec[len(fourier_spec)//2:]
 	print_fourier_results(fig_dir, fig_name, angles, fourier_spec)

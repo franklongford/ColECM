@@ -193,7 +193,7 @@ def test_pot_energy_frc():
  			      [ 41.48708925,  -1095.43380772],
  			      [-12319.07761272,   7321.17785601]])
 
-	assert abs(pot_energy - 404.84698800947655) <= THRESH
+	assert abs(pot_energy - 405.08269116652315) <= THRESH
 	assert abs(np.sum(frc - check_frc)) <= THRESH
 
 	param['n_dim'] = 3
@@ -206,7 +206,7 @@ def test_pot_energy_frc():
  			      [  27.2045763,  -777.5797729,   172.30544761],
 			      [ -51.18399136,    7.13273822,   66.55613079]])
 
-	assert abs(pot_energy - 13.349525850814166) <= THRESH
+	assert abs(pot_energy - 13.594451775093999) <= THRESH
 	assert abs(np.sum(frc - check_frc)) <= THRESH
 
 

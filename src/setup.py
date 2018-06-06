@@ -384,7 +384,7 @@ def grow_fibril(index, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_
 		while energy > max_energy:
 			new_vec = ut.rand_vector(param['n_dim']) * param['bond_r0']	
 			pos[index] = pos[index-1] + new_vec
-			cell_dim = np.array([np.max(pos.T[0]) + param['vdw_sigma'], np.max(pos.T[1]) + param['vdw_sigma']])
+			cell_dim = np.max(pos, axis=0) + param['vdw_sigma']
 
 			_, energy, _ = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, 
 							angle_bond_indices, vdw_matrix, param)

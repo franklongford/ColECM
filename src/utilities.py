@@ -444,7 +444,6 @@ def get_distances(pos, cell_dim):
 
 	temp_pos = np.moveaxis(pos, 0, 1)
 
-	#dxyz = np.array([np.tile(temp_pos[0], (n_bead, 1)), np.tile(temp_pos[1], (n_bead, 1))])
 	dxyz = np.reshape(np.tile(temp_pos, (1, n_bead)), (n_dim, n_bead, n_bead))
 	dxyz = np.transpose(dxyz, axes=(0, 2, 1)) - dxyz
 
