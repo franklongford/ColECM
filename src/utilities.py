@@ -364,6 +364,30 @@ def dx_gaussian(x, mean, std):
 	return (mean - x) / std**2 * gaussian(x, mean, std)
 
 
+def reorder_array(array):
+	"""
+	reorder_array(array)
+
+	Inverts 3D array so that outer loop is along z axis
+	"""
+
+	return np.moveaxis(array, (2, 0, 1), (0, 1, 2))
+
+
+def move_array_centre(array, centre):
+	"""
+	move_array_centre(array, centre)
+
+	Move top left corner of ND array to centre index
+	"""
+
+	n_dim = centre.shape[0]
+
+	for i, ax in enumerate(range(n_dim)): array = np.roll(array, centre[i], axis=ax)
+
+	return array
+
+
 def create_index(array):
 	"""
 	create_index(array)

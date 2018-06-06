@@ -170,46 +170,6 @@ def print_nmf_results(fig_dir, fig_name, n, title, images, n_col, n_row, image_s
 	plt.savefig('{}/{}_nmf.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
 
-def reorder_array(array):
-	"""
-	reorder_array(array)
-
-	Inverts 3D array so that outer loop is along z axis
-	"""
-
-	return np.moveaxis(array, (2, 0, 1), (0, 1, 2))
-
-
-def move_array_centre(array, centre):
-	"""
-	move_array_centre(array, centre)
-
-	Move top left corner of ND array to centre index
-	"""
-
-	n_dim = centre.shape[0]
-
-	for i, ax in enumerate(range(n_dim)): array = np.roll(array, centre[i], axis=ax)
-
-	return array
-
-
-def gaussian(x, mean, std):
-	"""
-	Return value at position x from Gaussian distribution with centre mean and standard deviation std
-	"""
-
-	return np.exp(-(x-mean)**2 / (2 * std**2)) / (SQRT2 * std * SQRTPI)
-
-
-def dx_gaussian(x, mean, std):
-	"""
-	Return derivative of value at position x from Gaussian distribution with centre mean and standard deviation std
-	"""
-
-	return (mean - x) / std**2 * gaussian(x, mean, std)
-
-
 def create_image(pos, std, n_xyz, r):
 	"""
 	create_image(pos_x, pos_y, sigma, n_xyz, r)
@@ -250,8 +210,8 @@ def create_image(pos, std, n_xyz, r):
 	if n_dim == 2: 
 		histogram = histogram.T
 	elif n_dim == 3: 
-		histogram = reorder_array(histogram)
-		r = reorder_array(r)
+		histogram = ut.reorder_array(histogram)
+		r = ut.reorder_array(r)
 
 	"Get indicies and intensity of non-zero histogram grid points"
 	indices = np.argwhere(histogram)
@@ -275,9 +235,9 @@ def create_image(pos, std, n_xyz, r):
 		image[pixels] += gaussian(r_cut_shift[pixels].flatten(), 0, std) * intensity[i]
 		"""		
 		"Performs the full mapping"
-		if n_dim == 2: r_shift = move_array_centre(r, index[::-1])
-		elif n_dim == 3: r_shift = move_array_centre(r[index[0]], index[1:])
-		image += np.reshape(gaussian(r_shift.flatten(), 0, std), n_xyz[:2]) * intensity[i]
+		if n_dim == 2: r_shift = ut.move_array_centre(r, index[::-1])
+		elif n_dim == 3: r_shift = ut.move_array_centre(r[index[0]], index[1:])
+		image += np.reshape(ut.gaussian(r_shift.flatten(), 0, std), n_xyz[:2]) * intensity[i]
 
 	image = image.T
 
@@ -328,9 +288,9 @@ def fibril_align(histogram, std, n_xyz, dxdydz, r, non_zero):
 	n_dim = len(n_xyz)
 
 	if n_dim == 3: 
-		r = reorder_array(r)
+		r = ut.reorder_array(r)
 		#r_cut = reorder_array(r_cut)
-		non_zero = reorder_array(non_zero)
+		non_zero = ut.reorder_array(non_zero)
 		dxdydz = np.moveaxis(dxdydz, (0, 3, 1, 2), (0, 1, 2, 3))
 
 	n_dim = len(n_xyz)
@@ -361,21 +321,21 @@ def fibril_align(histogram, std, n_xyz, dxdydz, r, non_zero):
 
 		"""
 		if n_dim == 2:
-			r_shift = move_array_centre(r, index)
-			non_zero_shift = move_array_centre(non_zero, index)
-			dx_shift = move_array_centre(dxdydz[0], index)
-			dy_shift = move_array_centre(dxdydz[1], index)
+			r_shift = ut.move_array_centre(r, index)
+			non_zero_shift = ut.move_array_centre(non_zero, index)
+			dx_shift = ut.move_array_centre(dxdydz[0], index)
+			dy_shift = ut.move_array_centre(dxdydz[1], index)
 
 		elif n_dim == 3:
 
-			r_shift = move_array_centre(r[-index[0]], index[1:])
-			non_zero_shift = move_array_centre(non_zero[-index[0]], index[1:])
-			dx_shift = move_array_centre(dxdydz[0][-index[0]], index[1:])
-			dy_shift = move_array_centre(dxdydz[1][-index[0]], index[1:])
+			r_shift = ut.move_array_centre(r[-index[0]], index[1:])
+			non_zero_shift = ut.move_array_centre(non_zero[-index[0]], index[1:])
+			dx_shift = ut.move_array_centre(dxdydz[0][-index[0]], index[1:])
+			dy_shift = ut.move_array_centre(dxdydz[1][-index[0]], index[1:])
 			
-		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+		dx_grid[np.where(non_zero_shift)] += (ut.dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
 							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
-		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+		dy_grid[np.where(non_zero_shift)] += (ut.dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
 							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
 
 		#"""

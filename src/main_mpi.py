@@ -22,7 +22,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 modules = []
 
 if ('simulation' in sys.argv): modules.append('simulation') 
-#if ('analysis' in sys.argv): modules.append('analysis')
+if ('analysis' in sys.argv): modules.append('analysis')
 if ('editor' in sys.argv): modules.append('editor')
 
 if ('speed' in sys.argv): modules.append('speed')
@@ -44,7 +44,7 @@ if ('simulation' in modules):
 	simulation(current_dir, comm, input_file_name, size, rank)
 if ('analysis' in modules):
 	from analysis_mpi import analysis
-	analysis(current_dir, input_file_name)
+	analysis(current_dir, comm, input_file_name, size, rank)
 if ('editor' in modules):
 	from editor_mpi import editor
 	editor(current_dir, comm, input_file_name, size, rank)

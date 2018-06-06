@@ -15,15 +15,78 @@ import mpl_toolkits.mplot3d.axes3d as plt3d
 import matplotlib.animation as animation
 
 import sys, os
+from mpi4py import MPI
 
 import utilities as ut
+from analysis import print_thermo_results, print_vector_results, print_anis_results, print_fourier_results, print_nmf_results, form_nematic_tensor, nmf_analysis
 import setup
 
 SQRT2 = np.sqrt(2)
 SQRTPI = np.sqrt(np.pi)
 
 
-def create_image_mpi(pos, std, n_xyz, r):
+def fibre_vector_analysis_mpi(traj, cell_dim, param, comm, size, rank):
+	"""
+	fibre_vector_analysis(traj, cell_dim, param)
+
+	Parameters
+	----------
+
+	traj:  array_like (float); shape=(n_images, n_dim, n_bead)
+			Array of sampled configurations from a simulation
+
+	cell_dim: array_like, dtype=float
+		Array with simulation cell dimensions
+
+	param:
+
+	Returns
+	-------
+
+	tot_vectors, tot_mag
+
+	"""
+	
+	n_image = traj.shape[0]
+	n_bond = int(np.sum(np.triu(param['bond_matrix'])))
+	bond_index_half = np.argwhere(np.triu(param['bond_matrix']))
+	indices_half = ut.create_index(bond_index_half)
+	bond_list = np.zeros((param['n_dim'], n_bond))
+
+	tot_mag = np.zeros((n_image, param['n_fibril']))
+	#tot_theta = np.zeros((n_image, param['n_fibril']))
+
+	#tot_mag = np.zeros((n_image, n_bond))
+	tot_theta = np.zeros((n_image, n_bond))
+
+	for image in range(rank, n_image, size):
+		pos = traj[image]
+
+		distances = ut.get_distances(pos.T, cell_dim)
+		for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
+
+		bead_vectors = bond_list.T
+		mag_vectors = np.sqrt(np.sum(bead_vectors**2, axis=1))
+		#cos_theta = bead_vectors.T[0] / mag_vectors
+		sin_theta = bead_vectors.T[1] / mag_vectors
+
+		norm_vectors = bead_vectors / np.resize(mag_vectors, bead_vectors.shape)
+		fib_vectors = np.sum(norm_vectors.reshape(param['l_fibril']-1, param['n_fibril'], param['n_dim']), axis=0)
+		mag_vectors = np.sqrt(np.sum(fib_vectors**2, axis=1))
+		#cos_theta = fib_vectors.T[0] / mag_vectors
+		#sin_theta = fib_vectors.T[1] / mag_vectors
+
+		tot_theta[image] += np.arcsin(sin_theta) * 360 / np.pi
+		#tot_theta[image] += np.arccos(cos_theta) * 360 / np.pi
+		tot_mag[image] += mag_vectors / (param['l_fibril']-1)
+
+	tot_mag = np.sum(comm.gather(tot_mag), axis=0)
+	tot_theta = np.sum(comm.gather(tot_theta), axis=0)
+
+	return tot_theta, tot_mag
+
+
+def create_image_mpi(pos, std, n_xyz, r, comm, size, rank):
 	"""
 	create_image_mpi(pos_x, pos_y, sigma, n_xyz, r)
 
@@ -63,8 +126,8 @@ def create_image_mpi(pos, std, n_xyz, r):
 	if n_dim == 2: 
 		histogram = histogram.T
 	elif n_dim == 3: 
-		histogram = reorder_array(histogram)
-		r = reorder_array(r)
+		histogram = ut.reorder_array(histogram)
+		r = ut.reorder_array(r)
 
 	"Get indicies and intensity of non-zero histogram grid points"
 	indices = np.argwhere(histogram)
@@ -73,7 +136,8 @@ def create_image_mpi(pos, std, n_xyz, r):
 	"Generate blank image"
 	image = np.zeros(n_xyz[:2])
 
-	for i, index in enumerate(indices):
+	for i in range(rank, indices.shape[0], size):
+		index = indices[i]
 
 		"""
 		"Performs filtered mapping"
@@ -88,16 +152,17 @@ def create_image_mpi(pos, std, n_xyz, r):
 		image[pixels] += gaussian(r_cut_shift[pixels].flatten(), 0, std) * intensity[i]
 		"""		
 		"Performs the full mapping"
-		if n_dim == 2: r_shift = move_array_centre(r, index[::-1])
-		elif n_dim == 3: r_shift = move_array_centre(r[index[0]], index[1:])
-		image += np.reshape(gaussian(r_shift.flatten(), 0, std), n_xyz[:2]) * intensity[i]
+		if n_dim == 2: r_shift = ut.move_array_centre(r, index[::-1])
+		elif n_dim == 3: r_shift = ut.move_array_centre(r[index[0]], index[1:])
+		image += np.reshape(ut.gaussian(r_shift.flatten(), 0, std), n_xyz[:2]) * intensity[i]
 
+	image = comm.allreduce(image, op=MPI.SUM)
 	image = image.T
-
+	
 	return histogram, image
 
 
-def fibril_align_mpi(histogram, std, n_xyz, dxdydz, r, non_zero):
+def fibril_align_mpi(histogram, std, n_xyz, dxdydz, r, non_zero, comm, size, rank):
 	"""
 	create_image(pos_x, pos_y, sigma, n_x, n_y, r, non_zero)
 
@@ -141,9 +206,9 @@ def fibril_align_mpi(histogram, std, n_xyz, dxdydz, r, non_zero):
 	n_dim = len(n_xyz)
 
 	if n_dim == 3: 
-		r = reorder_array(r)
+		r = ut.reorder_array(r)
 		#r_cut = reorder_array(r_cut)
-		non_zero = reorder_array(non_zero)
+		non_zero = ut.reorder_array(non_zero)
 		dxdydz = np.moveaxis(dxdydz, (0, 3, 1, 2), (0, 1, 2, 3))
 
 	n_dim = len(n_xyz)
@@ -151,7 +216,8 @@ def fibril_align_mpi(histogram, std, n_xyz, dxdydz, r, non_zero):
 	dx_grid = np.zeros(n_xyz[:2])
 	dy_grid = np.zeros(n_xyz[:2])
 
-	for i, index in enumerate(indices):
+	for i in range(rank, indices.shape[0], size):
+		index = indices[i]
 	
 		"""
 		if n_dim == 2:
@@ -174,25 +240,28 @@ def fibril_align_mpi(histogram, std, n_xyz, dxdydz, r, non_zero):
 
 		"""
 		if n_dim == 2:
-			r_shift = move_array_centre(r, index)
-			non_zero_shift = move_array_centre(non_zero, index)
-			dx_shift = move_array_centre(dxdydz[0], index)
-			dy_shift = move_array_centre(dxdydz[1], index)
+			r_shift = ut.move_array_centre(r, index)
+			non_zero_shift = ut.move_array_centre(non_zero, index)
+			dx_shift = ut.move_array_centre(dxdydz[0], index)
+			dy_shift = ut.move_array_centre(dxdydz[1], index)
 
 		elif n_dim == 3:
 
-			r_shift = move_array_centre(r[-index[0]], index[1:])
-			non_zero_shift = move_array_centre(non_zero[-index[0]], index[1:])
-			dx_shift = move_array_centre(dxdydz[0][-index[0]], index[1:])
-			dy_shift = move_array_centre(dxdydz[1][-index[0]], index[1:])
+			r_shift = ut.move_array_centre(r[-index[0]], index[1:])
+			non_zero_shift = ut.move_array_centre(non_zero[-index[0]], index[1:])
+			dx_shift = ut.move_array_centre(dxdydz[0][-index[0]], index[1:])
+			dy_shift = ut.move_array_centre(dxdydz[1][-index[0]], index[1:])
 			
-		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+		dx_grid[np.where(non_zero_shift)] += (ut.dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
 							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
-		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+		dy_grid[np.where(non_zero_shift)] += (ut.dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
 							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
 
 		#"""
 
+
+	dx_grid = comm.allreduce(dx_grid, op=MPI.SUM)
+	dy_grid = comm.allreduce(dy_grid, op=MPI.SUM)
 
 	dx_grid = dx_grid.T
 	dy_grid = dy_grid.T
@@ -200,7 +269,7 @@ def fibril_align_mpi(histogram, std, n_xyz, dxdydz, r, non_zero):
 	return dx_grid, dy_grid
 
 
-def shg_images_mpi(traj, sigma, n_xyz, cut):
+def shg_images_mpi(traj, sigma, n_xyz, cut, comm, size, rank):
 	"""
 	shg_images(traj, sigma, n_xyz_md, cut)
 
@@ -266,114 +335,13 @@ def shg_images_mpi(traj, sigma, n_xyz, cut):
 		sys.stdout.write(" Processing image {} out of {}\r".format(image, n_image))
 		sys.stdout.flush()
 		
-		hist, image_shg[image] = create_image(traj[image], sigma, n_xyz, r)
-		dx_shg[image], dy_shg[image] = fibril_align(hist, sigma, n_xyz, dxdydz, r, non_zero)
+		hist, image_shg[image] = create_image_mpi(traj[image], sigma, n_xyz, r, comm, size, rank)
+		dx_shg[image], dy_shg[image] = fibril_align_mpi(hist, sigma, n_xyz, dxdydz, r, non_zero, comm, size, rank)
 
 	return image_shg, dx_shg, dy_shg
 
 
-def fibre_vector_analysis_mpi(traj, cell_dim, param):
-	"""
-	fibre_vector_analysis(traj, cell_dim, param)
-
-	Parameters
-	----------
-
-	traj:  array_like (float); shape=(n_images, n_dim, n_bead)
-			Array of sampled configurations from a simulation
-
-	cell_dim: array_like, dtype=float
-		Array with simulation cell dimensions
-
-	param:
-
-	Returns
-	-------
-
-	tot_vectors, tot_mag
-
-	"""
-	
-	n_image = traj.shape[0]
-	n_bond = int(np.sum(np.triu(param['bond_matrix'])))
-	bond_index_half = np.argwhere(np.triu(param['bond_matrix']))
-	indices_half = ut.create_index(bond_index_half)
-	bond_list = np.zeros((param['n_dim'], n_bond))
-
-	tot_mag = np.zeros((n_image, param['n_fibril']))
-	#tot_theta = np.zeros((n_image, param['n_fibril']))
-
-	#tot_mag = np.zeros((n_image, n_bond))
-	tot_theta = np.zeros((n_image, n_bond))
-
-	for image, pos in enumerate(traj):
-
-		distances = ut.get_distances(pos.T, cell_dim)
-		for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
-
-		bead_vectors = bond_list.T
-		mag_vectors = np.sqrt(np.sum(bead_vectors**2, axis=1))
-		#cos_theta = bead_vectors.T[0] / mag_vectors
-		sin_theta = bead_vectors.T[1] / mag_vectors
-
-		norm_vectors = bead_vectors / np.resize(mag_vectors, bead_vectors.shape)
-		fib_vectors = np.sum(norm_vectors.reshape(param['l_fibril']-1, param['n_fibril'], param['n_dim']), axis=0)
-		mag_vectors = np.sqrt(np.sum(fib_vectors**2, axis=1))
-		#cos_theta = fib_vectors.T[0] / mag_vectors
-		#sin_theta = fib_vectors.T[1] / mag_vectors
-
-		tot_theta[image] += np.arcsin(sin_theta) * 360 / np.pi
-		#tot_theta[image] += np.arccos(cos_theta) * 360 / np.pi
-		tot_mag[image] += mag_vectors / (param['l_fibril']-1)
-
-	return tot_theta, tot_mag
-
-
-def form_nematic_tensor_mpi(dx_shg, dy_shg):
-	"""
-	form_nematic_tensor(dx_shg, dy_shg)
-
-	Create local nematic tensor n for each pixel in dx_shg, dy_shg
-
-	Parameters
-	----------
-
-	dx_grid:  array_like (float); shape=(nframe, n_y, n_x)
-		Matrix of derivative of image intensity with respect to x axis for each pixel
-
-	dy_grid:  array_like (float); shape=(nframe, n_y, n_x)
-		Matrix of derivative of image intensity with respect to y axis for each pixel
-
-	Returns
-	-------
-
-	n_vector:  array_like (float); shape(nframe, 4, n_y, n_x)
-		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)	
-
-	"""
-
-	r_xy = np.zeros(dx_shg.shape)
-	tx = np.zeros(dx_shg.shape)
-	ty = np.zeros(dx_shg.shape)
-
-	r_xy_2 = (dx_shg**2 + dy_shg**2)
-	indicies = np.where(r_xy_2 > 0)
-	r_xy[indicies] += np.sqrt(r_xy_2[indicies].flatten())
-
-	ty[indicies] -= dx_shg[indicies] / r_xy[indicies]
-	tx[indicies] += dy_shg[indicies] / r_xy[indicies]
-
-	nxx = tx**2
-	nyy = ty**2
-	nxy = tx*ty
-
-	n_vector = np.array((nxx, nxy, nxy, nyy))
-	n_vector = np.moveaxis(n_vector, (1, 0, 2, 3), (0, 1, 2, 3))
-
-	return n_vector
-
-
-def nematic_tensor_analysis_mpi(n_vector, area, n_sample):
+def nematic_tensor_analysis_mpi(n_vector, area, n_sample, comm, size, rank):
 	"""
 	nematic_tensor_analysis(n_vector, area, n_frame, n_sample)
 
@@ -423,17 +391,102 @@ def nematic_tensor_analysis_mpi(n_vector, area, n_sample):
 
 		av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
 
-		for frame in range(n_frame):
+		for frame in range(rank, in_frame, size):
 	
 			eig_val, eig_vec = np.linalg.eigh(av_n[frame])
 
 			av_eigval[frame][n] = eig_val
 			av_eigvec[frame][n] = eig_vec
 
-	return av_eigval, av_eigvec
-	
+	dx_grid = comm.allreduce(dx_grid, op=MPI.SUM)
+	dx_grid = comm.allreduce(dx_grid, op=MPI.SUM)
 
-def fourier_transform_analysis_mpi(image_shg, area, n_sample):
+	return av_eigval, av_eigvec
+
+
+def nematic_tensor_analysis_mpi(n_vector, area, min_sample, comm, size, rank, thresh = 0.05):
+	"""
+	nematic_tensor_analysis(n_vector, area, n_frame, n_sample)
+
+	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
+
+	Parameters
+	----------
+
+	n_vector:  array_like (float); shape(n_frame, n_y, n_x, 4)
+		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)
+
+	area:  int
+		Unit length of sample area
+
+	n_sample:  int
+		Number of randomly selected areas to sample
+
+	Returns
+	-------
+
+	av_eigval:  array_like (float); shape=(n_frame, n_sample, 2)
+		Eigenvalues of average nematic tensors for n_sample areas
+
+	av_eigvec:  array_like (float); shape=(n_frame, n_sample, 2, 2)
+		Eigenvectors of average nematic tensors for n_sample areas
+
+	"""
+
+	n_frame = n_vector.shape[0]
+	n_y = n_vector.shape[2]
+	n_x = n_vector.shape[3]
+
+	tot_q = np.zeros(n_frame)
+	av_q = []
+
+	pad = int(area / 2 - 1)
+
+	analysing = True
+	sample = size
+
+	while analysing:
+
+		av_eigval = np.zeros((n_frame, 2))
+		av_eigvec = np.zeros((n_frame, 2, 2))
+
+		try: start_x = np.random.randint(pad, n_x - pad)
+		except: start_x = pad
+		try: start_y = np.random.randint(pad, n_y - pad) 
+		except: start_y = pad
+
+		cut_n_vector = n_vector[:, :, start_y-pad: start_y+pad, 
+					      start_x-pad: start_x+pad]
+
+		av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
+
+		for frame in range(n_frame):
+
+			eig_val, eig_vec = np.linalg.eigh(av_n[frame])
+
+			av_eigval[frame] = eig_val
+			av_eigvec[frame] = eig_vec
+
+		tot_q += (av_eigval.T[1] - av_eigval.T[0])
+
+		gather_q = comm.gather(np.mean(tot_q) / sample)
+
+		if rank == 0:
+			av_q += gather_q
+			if sample >= min_sample:
+				q_mov_av = ut.cum_mov_average(av_q)
+				analysing = (q_mov_av[-1] - q_mov_av[-2]) > thresh
+
+		analysing = comm.bcast(analysing, root=0)
+
+		sample += size
+
+	tot_q = comm.allreduce(tot_q, op=MPI.SUM)
+
+	return tot_q / sample, sample
+
+
+def fourier_transform_analysis_mpi(image_shg, area, n_sample, comm, size, rank):
 	"""
 	fourier_transform_analysis(image_shg, area, n_sample)
 
@@ -481,7 +534,7 @@ def fourier_transform_analysis_mpi(image_shg, area, n_sample):
 	
 	n_bins = fourier_spec.size
 
-	for n in range(n_sample):
+	for n in range(rank, n_sample, size):
 
 		try: start_x = np.random.randint(pad, n_x - pad)
 		except: start_x = pad
@@ -497,6 +550,8 @@ def fourier_transform_analysis_mpi(image_shg, area, n_sample):
 			image_fft[0][0] = 0
 			average_fft += np.fft.fftshift(image_fft) / (n_frame * n_sample)	
 
+	average_fft = comm.allreduce(average_fft, op=MPI.SUM)
+
 	for i in range(n_bins):
 		indices = np.where(fft_angle == angles[i])
 		fourier_spec[i] += np.sum(np.abs(average_fft[indices])) / 360
@@ -504,62 +559,8 @@ def fourier_transform_analysis_mpi(image_shg, area, n_sample):
 	return angles, fourier_spec
 
 
-def nmf_analysis_mpi(image_shg, area, n_sample, n_components):
-	"""
-	nmf_analysis(image_shg, area, n_sample)
-
-	Calculates non-negative matrix factorisation of over area^2 pixels for n_samples
-
-	Parameters
-	----------
-
-	image_shg:  array_like (float); shape=(n_images, n_x, n_y)
-		Array of images corresponding to each trajectory configuration
-
-	area:  int
-		Unit length of sample area
-
-	n_sample:  int
-		Number of randomly selected areas to sample
-
-
-	Returns
-	-------
-
-	"""
-
-	from sklearn.decomposition import NMF
-	from sklearn.datasets import fetch_olivetti_faces
-
-	n_frame = image_shg.shape[0]
-	n_y = image_shg.shape[1]
-	n_x = image_shg.shape[2]
-	rng = np.random.RandomState(0)
-
-	model = NMF(n_components=n_components, init='random', random_state=0)
-	pad = area // 2
-
-	for n in range(n_sample):
-
-		try: start_x = np.random.randint(pad, n_x - pad)
-		except: start_x = pad-1
-		try: start_y = np.random.randint(pad, n_y - pad) 
-		except: start_y = pad-1
-
-		cut_image = image_shg[:, start_y-pad: start_y+pad, 
-					 start_x-pad: start_x+pad].reshape(n_frame, area**2)
-
-		model.fit(cut_image)
-
-		nmf_components = model.components_
-
-	return nmf_components
-
-
 def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 
-
-	from analysis import 
 
 	sim_dir = current_dir + '/sim/'
 	gif_dir = current_dir + '/gif'
@@ -574,6 +575,7 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 		if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
 		file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
+		fig_name = file_names['gif_file_name'].split('/')[-1]
 
 		keys = ['l_conv', 'res', 'sharp', 'skip']
 		print("\n Analysis Parameters found:")
@@ -582,56 +584,8 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 		print("\n Loading output file {}{}".format(sim_dir, file_names['output_file_name']))
 		tot_energy, tot_temp, tot_press = ut.load_npy(sim_dir + file_names['output_file_name'])
 
-		print('\n Creating Energy time series figure {}/{}_energy_time.png'.format(fig_dir, fig_name))
-		plt.figure(0)
-		plt.title('Energy Time Series')
-		plt.plot(tot_energy * param['l_fibril'] / param['n_bead'], label=fig_name)
-		plt.xlabel(r'step')
-		plt.ylabel(r'Energy per fibril')
-		plt.legend()
-		plt.savefig('{}/{}_energy_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-		print(' Creating Energy histogram figure {}/{}_energy_hist.png'.format(fig_dir, fig_name))
-		plt.figure(1)
-		plt.title('Energy Histogram')
-		plt.hist(tot_energy * param['l_fibril'] / param['n_bead'], bins='auto', density=True, label=fig_name)
-		plt.xlabel(r'Energy per fibril')
-		plt.legend()
-		plt.savefig('{}/{}_energy_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-		print(' Creating Temperature time series figure {}/{}_temp_time.png'.format(fig_dir, fig_name))
-		plt.figure(2)
-		plt.title('Temperature Time Series')
-		plt.plot(tot_temp, label=fig_name)
-		plt.xlabel(r'step')
-		plt.ylabel(r'Temp (kBT)')
-		plt.legend()
-		plt.savefig('{}/{}_temp_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-		print(' Creating Temperature histogram figure {}/{}_temp_hist.png'.format(fig_dir, fig_name))
-		plt.figure(3)
-		plt.title('Temperature Histogram')
-		plt.hist(tot_temp, bins='auto', density=True, label=fig_name)
-		plt.xlabel(r'Temp (kBT)')
-		plt.legend()
-		plt.savefig('{}/{}_temp_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-		print(' Creating Pressure time series figure {}/{}_press_time.png'.format(fig_dir, fig_name))
-		plt.figure(4)
-		plt.title('Pressure Time Series')
-		plt.plot(tot_press, label=fig_name)
-		plt.xlabel(r'step')
-		plt.ylabel(r'Pressure')
-		plt.legend()
-		plt.savefig('{}/{}_press_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-		print(' Creating Pressure histogram figure {}/{}_press_hist.png'.format(fig_dir, fig_name))
-		plt.figure(5)
-		plt.title('Pressure Histogram')
-		plt.hist(tot_press, bins='auto', density=True, label=fig_name)
-		plt.xlabel(r'Pressure')
-		plt.legend()
-		plt.savefig('{}/{}_press_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+		tot_energy *= param['l_fibril'] / param['n_bead']
+		print_thermo_results(fig_dir, fig_name, tot_energy, tot_temp, tot_press)
 
 		print("\n Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
 		tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
@@ -644,43 +598,19 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 	file_names = comm.bcast(file_names, root=0)
 	param = comm.bcast(param, root=0)
 	tot_pos = comm.bcast(tot_pos, root=0)
-
 	fig_name = file_names['gif_file_name'].split('/')[-1]
 	
 	n_frame = tot_pos.shape[0]
 	n_image = int(n_frame / param['skip'])
 	cell_dim = tot_pos[0][-1]
 	n_xyz = tuple(np.array(cell_dim * param['l_conv'] * param['res'], dtype=int))
-	
 	conv = param['l_conv'] / param['sharp'] * param['res']
 
 	image_md = np.moveaxis([tot_pos[n][:-1] for n in range(0, n_frame)], 2, 1)
 
 	"Perform Fibre Vector analysis"
-	tot_theta, tot_mag = fibre_vector_analysis(image_md, cell_dim, param)
-	hist, bin_edges = np.histogram(tot_theta.flatten(), bins='auto', density=True)
-
-	print('\n Modal Vector angle  = {:>6.4f}'.format(bin_edges[np.argmax(hist)]))
-	print(' Mean Fibril RMS = {:>6.4f}'.format(np.mean(tot_mag)))
-	print(' Expected Random Walk RMS = {:>6.4f}'.format(1. / np.sqrt(param['l_fibril']-1)))
-
-	print(' Creating Vector Magnitude histogram figure {}/{}_vec_mag_hist.png'.format(fig_dir, fig_name))
-	plt.figure(7)
-	plt.title('Vector Magnitude Histogram')
-	plt.hist(tot_mag.flatten(), bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'$|R|$')
-	#plt.axis([0, 2.0, 0, 3.0])
-	plt.legend()
-	plt.savefig('{}/{}_vec_mag_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Vector Angular histogram figure {}/{}_vec_ang_hist.png'.format(fig_dir, fig_name))
-	plt.figure(8)
-	plt.title('Vector Angle Histogram')
-	plt.hist(tot_theta.flatten(), bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'$\theta$')
-	plt.xlim(-180, 180)
-	plt.legend()
-	plt.savefig('{}/{}_vec_ang_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	tot_theta, tot_mag = fibre_vector_analysis_mpi(image_md, cell_dim, param, comm, size, rank)
+	if rank == 0: print_vector_results(fig_dir, fig_name, param, tot_mag, tot_theta)
 
 
 	image_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_image_shg'.format(n_frame, param['res'], param['sharp'])
@@ -688,103 +618,72 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 	dy_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_{}_{}_{}_dy_shg'.format(n_frame, param['res'], param['sharp'])
 
 	if not ow_shg:
-		try:
-			image_shg = ut.load_npy(sim_dir + image_file_name, range(0, n_frame, param['skip']))	
-			dx_shg = ut.load_npy(sim_dir + dx_file_name, range(0, n_frame, param['skip']))
-			dy_shg = ut.load_npy(sim_dir + dy_file_name, range(0, n_frame, param['skip']))
-		except: ow_shg = True
+		if rank == 0:
+			try:
+				image_shg = ut.load_npy(sim_dir + image_file_name, range(0, n_frame, param['skip']))	
+				dx_shg = ut.load_npy(sim_dir + dx_file_name, range(0, n_frame, param['skip']))
+				dy_shg = ut.load_npy(sim_dir + dy_file_name, range(0, n_frame, param['skip']))
+			except: ow_shg = True
+		else:
+			image_shg = None
+			dx_shg = None
+			dy_shg = None
+
+		ow_shg = comm.bcast(ow_shg, root=0)
 	
 	if ow_shg:
 		"Generate Gaussian convoluted images and intensity derivatives"
-		image_shg, dx_shg, dy_shg = shg_images(image_md, param['vdw_sigma'] * conv, n_xyz, 2 * param['rc'] * conv)
+		image_shg, dx_shg, dy_shg = shg_images_mpi(image_md, param['vdw_sigma'] * conv, n_xyz, 2 * param['rc'] * conv, comm, size, rank)
 
-		print("\n Saving image files {}".format(file_names['output_file_name']))
-		ut.save_npy(sim_dir + image_file_name, image_shg)
-		ut.save_npy(sim_dir + dx_file_name, dx_shg)
-		ut.save_npy(sim_dir + dy_file_name, dy_shg)
+		if rank == 0:
+			print("\n Saving image files {}".format(file_names['output_file_name']))
+			ut.save_npy(sim_dir + image_file_name, image_shg)
+			ut.save_npy(sim_dir + dx_file_name, dx_shg)
+			ut.save_npy(sim_dir + dy_file_name, dy_shg)
 
 		image_shg = np.array([image_shg[i] for i in range(0, n_frame, param['skip'])])
 		dx_shg = np.array([dx_shg[i] for i in range(0, n_frame, param['skip'])])
 		dy_shg = np.array([dy_shg[i] for i in range(0, n_frame, param['skip'])])
+	else:
 
+		image_shg = comm.bcast(image_shg, root=0)
+		dx_shg = comm.bcast(dx_shg, root=0)
+		dy_shg = comm.bcast(dy_shg, root=0)
 
+	
 	fig_name += '_{}_{}'.format(param['res'], param['sharp'])
 
 	"Perform Nematic Tensor Analysis"
 
-	l_sample = 30
-	n_sample = 1
+	l_sample = 50
+	min_sample = 20
 	area_sample = int(2 * (np.min((l_sample,) + image_shg.shape[1:]) // 2))
 
 	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
 	"Sample average orientational anisotopy"
-	eigval_shg, eigvec_shg = nematic_tensor_analysis(n_tensor, area_sample, n_sample)
+	q, n_sample = nematic_tensor_analysis_mpi(n_tensor, area_sample, min_sample, comm, size, rank)
 
-	q = reorder_array(eigval_shg)
-	q = q[1] - q[0]
-
-	print('\n Mean anistoropy = {:>6.4f}'.format(np.mean(q)))
-	anis_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_anis'
-	print(" Saving anisotropy file {}".format(file_names['output_file_name']))
-	ut.save_npy(sim_dir + anis_file_name, q)
-
-	print(' Creating Anisotropy time series figure {}/{}_anis_time.png'.format(fig_dir, fig_name))
-	plt.figure(9)
-	plt.title('Anisotropy Time Series')
-	plt.plot(np.mean(q, axis=1), label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'Anisotropy')
-	plt.ylim(0, 1)
-	plt.legend()
-	plt.savefig('{}/{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	print(' Creating Anisotropy histogram figure {}/{}_anis_hist.png'.format(fig_dir, fig_name))
-	plt.figure(10)
-	plt.title('Anisotropy Histogram')
-	plt.hist(np.mean(q, axis=1), bins='auto', density=True, label=fig_name)
-	plt.xlabel(r'Anisotropy')
-	plt.xlim(0, 1)
-	plt.legend()
-	plt.savefig('{}/{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
+	if rank == 0: print_anis_results(fig_dir, fig_name, q)
 
 	"Perform Fourier Analysis"
-	angles, fourier_spec = fourier_transform_analysis(image_shg, area_sample, n_sample)
+	angles, fourier_spec = fourier_transform_analysis_mpi(image_shg, area_sample, n_sample, comm, size, rank)
 
 	#angles = angles[len(angles)//2:]
 	#fourier_spec = 2 * fourier_spec[len(fourier_spec)//2:]
-
-	print('\n Modal Fourier Amplitude  = {:>6.4f}'.format(angles[np.argmax(fourier_spec)]))
-	print(' Fourier Amplitudes Range   = {:>6.4f}'.format(np.max(fourier_spec)-np.min(fourier_spec)))
-	print(' Fourier Amplitudes Std Dev = {:>6.4f}'.format(np.std(fourier_spec)))
-
-	print(' Creating Fouier Angle Spectrum figure {}/{}_fourier.png'.format(fig_dir, fig_name))
-	plt.figure(11)
-	plt.title('Fourier Angle Spectrum')
-	plt.plot(angles, fourier_spec, label=fig_name)
-	plt.xlabel(r'Angle (deg)')
-	plt.ylabel(r'Amplitude')
-	plt.xlim(-180, 180)
-	plt.ylim(0, 0.25)
-	plt.legend()
-	plt.savefig('{}/{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
+	if rank == 0: print_fourier_results(fig_dir, fig_name, angles, fourier_spec)
 
 	"Perform Non-Negative Matrix Factorisation"
 	n_components = 9
 	pad = int(area_sample / 2 - 1)
 
-	nmf_components = nmf_analysis(image_shg, area_sample, n_sample, n_components)
+	if rank == 0: 
+		nmf_components = nmf_analysis(image_shg, area_sample, n_sample, n_components)
+		print_nmf_results(fig_dir, fig_name, 12, 'NMF Main Components', nmf_components[:n_components], np.sqrt(n_components), np.sqrt(n_components), (area_sample, area_sample))
 
-	print('\n Creating NMF Gallery {}/{}_nmf.png'.format(fig_dir, fig_name))
-	plot_gallery(12, 'NMF Main Components', nmf_components[:n_components], np.sqrt(n_components), np.sqrt(n_components), (area_sample, area_sample))
-	plt.savefig('{}/{}_nmf.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-
-	"Make Gif of SHG Images"
-	if ow_shg or mk_gif:
-		print('\n Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
-		make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, param, cell_dim * param['l_conv'], 'SHG')
+		"Make Gif of SHG Images"
+		if ow_shg or mk_gif:
+			print('\n Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
+			make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, param, cell_dim * param['l_conv'], 'SHG')
 
 	#print(' Making Simulation MD Gif {}/{}.gif'.format(fig_dir, fig_name))
 	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * param['l_conv'], param, cell_dim * param['l_conv'], 'MD')
