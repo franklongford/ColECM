@@ -275,7 +275,7 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices
 
 	"""
 
-	frc_beads = np.zeros((3, pos.shape[0]))
+	f_beads = np.zeros((3, pos.shape[0]))
 	pot_energy = 0
 	cut_frc = ut.force_vdw(param['rc']**2, param['vdw_sigma'], param['vdw_epsilon'])
 	cut_pot = ut.pot_vdw(param['rc']**2, param['vdw_sigma'], param['vdw_epsilon'])
@@ -369,5 +369,5 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices
 
 	frc = f_beads.T
 	
-	return frc_beads, pot_energy, virial_tensor
+	return frc, pot_energy, virial_tensor
 

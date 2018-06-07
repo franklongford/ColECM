@@ -18,7 +18,7 @@ import sys, os
 from mpi4py import MPI
 
 import utilities as ut
-from analysis import print_thermo_results, print_vector_results, print_anis_results, print_fourier_results, print_nmf_results, form_nematic_tensor, nmf_analysis
+from analysis import print_thermo_results, print_vector_results, print_anis_results, print_fourier_results, print_nmf_results, form_nematic_tensor, nmf_analysis, make_gif
 import setup
 
 SQRT2 = np.sqrt(2)
@@ -341,69 +341,6 @@ def shg_images_mpi(traj, sigma, n_xyz, cut, comm, size, rank):
 	return image_shg, dx_shg, dy_shg
 
 
-def nematic_tensor_analysis_mpi(n_vector, area, n_sample, comm, size, rank):
-	"""
-	nematic_tensor_analysis(n_vector, area, n_frame, n_sample)
-
-	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
-
-	Parameters
-	----------
-
-	n_vector:  array_like (float); shape(n_frame, n_y, n_x, 4)
-		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)
-
-	area:  int
-		Unit length of sample area
-
-	n_sample:  int
-		Number of randomly selected areas to sample
-
-	Returns
-	-------
-
-	av_eigval:  array_like (float); shape=(n_frame, n_sample, 2)
-		Eigenvalues of average nematic tensors for n_sample areas
-
-	av_eigvec:  array_like (float); shape=(n_frame, n_sample, 2, 2)
-		Eigenvectors of average nematic tensors for n_sample areas
-
-	"""
-
-	n_frame = n_vector.shape[0]
-	n_y = n_vector.shape[2]
-	n_x = n_vector.shape[3]
-
-	av_eigval = np.zeros((n_frame, n_sample, 2))
-	av_eigvec = np.zeros((n_frame, n_sample, 2, 2))
-
-	pad = int(area / 2 - 1)
-
-	for n in range(n_sample):
-
-		try: start_x = np.random.randint(pad, n_x - pad)
-		except: start_x = pad
-		try: start_y = np.random.randint(pad, n_y - pad) 
-		except: start_y = pad
-
-		cut_n_vector = n_vector[:, :, start_y-pad: start_y+pad, 
-					      start_x-pad: start_x+pad]
-
-		av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
-
-		for frame in range(rank, in_frame, size):
-	
-			eig_val, eig_vec = np.linalg.eigh(av_n[frame])
-
-			av_eigval[frame][n] = eig_val
-			av_eigvec[frame][n] = eig_vec
-
-	dx_grid = comm.allreduce(dx_grid, op=MPI.SUM)
-	dx_grid = comm.allreduce(dx_grid, op=MPI.SUM)
-
-	return av_eigval, av_eigvec
-
-
 def nematic_tensor_analysis_mpi(n_vector, area, min_sample, comm, size, rank, thresh = 0.05):
 	"""
 	nematic_tensor_analysis(n_vector, area, n_frame, n_sample)
@@ -655,7 +592,7 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 
 	"Perform Nematic Tensor Analysis"
 
-	l_sample = 50
+	l_sample = 40
 	min_sample = 20
 	area_sample = int(2 * (np.min((l_sample,) + image_shg.shape[1:]) // 2))
 

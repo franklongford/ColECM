@@ -176,10 +176,6 @@ def repeat_pos_array(pos, vel, cell_dim, param, n_rep_x=1, n_rep_y=1, n_rep_z=1)
 	param['bond_matrix'] = bond_matrix
 	param['vdw_matrix'] = vdw_matrix
 
-	print(" New Simulation Parameters:")
-	keys = ['n_fibril_x', 'n_fibril_y', 'n_fibril_z', 'n_fibril', 'n_bead'] 
-	for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
-
 	return rep_pos, rep_vel, cell_dim, param
 
 
