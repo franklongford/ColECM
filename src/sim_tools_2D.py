@@ -66,7 +66,7 @@ def cos_sin_theta(vector, r_vector):
 	return cos_the, sin_the, r_prod
 
 
-def calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, vdw_coeff, param):
+def calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, param):
 	"""
 	calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, vdw_coeff, param)
 
@@ -139,11 +139,11 @@ def calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_in
 		#verlet_list_r0 = ut.check_cutoff(r_half, param['bond_r0'])
 		#verlet_list_r1 = ut.check_cutoff(r_half, param['bond_r1'])
 
-		bond_pot = ut.pot_harmonic(bond_r, param['bond_r0'], param['bond_k0'])# * verlet_list_r0
+		bond_pot = ut.pot_harmonic(bond_r, param['bond_r0'], param['bond_matrix'][bond_indices])# * verlet_list_r0
 		#bond_pot_1 = ut.pot_harmonic(r_half, param['bond_r1'], param['bond_k1']) * verlet_list_r1
 		pot_energy += 0.5 * np.sum(bond_pot)# + np.sum(bond_pot_1)
 
-		bond_frc = ut.force_harmonic(bond_r, param['bond_r0'], param['bond_k0'])# * verlet_list_r0
+		bond_frc = ut.force_harmonic(bond_r, param['bond_r0'], param['bond_matrix'][bond_indices])# * verlet_list_r0
 		#bond_frc_1 = ut.force_harmonic(r_half, param['bond_r1'], param['bond_k1']) * verlet_list_r1
 
 		temp_frc = np.zeros((2, pos.shape[0], pos.shape[0]))
@@ -165,7 +165,7 @@ def calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_in
 			"Find |rij| values for each vector"
 			r_vector = np.sqrt(pair_r2[angle_bond_indices])
 			cos_the, sin_the, r_prod = cos_sin_theta(vector, r_vector)
-			pot_energy += param['angle_k0'] * np.sum(cos_the + 1)
+			pot_energy += np.sum(param['angle_array'] * (cos_the + 1))
 
 			"Form arrays of |rij| vales, cos(theta) and |rij||rjk| terms same shape as vector array"
 			r_array = np.reshape(np.repeat(r_vector, 2), vector.shape)
@@ -198,10 +198,10 @@ def calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_in
 	verlet_list = ut.check_cutoff(pair_r2, param['rc']**2)
 	non_zero = np.nonzero(pair_r2 * verlet_list)
 
-	nonbond_pot = vdw_coeff[non_zero] * ut.pot_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_pot
+	nonbond_pot = ut.pot_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_matrix'][non_zero]) - cut_pot
 	pot_energy += np.nansum(nonbond_pot) / 2
 
-	nonbond_frc = vdw_coeff[non_zero] * ut.force_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_frc
+	nonbond_frc = ut.force_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_matrix'][non_zero]) - cut_frc
 	temp_xy = np.zeros(pair_dist.shape)
 	
 	for i in range(2):
@@ -216,8 +216,8 @@ def calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_in
 	return frc, pot_energy, virial_tensor
 
 
-def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, angle_indices, angle_bond_indices, 
-				vdw_coeff, virial_indicies, param):
+def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, glob_indices, angle_indices, angle_bond_indices, 
+				angle_coeff, vdw_coeff, virial_indicies, param):
 	"""
 	calc_energy_forces(distances, r2, bond_matrix, vdw_matrix, verlet_list, bond_beads, dist_index, r_index, param)
 
@@ -290,16 +290,16 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices
 		#verlet_list_r0 = ut.check_cutoff(r_half, param['bond_r0'])
 		#verlet_list_r1 = ut.check_cutoff(r_half, param['bond_r1'])
 
-		bond_pot = ut.pot_harmonic(bond_r, param['bond_r0'], param['bond_k0'])# * verlet_list_r0
+		bond_pot = ut.pot_harmonic(bond_r, param['bond_r0'], param['bond_matrix'][glob_indices])# * verlet_list_r0
 		#bond_pot_1 = ut.pot_harmonic(r_half, param['bond_r1'], param['bond_k1']) * verlet_list_r1
 		pot_energy += 0.5 * np.sum(bond_pot)# + np.sum(bond_pot_1)
 
-		bond_frc = ut.force_harmonic(bond_r, param['bond_r0'], param['bond_k0'])# * verlet_list_r0
+		bond_frc = ut.force_harmonic(bond_r, param['bond_r0'], param['bond_matrix'][glob_indices])# * verlet_list_r0
 		#bond_frc_1 = ut.force_harmonic(r_half, param['bond_r1'], param['bond_k1']) * verlet_list_r1
 
 		temp_frc = np.zeros((2, pos.shape[0], pos.shape[0]))
 		for i in range(2): 
-			temp_frc[i][frc_indices] += bond_frc * pair_dist[i][bond_indices] / bond_r
+			temp_frc[i][glob_indices] += bond_frc * pair_dist[i][bond_indices] / bond_r
 			f_beads[i] += np.sum(temp_frc[i], axis=1)
 
 		#for i in range(2):
@@ -318,7 +318,7 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices
 
 			"Find |rij| values for each vector"
 			cos_the, sin_the, r_prod = cos_sin_theta(vector, r_vector)
-			pot_energy += param['angle_k0'] * np.sum(cos_the + 1)
+			pot_energy += np.sum(angle_coeff * (cos_the + 1))
 
 			"Form arrays of |rij| vales, cos(theta) and |rij||rjk| terms same shape as vector array"
 			r_array = np.reshape(np.repeat(r_vector, 2), vector.shape)
@@ -351,10 +351,10 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices
 	verlet_list = ut.check_cutoff(pair_r2, param['rc']**2)
 	non_zero = np.nonzero(pair_r2 * verlet_list)
 
-	nonbond_pot = vdw_coeff[non_zero] * ut.pot_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_pot
+	nonbond_pot = ut.pot_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], vdw_coeff[non_zero]) - cut_pot
 	pot_energy += np.nansum(nonbond_pot) / 2
 
-	nonbond_frc = vdw_coeff[non_zero] * ut.force_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], param['vdw_epsilon']) - cut_frc
+	nonbond_frc = ut.force_vdw((pair_r2 * verlet_list)[non_zero], param['vdw_sigma'], vdw_coeff[non_zero]) - cut_frc
 	temp_xy = np.zeros(pair_dist.shape)
 	
 	for i in range(2):
@@ -367,5 +367,3 @@ def calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices
 	frc = f_beads.T
 	
 	return frc, pot_energy, virial_tensor
-
-

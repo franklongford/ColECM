@@ -17,7 +17,7 @@ import setup
 
 
 def velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
-				angle_bond_indices, vdw_coeff, virial_indicies, dt, sqrt_dt, cell_dim, calc_energy_forces,
+				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, dt, sqrt_dt, cell_dim, calc_energy_forces,
 				comm, size, rank, NPT=False):
 	"""
 	velocity_verlet_alg_mpi(pos, vel, frc, beta, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
@@ -124,7 +124,7 @@ def velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bo
 	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
 	
 	frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
-							angle_indices, angle_bond_indices, vdw_coeff, virial_indicies, param)
+							angle_indices, angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param)
 
 	pot_energy = np.sum(comm.gather(pot_energy, root=0))
 	frc = comm.allreduce(frc, op=MPI.SUM)
@@ -133,7 +133,7 @@ def velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bo
 	return pos, vel, frc, cell_dim, pot_energy, virial_tensor
 
 
-def equilibrate_temperature_mpi(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.1, thresh=5E-2):
+def equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param, comm, size=1, rank=0, inc=0.1, thresh=5E-2):
 	"""
 	equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
 
@@ -185,11 +185,12 @@ def equilibrate_temperature_mpi(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix,
 	n_dof = param['n_dim'] * param['n_bead'] 
 	vel = np.zeros(pos.shape)
 
-	sim_state = setup.calc_state_mpi(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size, rank)
+	sim_state = setup.calc_state_mpi(pos, cell_dim, param, comm, size, rank)
 	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
 	frc_indices = (bond_indices[0] + pos_indices[0], bond_indices[1])
+	angle_coeff = np.array_split(param['angle_array'], size)[rank]
 	vdw_coeff = np.array_split(param['vdw_matrix'], size)[rank]
 	virial_indicies = ut.create_index(np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank]))
 
@@ -220,7 +221,7 @@ def equilibrate_temperature_mpi(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix,
 
 		#"""
 		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
-				angle_bond_indices, vdw_coeff, virial_indicies, dt, sqrt_dt, cell_dim, calc_energy_forces_mpi, comm, size, rank)
+				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, dt, sqrt_dt, cell_dim, calc_energy_forces_mpi, comm, size, rank)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
 		#"""		
@@ -257,7 +258,7 @@ def equilibrate_temperature_mpi(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix,
 	return pos, vel
 
 
-def equilibrate_density_mpi(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0, inc=0.05, thresh=2E-3):
+def equilibrate_density_mpi(pos, vel, cell_dim, param, comm, size=1, rank=0, inc=0.05, thresh=2E-3):
 	"""
 	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
 
@@ -311,11 +312,12 @@ def equilibrate_density_mpi(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, 
 	sqrt_dt = np.sqrt(param['dt'])
 	n_dof = param['n_dim'] * param['n_bead']
 
-	sim_state = setup.calc_state_mpi(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size, rank)
+	sim_state = setup.calc_state_mpi(pos, cell_dim, param, comm, size, rank)
 	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
 	frc_indices = (bond_indices[0] + pos_indices[0], bond_indices[1])
+	angle_coeff = np.array_split(param['angle_array'], size)[rank]
 	vdw_coeff = np.array_split(param['vdw_matrix'], size)[rank]
 	virial_indicies = ut.create_index(np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank]))
 
@@ -340,7 +342,7 @@ def equilibrate_density_mpi(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, 
 	while optimising:
 
 		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
-				angle_bond_indices, vdw_coeff, virial_indicies, param['dt'], sqrt_dt, cell_dim, calc_energy_forces_mpi, comm, size, rank, NPT=True)
+				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param['dt'], sqrt_dt, cell_dim, calc_energy_forces_mpi, comm, size, rank, NPT=True)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
 
@@ -426,11 +428,12 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 		tot_press = np.zeros(param['n_step'])
 		tot_vol = np.zeros(param['n_step'])
 
-	sim_state = setup.calc_state_mpi(pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
+	sim_state = setup.calc_state_mpi(pos, cell_dim, param, comm, size, rank)
 	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
 	frc_indices = (bond_indices[0] + pos_indices[0], bond_indices[1])
+	angle_coeff = np.array_split(param['angle_array'], size)[rank]
 	vdw_coeff = np.array_split(param['vdw_matrix'], size)[rank]
 	virial_indicies = ut.create_index(np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank]))
 
@@ -468,7 +471,7 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 	for step in range(1, param['n_step']):
 
 		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
-				angle_bond_indices, vdw_coeff, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, calc_energy_forces_mpi, comm, size, rank)
+				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, calc_energy_forces_mpi, comm, size, rank)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
 
@@ -641,6 +644,7 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 	
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
 	frc_indices = (bond_indices[0] + pos_indices[0], bond_indices[1])
+	angle_coeff = np.array_split(param['angle_array'], size)[rank]
 	vdw_coeff = np.array_split(param['vdw_matrix'], size)[rank]
 	virial_indicies = ut.create_index(np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank]))
 
@@ -653,7 +657,7 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 		start_time = time.time()
 
 		frc, pot_energy, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
-							angle_indices, angle_bond_indices, vdw_coeff, virial_indicies, param)
+							angle_indices, angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param)
 
 		stop_time_1 = time.time()
 		calc_times.append(stop_time_1 - start_time)

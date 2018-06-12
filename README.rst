@@ -19,6 +19,8 @@ For parallel version:
 run ``make install_mpi``
 
 
+NB - due to implementation, SERIAL version will ALWAYS BE FASTER than MPI running on 1 NODE
+
 Instructions:
 -------------
 
@@ -53,7 +55,7 @@ Main program and analysis can be run via the following commands:
 		-nfibz		Number of collagen fibrils accross z axis (3D only)
 		
 
-2) ``ColECM analysis [flags]``
+2) ``ColECM analysis [flags]`` or  ``mpirun -n [nproc] ColECM_mpi analysis [flags]``
 
 	Anisotropy analysis
 	Flags are optional and can be entered in the command line or selected later during the analysis process.
@@ -66,18 +68,19 @@ Main program and analysis can be run via the following commands:
 		-sharp	Image sharpness parameter (1-10)
 		-skip	Number of sampled frames between each png
 
-You can run both modules in serial by calling ``ColECM simulation analysis [flags]``
 
-3) ``ColECM editor [flags]``
+3) ``ColECM editor [flags]`` or  ``mpirun -n [nproc] ColECM_mpi editor [flags]``
 
 	Simulation editor
-	Flags are optional and can be entered in the command line or selected later during the analysis process.
+	Parameter file can be edited using flags, as well as simulation cell expanded using repeated units in x, y and z dimensions.
 
 		-param	Name of simulation parameter file
 		-rst	Name of simulation restart file
 		-nrepx	Number of simulation cells to repeat in x dimension
 		-nrepy	Number of simulation cells to repeat in y dimension
 		-nrepz	Number of simulation cells to repeat in z dimension (3D only)
+
+	Generally it is not necessary to run MPI version of editor module, only when expanding simulation cell, since the temperature will be equilibrated afterwards to obtain an appropriate ensemble of velocities.
 
 A speed test can be found in the binary folder to estimate the optimum number of processors to use for a MPI run. The number of processors available will be automatically detected, but can be changed in the ``speed_test`` executable
 

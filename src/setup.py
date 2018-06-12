@@ -43,6 +43,7 @@ def get_param_defaults():
 			'n_fibril' : 9,
 			'l_fibril' : 10,
 			'n_bead' : 90,
+			'n_cell' : 0,
 			'density' : 0.3,
 			'l_conv' : 1,
 			'res' : 7.5,
@@ -51,7 +52,8 @@ def get_param_defaults():
 			'P_0' : 1,
 			'lambda_p' : 1E-4,
 			'bond_matrix' : None,
-			'vdw_matrix' : None}
+			'vdw_matrix' : None,
+			'angle_array' : None}
 	"""
 	defaults = {	'n_dim' : 2,
 		    	'dt' : 0.004,
@@ -302,7 +304,7 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False, verbosity=True
 		"""
 
 		for key in keys: param[key] = param_file[key]		
-		for key in ['bond_matrix', 'vdw_matrix']: param[key] = param_file[key]
+		for key in ['bond_matrix', 'angle_array', 'vdw_matrix']: param[key] = param_file[key]
 
 	else:
 		if input_file_name: _, param = read_input_file(input_file_name, simulation=True, param=param)
@@ -327,7 +329,55 @@ def read_shell_input(current_dir, sim_dir, input_file_name=False, verbosity=True
 	return file_names, param
 
 
-def grow_fibril(index, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_attempt=200):
+def grow_cell(param, max_energy=200, max_attempt=200):
+	"""
+	grow_cell(param, vdw_matrix, max_energy=200, max_attempt=200)
+
+	Grow tumour cell cluster n beads
+
+	Parameters
+	----------
+
+	param:  dict
+		Dictionary of simulation and analysis parameters
+
+	vdw_matrix: array_like (int); shape=(n_bead, n_bead)
+		Matrix determining whether a non-bonded interaction is present between two beads
+
+	max_energy:  float (optional)
+		Maximum potential energy threshold for each system configuration
+
+	max_attempt:  int  (optional)
+		Maximum number of attempts to find an acceptable configuration
+		
+		
+	Returns
+	-------
+
+	pos:  array_like (float); shape=(n_bead, n_dim)
+		Updated positions of n_bead beads in n_dim
+
+	"""
+
+	if param['n_dim'] == 2: 
+		from sim_tools_2D import calc_energy_forces
+		pos = (np.mgrid[:n_cell,:n_cell].reshape(n_cell**2, 2) + 10) * param['vdw_sigma']
+		bond_matrix = np.zeros((n_cell**2, n_cell**2))
+		vdw_matrix = (np.ones((n_cell**2, n_cell**2)) - np.identity(n_cell**2)) * 10
+	elif param['n_dim'] == 3: 
+		from sim_tools_3D import calc_energy_forces
+		pos = (np.mgrid[:n_cell,:n_cell,:n_cell].reshape(n_cell**3, 3) + 10) * param['vdw_sigma']
+		bond_matrix = np.zeros((n_cell**3, n_cell**3))
+		vdw_matrix = (np.ones((n_cell**3, n_cell**3)) - np.identity(n_cell**3)) * 10
+
+	cell_dim = np.max(pos, axis=0)
+
+	pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param)
+
+	return pos
+
+
+def grow_fibril(index, pos, param, max_energy=200, max_attempt=200):
 	"""
 	grow_fibril(index, bead, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_attempt=200
 
@@ -376,7 +426,8 @@ def grow_fibril(index, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_
 		pos[index] = np.random.random((param['n_dim'])) * param['vdw_sigma'] * 2
 
 	else:
-		bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
+		bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(param['bond_matrix'])
+		param['angle_array'] = np.ones(angle_indices.shape[0]) * param['angle_k0']
 
 		energy = max_energy + 1
 		attempt = 0
@@ -386,8 +437,7 @@ def grow_fibril(index, pos, param, bond_matrix, vdw_matrix, max_energy=200, max_
 			pos[index] = pos[index-1] + new_vec
 			cell_dim = np.max(pos, axis=0) + param['vdw_sigma']
 
-			_, energy, _ = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, 
-							angle_bond_indices, vdw_matrix, param)
+			_, energy, _ = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, param)
 
 			attempt += 1
 			if attempt > max_attempt: raise RuntimeError
@@ -427,12 +477,12 @@ def create_pos_array(param):
 
 	pos = np.zeros((param['n_bead'], param['n_dim']), dtype=float)
 	bond_matrix = np.zeros((param['n_bead'], param['n_bead']), dtype=int)
-	vdw_matrix = np.ones((param['n_bead'], param['n_bead']), dtype=int)
-	temp_vdw = np.ones(param['n_bead'], dtype=int)
+	vdw_matrix = np.ones((param['n_bead'], param['n_bead']), dtype=int) * param['vdw_epsilon']
+	temp_vdw = np.ones(param['n_bead'], dtype=int) * param['vdw_epsilon']
 
 	for bead in range(param['n_bead']):
-		if bead % param['l_fibril'] == 0: temp_vdw[bead] = 10
-		elif bead % param['l_fibril'] == param['l_fibril']-1: temp_vdw[bead] = 10
+		if bead % param['l_fibril'] == 0: temp_vdw[bead] *= 10
+		elif bead % param['l_fibril'] == param['l_fibril']-1: temp_vdw[bead] *= 10
 
 	for row in range(param['n_bead']):
 		if row % param['l_fibril'] == 0: vdw_matrix[row] = temp_vdw
@@ -443,8 +493,8 @@ def create_pos_array(param):
 	for fibril in range(param['n_fibril']):
 		for bead in range(1, param['l_fibril']):
 			n = fibril * param['l_fibril'] + bead
-			bond_matrix[n][n-1] = 1
-			bond_matrix[n-1][n] = 1
+			bond_matrix[n][n-1] = param['bond_k0'] 
+			bond_matrix[n-1][n] = param['bond_k0'] 
 
 	print(" Creating fibril template containing {} beads".format(param['l_fibril']))
 
@@ -454,9 +504,10 @@ def create_pos_array(param):
 	while bead < param['l_fibril']:
 		try:
 
-			init_pos[bead] = grow_fibril(bead, init_pos[ : bead+1], param,
-						bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]],
-						vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]])
+			param['bond_matrix'] = bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]]
+			param['vdw_matrix'] = vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]]
+
+			init_pos[bead] = grow_fibril(bead, init_pos[ : bead+1], param)
 			bead += 1
 		except RuntimeError: bead = 0
 
@@ -505,13 +556,16 @@ def create_pos_array(param):
 
 		cell_dim = np.array([np.max(pos.T[0]) + param['vdw_sigma'] / 2, np.max(pos.T[1]) + param['vdw_sigma'] / 2, np.max(pos.T[2]) + param['vdw_sigma'] / 2])
 
+	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
+
 	param['bond_matrix'] = bond_matrix
+	param['angle_array'] = np.ones(angle_indices.shape[0]) * param['angle_k0']
 	param['vdw_matrix'] = vdw_matrix
 
 	return pos, cell_dim, param
 
 
-def calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param):
+def calc_state(pos, cell_dim, param):
 	"""
 	calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param)
 	
@@ -566,14 +620,13 @@ def calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param):
 	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
 	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
 
-	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
-
-	frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, vdw_matrix, param)
+	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(param['bond_matrix'])
+	frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, param)
 
 	return frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices
 
 
-def calc_state_mpi(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, rank=0):
+def calc_state_mpi(pos, cell_dim, param, comm, size=1, rank=0):
 	"""
 	calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param)
 	
@@ -628,17 +681,18 @@ def calc_state_mpi(pos, cell_dim, bond_matrix, vdw_matrix, param, comm, size=1, 
 	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces_mpi
 	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces_mpi
 
-	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists_mpi(bond_matrix, comm, size, rank)
+	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists_mpi(param['bond_matrix'], comm, size, rank)
 
 	pos_indices = np.array_split(np.arange(param['n_bead']), size)[rank]
 	frc_indices = (bond_indices[0] + pos_indices[0], bond_indices[1])
+	angle_coeff = np.array_split(param['angle_array'], size)[rank]
 	vdw_coeff = np.array_split(param['vdw_matrix'], size)[rank]
 	virial_indicies = ut.create_index(np.argwhere(np.array_split(np.tri(param['n_bead']).T, size)[rank]))
 
 	#verlet_list_rb = ut.check_cutoff(r2, param['bond_rb']**2)
 
 	frc, pot_energy, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
-							angle_indices, angle_bond_indices, vdw_coeff, virial_indicies, param)
+							angle_indices, angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param)
 
 	pot_energy = np.sum(comm.gather(pot_energy))
 	frc = comm.allreduce(frc, op=MPI.SUM)
@@ -715,7 +769,7 @@ def import_files(sim_dir, file_names, param, verbosity=True):
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 
-		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
+		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param)
 
 	else:
 		file_names['pos_file_name'] = ut.check_file_name(file_names['pos_file_name'], file_type='pos') + '_pos'
@@ -724,14 +778,14 @@ def import_files(sim_dir, file_names, param, verbosity=True):
 
 		#param['l_conv'] = 1. / param['vdw_sigma']
 
-		keys = ['bond_matrix', 'vdw_matrix']#, 'l_conv']
+		keys = ['bond_matrix', 'angle_array', 'vdw_matrix']#, 'l_conv']
 		for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
 
 		if verbosity: print(" Saving input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
 		ut.save_npy(sim_dir + file_names['pos_file_name'], np.vstack((pos, cell_dim)))
 
-		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
-		pos, vel, cell_dim = equilibrate_density(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
+		pos, vel = equilibrate_temperature(sim_dir, pos, cell_dim, param)
+		pos, vel, cell_dim = equilibrate_density(pos, vel, cell_dim, param)
 
 		if verbosity: print(" Saving restart file {}".format(file_names['restart_file_name']))
 		ut.save_npy(sim_dir + file_names['restart_file_name'], (np.vstack((pos, cell_dim)), vel))
@@ -798,7 +852,7 @@ def import_files_mpi(sim_dir, file_names, param, comm, size=1, rank=0, verbosity
 		cell_dim = pos[-1]
 		pos = pos[:-1]
 
-		pos, vel = equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
+		pos, vel = equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param, comm, size, rank)
 
 	else:
 		file_names['pos_file_name'] = ut.check_file_name(file_names['pos_file_name'], file_type='pos') + '_pos'
@@ -809,7 +863,7 @@ def import_files_mpi(sim_dir, file_names, param, comm, size=1, rank=0, verbosity
 
 			#param['l_conv'] = 1. / param['vdw_sigma']
 
-			keys = ['bond_matrix', 'vdw_matrix']#, 'l_conv']
+			keys = ['bond_matrix', 'angle_array', 'vdw_matrix']#, 'l_conv']
 			for key in keys: ut.update_param_file(sim_dir + file_names['param_file_name'], key, param[key])
 
 			if verbosity: print(" Saving input pos file {}{}.npy".format(sim_dir, file_names['pos_file_name']))
@@ -822,8 +876,8 @@ def import_files_mpi(sim_dir, file_names, param, comm, size=1, rank=0, verbosity
 		cell_dim = comm.bcast(cell_dim, root=0)
 		param = comm.bcast(param, root=0)
 
-		pos, vel = equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
-		pos, vel, cell_dim = equilibrate_density_mpi(pos, vel, cell_dim, param['bond_matrix'], param['vdw_matrix'], param, comm, size, rank)
+		pos, vel = equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param, comm, size, rank)
+		pos, vel, cell_dim = equilibrate_density_mpi(pos, vel, cell_dim, param, comm, size, rank)
 
 		if rank == 0: 
 			if verbosity: print(" Saving restart file {}".format(file_names['restart_file_name']))

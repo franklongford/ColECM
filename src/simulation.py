@@ -111,14 +111,14 @@ def velocity_verlet_alg(pos, vel, frc, virial_tensor, param, bond_indices, angle
 	cell = np.tile(cell_dim, (param['n_bead'], 1)) 
 	pos += cell * (1 - np.array((pos + cell) / cell, dtype=int))
 	
-	frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, param['vdw_matrix'], param)
+	frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, param)
 
 	return pos, vel, frc, cell_dim, pot_energy, virial_tensor
 
 
-def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, param, inc=0.1, thresh=5E-2):
+def equilibrate_temperature(sim_dir, pos, cell_dim, param, inc=0.1, thresh=5E-2):
 	"""
-	equilibrate_temperature(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-2)
+	equilibrate_temperature(pos, vel, cell_dim, param, thresh=2E-2)
 
 	Equilibrate temperature of system
 
@@ -168,7 +168,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	n_dof = param['n_dim'] * param['n_bead'] 
 	vel = np.zeros(pos.shape)
 
-	sim_state = setup.calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param)
+	sim_state = setup.calc_state(pos, cell_dim, param)
 	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
 
 	kBT = 2 * ut.kin_energy(vel, param['mass'], param['n_dim']) / n_dof
@@ -220,7 +220,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, bond_matrix, vdw_matrix, par
 	return pos, vel
 
 
-def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, inc=0.05, thresh=2E-3):
+def equilibrate_density(pos, vel, cell_dim, param, inc=0.05, thresh=2E-3):
 	"""
 	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
 
@@ -275,7 +275,7 @@ def equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, inc=
 	sqrt_dt = np.sqrt(dt)
 	n_dof = param['n_dim'] * param['n_bead'] 
 
-	sim_state = setup.calc_state(pos, cell_dim, bond_matrix, vdw_matrix, param)
+	sim_state = setup.calc_state(pos, cell_dim, param)
 	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
 
 	kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
@@ -377,7 +377,7 @@ def simulation(current_dir, input_file_name=False):
 	tot_press = np.zeros(param['n_step'])
 	tot_vol = np.zeros(param['n_step'])
 
-	sim_state = setup.calc_state(pos, cell_dim, param['bond_matrix'], param['vdw_matrix'], param)
+	sim_state = setup.calc_state(pos, cell_dim, param)
 	frc, pot_energy, virial_tensor, bond_indices, angle_indices, angle_bond_indices = sim_state
 
 	kin_energy = ut.kin_energy(vel, param['mass'], param['n_dim'])
@@ -572,7 +572,7 @@ def speed_test(current_dir,input_file_name=False):
 	for i in range(n_trial):
 		start_time = time.time()
 
-		frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, param['vdw_matrix'], param)
+		frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, param)
 
 		stop_time_1 = time.time()
 		calc_times.append(stop_time_1 - start_time)
