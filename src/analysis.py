@@ -10,6 +10,7 @@ Last Modified: 19/04/2018
 
 import numpy as np
 import scipy as sp
+from scipy import signal
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as plt3d
 import matplotlib.animation as animation
@@ -562,9 +563,9 @@ def fibre_vector_analysis(traj, cell_dim, param):
 	"""
 	
 	n_image = traj.shape[0]
-	n_bond = int(np.sum(np.triu(param['bond_matrix'])))
-	bond_index_half = np.argwhere(np.triu(param['bond_matrix']))
-	indices_half = ut.create_index(bond_index_half)
+
+	bond_indices = np.nonzero(np.triu(param['bond_matrix']))
+	n_bond = bond_indices[0].shape[0]
 	bond_list = np.zeros((param['n_dim'], n_bond))
 
 	tot_mag = np.zeros((n_image, param['n_fibril']))
@@ -573,10 +574,12 @@ def fibre_vector_analysis(traj, cell_dim, param):
 	#tot_mag = np.zeros((n_image, n_bond))
 	tot_theta = np.zeros((n_image, n_bond))
 
+	print(traj.shape)
+
 	for image, pos in enumerate(traj):
 
 		distances = ut.get_distances(pos.T, cell_dim)
-		for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
+		for i in range(param['n_dim']): bond_list[i] = distances[i][bond_indices]
 
 		bead_vectors = bond_list.T
 		mag_vectors = np.sqrt(np.sum(bead_vectors**2, axis=1))
@@ -786,6 +789,84 @@ def fourier_transform_analysis(image_shg, area, n_sample):
 	return angles, fourier_spec
 
 
+def curvelet_transform_analysis(image_shg, area, n_sample):
+	"""
+	fourier_transform_analysis(image_shg, area, n_sample)
+
+	Calculates fourier amplitude spectrum of over area^2 pixels for n_samples
+
+	Parameters
+	----------
+
+	image_shg:  array_like (float); shape=(n_images, n_x, n_y)
+		Array of images corresponding to each trajectory configuration
+
+	area:  int
+		Unit length of sample area
+
+	n_sample:  int
+		Number of randomly selected areas to sample
+
+	Returns
+	-------
+
+	angles:  array_like (float); shape=(n_bins)
+		Angles corresponding to fourier amplitudes
+
+	fourier_spec:  array_like (float); shape=(n_bins)
+		Average Fouier amplitudes of FT of image_shg
+
+	"""
+
+	n_frame = image_shg.shape[0]
+	n_y = image_shg.shape[1]
+	n_x = image_shg.shape[2]
+
+	pad = area // 2
+
+	cut_image = image_shg[0, : area, : area]
+
+	widths = (np.arange(1, 50), np.arange(1, 50))
+	image_cwt = signal.cwt(cut_image, signal.ricker, widths)
+
+	plt.figure(100)
+	plt.imshow(image_cwt, extent=[-1, 1, 1, 50], cmap='PRGn', aspect='auto', 
+				vmax=abs(image_cwt).max(), vmin=-abs(image_cwt).max())
+	plt.show()
+
+	image_cwt[0][0] = 0
+	#image_cwt = np.fft.fftshift(image_fft)
+	average_cwt = np.zeros(image_fft.shape, dtype=complex)
+
+	cwt_angle = np.angle(image_cwt, deg=True)
+	angles = np.unique(cwt_angle)
+	curvelet_spec = np.zeros(angles.shape)
+	
+	n_bins = curvelet_spec.size
+
+	for n in range(n_sample):
+
+		try: start_x = np.random.randint(pad, n_x - pad)
+		except: start_x = pad
+		try: start_y = np.random.randint(pad, n_y - pad) 
+		except: start_y = pad
+
+		cut_image = image_shg[:, start_y-pad: start_y+pad, 
+					 start_x-pad: start_x+pad]
+
+		for frame in range(n_frame):
+
+			image_cwt = signal.cwt(cut_image[frame], signal.ricker, widths)
+			#image_cwt[0][0] = 0
+			average_cwt += image_cwt / (n_frame * n_sample)
+			#average_fft += np.fft.fftshift(image_fft) / (n_frame * n_sample)	
+
+	for i in range(n_bins):
+		indices = np.where(cwt_angle == angles[i])
+		curvelet_spec[i] += np.sum(np.abs(average_fft[indices])) / 360
+
+	return angles, curvelet_spec
+
 def nmf_analysis(image_shg, area, n_sample, n_components):
 	"""
 	nmf_analysis(image_shg, area, n_sample)
@@ -943,7 +1024,7 @@ def analysis(current_dir, input_file_name=False):
 	#fourier_spec = 2 * fourier_spec[len(fourier_spec)//2:]
 	print_fourier_results(fig_dir, fig_name, angles, fourier_spec)
 
-	
+
 	"Perform Non-Negative Matrix Factorisation"
 	n_components = 9
 	pad = int(area_sample / 2 - 1)
