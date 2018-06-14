@@ -28,43 +28,58 @@ import utilities as ut
 import setup
 
 
-def create_cnn_model(n_classes, input_shape):
+class cnn_model:
 
-	kernel_size = (3, 3) # we will use 3x3 kernels throughout
-	pool_size = (2, 2) # we will use 2x2 pooling throughout
-	conv_depth_1 = 32 # we will initially have 32 kernels per conv. layer...
-	conv_depth_2 = 64 # ...switching to 64 after the first pooling layer
-	drop_prob_1 = 0.25 # dropout after pooling with probability 0.25
-	drop_prob_2 = 0.5 # dropout in the FC layer with probability 0.5
-	hidden_size = 512 # the FC layer will have 512 neurons
+	def __init__(self, classes, image_shape, save_path):
 
-	print(input_shape)
+		self.classes = classes
+		self.n_classes = len(classes)
+		self.image_shape = image_shape
+		self.model_path = save_path
 
-	model = Sequential()
+		if os.path.exists(self.model_path): self.model = load_model(self.model_path)
+		else: 
+			self.model = self.create_cnn_model()
+			self.model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+			self.model.save(save_path)
 
-	model.add(Conv2D(conv_depth_1, kernel_size, padding='same', activation='relu', input_shape=input_shape))
-	#model.add(Conv2D(conv_depth_1, kernel_size, activation='relu'))
-	model.add(MaxPooling2D(pool_size=pool_size))
-	model.add(Dropout(drop_prob_1))
+		self.model.summary()
+			
+	def create_cnn_model(self):
 
-	model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
-	#model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
-	model.add(MaxPooling2D(pool_size=pool_size))
-	model.add(Dropout(drop_prob_1))
+		kernel_size = (3, 3) # we will use 3x3 kernels throughout
+		pool_size = (2, 2) # we will use 2x2 pooling throughout
+		conv_depth_1 = 32 # we will initially have 32 kernels per conv. layer...
+		conv_depth_2 = 64 # ...switching to 64 after the first pooling layer
+		drop_prob_1 = 0.25 # dropout after pooling with probability 0.25
+		drop_prob_2 = 0.5 # dropout in the FC layer with probability 0.5
+		hidden_size = 512 # the FC layer will have 512 neurons
 
-	model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
-	#model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
-	model.add(MaxPooling2D(pool_size=pool_size))
-	model.add(Dropout(drop_prob_1))
+		model = Sequential()
 
-	model.add(Flatten())
-	model.add(Dense(hidden_size, activation='relu'))
-	model.add(Dropout(drop_prob_2))
-	model.add(Dense(n_classes, activation='softmax'))
+		model.add(Conv2D(conv_depth_1, kernel_size, padding='same', activation='relu', input_shape=self.image_shape))
+		#model.add(Conv2D(conv_depth_1, kernel_size, activation='relu'))
+		model.add(MaxPooling2D(pool_size=pool_size))
+		model.add(Dropout(drop_prob_1))
 
-	model.summary()	
+		model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
+		#model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
+		model.add(MaxPooling2D(pool_size=pool_size))
+		model.add(Dropout(drop_prob_1))
 
-	return model
+		model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
+		#model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
+		model.add(MaxPooling2D(pool_size=pool_size))
+		model.add(Dropout(drop_prob_1))
+
+		model.add(Flatten())
+		model.add(Dense(hidden_size, activation='relu'))
+		model.add(Dropout(drop_prob_2))
+		model.add(Dense(self.n_classes, activation='softmax'))
+
+		model.summary()	
+
+		return model
 
 
 def print_nmf_results(fig_dir, fig_name, n, title, images, n_col, n_row, image_shape):
@@ -131,7 +146,9 @@ def convolutional_neural_network_analysis(model_name, model_dir, predict_set, da
 
 			model.save(model_dir + model_name)
 
-		else: model = load_model(model_dir + model_name)
+		else: 
+			model = load_model(model_dir + model_name)
+			model.summary()
 	
 		n_sample = data_set.shape[0]
 		data_set = data_set.reshape(data_set.shape + (1,))
@@ -149,7 +166,9 @@ def convolutional_neural_network_analysis(model_name, model_dir, predict_set, da
 
 		model.save(model_dir + model_name)
 
-	else: model = load_model(model_dir + model_name)
+	else: 
+		model = load_model(model_dir + model_name)
+		model.summary()
 
 	predict_set = predict_set.reshape(predict_set.shape + (1,))
 	score = model.predict(predict_set)
