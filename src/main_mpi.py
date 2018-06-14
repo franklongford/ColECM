@@ -24,7 +24,7 @@ modules = []
 if ('simulation' in sys.argv): modules.append('simulation') 
 if ('analysis' in sys.argv): modules.append('analysis')
 if ('editor' in sys.argv): modules.append('editor')
-
+if ('learning' in sys.argv): modules.append('learning')
 if ('speed' in sys.argv): modules.append('speed')
 else:
 	if rank == 0: 
@@ -48,6 +48,9 @@ if ('analysis' in modules):
 if ('editor' in modules):
 	from editor_mpi import editor
 	editor(current_dir, comm, input_file_name, size, rank)
+if ('learning' in modules):
+	from machine_learning import learning
+	if rank == 0: learning(current_dir)
 if ('speed' in modules):
 	from simulation_mpi import speed_test
 	speed_test(current_dir, comm, input_file_name, size, rank)

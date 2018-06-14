@@ -507,7 +507,7 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 	mk_gif = ('-mk_gif' in sys.argv)
 
 	if rank == 0:
-		print("\n " + " " * 15 + "----Beginning Analysis----\n")
+		print("\n " + " " * 15 + "----Beginning Image Analysis----\n")
 		if not os.path.exists(gif_dir): os.mkdir(gif_dir)
 		if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 
@@ -607,15 +607,8 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 
 	#angles = angles[len(angles)//2:]
 	#fourier_spec = 2 * fourier_spec[len(fourier_spec)//2:]
-	if rank == 0: print_fourier_results(fig_dir, fig_name, angles, fourier_spec)
-
-	"Perform Non-Negative Matrix Factorisation"
-	n_components = 9
-	pad = int(area_sample / 2 - 1)
-
 	if rank == 0: 
-		nmf_components = nmf_analysis(image_shg, area_sample, n_sample, n_components)
-		print_nmf_results(fig_dir, fig_name, 12, 'NMF Main Components', nmf_components[:n_components], np.sqrt(n_components), np.sqrt(n_components), (area_sample, area_sample))
+		print_fourier_results(fig_dir, fig_name, angles, fourier_spec)
 
 		"Make Gif of SHG Images"
 		if ow_shg or mk_gif:

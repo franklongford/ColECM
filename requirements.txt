@@ -5,3 +5,6 @@ imageio
 pytest
 scikit-learn
 mpi4py
+keras
+Theano
+tensorflow

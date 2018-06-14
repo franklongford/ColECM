@@ -178,7 +178,10 @@ def test_cos_sin_theta():
 
 def test_pot_energy_frc():
 
+
 	param = setup.get_param_defaults()
+	param['bond_matrix'] = bond_matrix
+	param['vdw_matrix'] = vdw_matrix
 	param['n_fibril_x'] = 1
 	param['n_fibril_y'] = 1
 	param['n_fibril_z'] = 1
@@ -186,8 +189,9 @@ def test_pot_energy_frc():
 	param['n_bead'] = param['n_fibril_x'] * param['n_fibril_y'] * param['n_fibril_z'] * param['l_fibril']
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
+	param['angle_array'] = np.ones(angle_indices.shape[0]) * param['angle_k0']
 
-	frc, pot_energy, virial_tensor = sim_2D.calc_energy_forces(pos_2D, cell_dim_2D, bond_indices, angle_indices, angle_bond_indices, vdw_matrix, param)
+	frc, pot_energy, virial_tensor = sim_2D.calc_energy_forces(pos_2D, cell_dim_2D, bond_indices, angle_indices, angle_bond_indices, param)
 
 	check_frc = np.array([[ 12277.59052347,  -6225.74404829],
  			      [ 41.48708925,  -1095.43380772],
@@ -200,7 +204,7 @@ def test_pot_energy_frc():
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
 
-	frc, pot_energy, virial_tensor = sim_3D.calc_energy_forces(pos_3D, cell_dim_3D, bond_indices, angle_indices, angle_bond_indices, vdw_matrix, param)
+	frc, pot_energy, virial_tensor = sim_3D.calc_energy_forces(pos_3D, cell_dim_3D, bond_indices, angle_indices, angle_bond_indices, param)
 
 	check_frc = np.array([[  23.97941507,  770.44703468, -238.8615784 ],
  			      [  27.2045763,  -777.5797729,   172.30544761],
