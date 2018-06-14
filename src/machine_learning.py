@@ -25,27 +25,66 @@ import matplotlib.animation as animation
 import sys, os, re
 
 import utilities as ut
+from analysis import select_samples
+import pickle
 import setup
 
 
 class cnn_model:
 
-	def __init__(self, classes, image_shape, save_path):
+	def __init__(self, model_path=None, classes=None, image_shape=None, ow_model=False):
+
+		self.model_path = model_path
+
+		try: self.load_model()
+		except:
+			try: self._init_model(classes, image_shape)
+			except: 
+				self.model = None
+				self.classes = classes
+				self.image_shape = image_shape
+
+	def _init_model(self, classes, image_shape):
 
 		self.classes = classes
-		self.n_classes = len(classes)
+		self.n_classes = len(self.classes)
 		self.image_shape = image_shape
-		self.model_path = save_path
 
-		if os.path.exists(self.model_path): self.model = load_model(self.model_path)
-		else: 
-			self.model = self.create_cnn_model()
-			self.model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
-			self.model.save(save_path)
+		self._create_cnn_model()
+
+		param = {'model_path' : self.model_path, 'classes' : self.classes, 'image_shape': self.image_shape}
+		pickle.dump(param, open(self.model_path + '.pkl', 'wb'))
 
 		self.model.summary()
+		self.save_model()
+
+	def save_model(self):
+
+		self.model.save(self.model_path)
+
+	def load_model(self):
+
+		self.model = load_model(self.model_path)
+		param = pickle.load(open(self.model_path + '.pkl', 'rb'))
+
+		self.model_path = param['model_path']
+		self.classes = param['classes']
+		self.image_shape = param['image_shape']
+		self.n_classes = len(self.classes)
+
+	def delete_model(self):
+	
+		try: 
+			os.remove(self.model_path)
+			os.remove(self.model_path + '.pkl')
+
+			self.model = None
+			self.classes = None
+			self.image_shape = None
+
+		except: pass
 			
-	def create_cnn_model(self):
+	def _create_cnn_model(self):
 
 		kernel_size = (3, 3) # we will use 3x3 kernels throughout
 		pool_size = (2, 2) # we will use 2x2 pooling throughout
@@ -55,31 +94,78 @@ class cnn_model:
 		drop_prob_2 = 0.5 # dropout in the FC layer with probability 0.5
 		hidden_size = 512 # the FC layer will have 512 neurons
 
-		model = Sequential()
+		self.model = Sequential()
 
-		model.add(Conv2D(conv_depth_1, kernel_size, padding='same', activation='relu', input_shape=self.image_shape))
+		self.model.add(Conv2D(conv_depth_1, kernel_size, padding='same', activation='relu', input_shape=self.image_shape))
 		#model.add(Conv2D(conv_depth_1, kernel_size, activation='relu'))
-		model.add(MaxPooling2D(pool_size=pool_size))
-		model.add(Dropout(drop_prob_1))
+		self.model.add(MaxPooling2D(pool_size=pool_size))
+		self.model.add(Dropout(drop_prob_1))
 
-		model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
+		self.model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
 		#model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
-		model.add(MaxPooling2D(pool_size=pool_size))
-		model.add(Dropout(drop_prob_1))
+		self.model.add(MaxPooling2D(pool_size=pool_size))
+		self.model.add(Dropout(drop_prob_1))
 
-		model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
+		self.model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
 		#model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
-		model.add(MaxPooling2D(pool_size=pool_size))
-		model.add(Dropout(drop_prob_1))
+		self.model.add(MaxPooling2D(pool_size=pool_size))
+		self.model.add(Dropout(drop_prob_1))
 
-		model.add(Flatten())
-		model.add(Dense(hidden_size, activation='relu'))
-		model.add(Dropout(drop_prob_2))
-		model.add(Dense(self.n_classes, activation='softmax'))
+		self.model.add(Flatten())
+		self.model.add(Dense(hidden_size, activation='relu'))
+		self.model.add(Dropout(drop_prob_2))
+		self.model.add(Dense(self.n_classes, activation='softmax'))
 
-		model.summary()	
+		self.model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
 
-		return model
+
+	def format_data(self, data_set):
+
+		n_sample = data_set.shape[0]
+		try: data_set = data_set.reshape((n_sample,) + self.image_shape)
+		except: 
+			data_set = select_samples(data_set, self.image_shape[0], 1)
+			data_set = data_set.reshape((n_sample,) + self.image_shape)
+
+		data_set /= np.max(data_set)
+
+		return data_set
+
+
+	def input_training_data(self, data_set, data_labels):
+
+		batch_size = 32 # in each iteration, we consider 32 training examples at once
+		num_epochs = 5 # we iterate 200 times over the entire training set
+
+		classes = np.unique(data_labels)
+		image_shape = data_set.shape[1:] + (1,)
+
+		if self.model is None: self._init_model(classes, image_shape)
+
+		data_set = self.format_data(data_set)
+		data_labels = to_categorical(data_labels)
+
+		(training_set, test_set, training_labels, test_labels) = train_test_split(data_set,
+			data_labels, test_size=0.2, random_state=42)
+
+		history = self.model.fit(training_set, training_labels, batch_size=batch_size, epochs=num_epochs, verbose=1)
+		score = self.model.evaluate(test_set, test_labels)
+
+		print(' Test Loss:', score[0])
+		print(" Test Accuracy: {:.2f}%".format(score[1]*100))
+
+		self.save_model()
+
+
+	def input_prediction_data(self, data_set):
+
+		data_set = self.format_data(data_set)
+		score = self.model.predict(data_set)
+
+		scores = 100 * np.sum(score, axis=0) / np.sum(score)
+
+		print("\n Prediction Results:")
+		for i, score in enumerate(scores): print(" Class {}: {:.2f}%".format(self.classes[i], score))
 
 
 def print_nmf_results(fig_dir, fig_name, n, title, images, n_col, n_row, image_shape):
@@ -112,72 +198,15 @@ def convolutional_neural_network_analysis(model_name, model_dir, predict_set, da
 	Parameters
 	----------
 
-	image_shg:  array_like (float); shape=(n_images, n_x, n_y)
-		Array of images corresponding to each trajectory configuration
-
-	area:  int
-		Unit length of sample area
-
-	n_sample:  int
-		Number of randomly selected areas to sample
-
-	Returns
-	-------
-
-	angles:  array_like (float); shape=(n_bins)
-		Angles corresponding to fourier amplitudes
-
-	fourier_spec:  array_like (float); shape=(n_bins)
-		Average Fouier amplitudes of FT of image_shg
-
 	"""
-	
 
-	area = predict_set.shape[1]
-	batch_size = 32 # in each iteration, we consider 32 training examples at once
-	num_epochs = 5 # we iterate 200 times over the entire training set
+	model = cnn_model(model_path=model_dir + model_name)
 
-	if data_set is not None:
-	
-		if not os.path.exists(model_dir + model_name) or ow_model:
+	if ow_model: model.delete_model()
 
-			model = create_cnn_model(len(np.unique(data_labels)), (area, area, 1))
-			model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+	if data_set is not None: model.input_training_data(data_set, data_labels)
 
-			model.save(model_dir + model_name)
-
-		else: 
-			model = load_model(model_dir + model_name)
-			model.summary()
-	
-		n_sample = data_set.shape[0]
-		data_set = data_set.reshape(data_set.shape + (1,))
-		data_set /= np.max(data_set)
-		data_labels = to_categorical(data_labels)
-
-		(training_set, test_set, training_labels, test_labels) = train_test_split(data_set,
-			data_labels, test_size=0.2, random_state=42)
-
-		history = model.fit(training_set, training_labels, batch_size=batch_size, epochs=num_epochs, verbose=1)
-		score = model.evaluate(test_set, test_labels)
-
-		print(' Test Loss:', score[0])
-		print(" Test Accuracy: {:.2f}%".format(score[1]*100))
-
-		model.save(model_dir + model_name)
-
-	else: 
-		model = load_model(model_dir + model_name)
-		model.summary()
-
-	predict_set = predict_set.reshape(predict_set.shape + (1,))
-	score = model.predict(predict_set)
-
-	plot_classes = np.arange(score.shape[-1])
-	plot_score = 100 * np.sum(score, axis=0) / np.sum(score)
-
-	print("\n Prediction Results:")
-	for i, score in enumerate(plot_score): print(" Class {}: {:.2f}%".format(plot_classes[i], score))
+	model.input_prediction_data(predict_set)
 
 	return 
 
