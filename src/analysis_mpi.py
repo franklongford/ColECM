@@ -514,7 +514,7 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 		file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
 		fig_name = file_names['gif_file_name'].split('/')[-1]
 
-		keys = ['l_conv', 'res', 'sharp', 'skip']
+		keys = ['l_conv', 'res', 'sharp', 'skip', 'l_sample', 'min_sample']
 		print("\n Analysis Parameters found:")
 		for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
 
@@ -592,13 +592,11 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 
 	"Perform Nematic Tensor Analysis"
 
-	l_sample = 40
-	min_sample = 20
-	area_sample = int(2 * (np.min((l_sample,) + image_shg.shape[1:]) // 2))
+	area_sample = int(2 * (np.min((param['l_sample'],) + image_shg.shape[1:]) // 2))
 
 	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
 	"Sample average orientational anisotopy"
-	q, n_sample = nematic_tensor_analysis_mpi(n_tensor, area_sample, min_sample, comm, size, rank)
+	q, n_sample = nematic_tensor_analysis_mpi(n_tensor, area_sample, param['min_sample'], comm, size, rank)
 
 	if rank == 0: print_anis_results(fig_dir, fig_name, q)
 

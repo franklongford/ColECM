@@ -49,8 +49,10 @@ def get_param_defaults():
 			'res' : 7.5,
 			'sharp' : 1.5,
 			'skip' : 1,
+			'l_sample' : 100,
+			'min_sample' : 25,
 			'P_0' : 1,
-			'lambda_p' : 1E-4,
+			'lambda_p' : 5E-4,
 			'bond_matrix' : None,
 			'vdw_matrix' : None,
 			'angle_array' : None}

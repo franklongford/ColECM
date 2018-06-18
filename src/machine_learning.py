@@ -17,6 +17,7 @@ from sklearn.model_selection import train_test_split
 from keras.models import Model, Sequential, load_model # basic class for specifying and training a neural network
 from keras.layers import Input, Conv2D, MaxPooling2D, Dense, Dropout, Activation, Flatten
 from keras.utils import np_utils, to_categorical # utilities for one-hot encoding of ground truth values
+from keras.preprocessing.image import ImageDataGenerator
 
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as plt3d
@@ -41,13 +42,14 @@ class cnn_model:
 			try: self._init_model(classes, image_shape)
 			except: 
 				self.model = None
-				self.classes = classes
+				self.classes = list(classes)
 				self.image_shape = image_shape
 
 	def _init_model(self, classes, image_shape):
 
-		self.classes = classes
+		self.classes = list(classes)
 		self.n_classes = len(self.classes)
+		self.class_range = np.arange(self.n_classes)
 		self.image_shape = image_shape
 
 		self._create_cnn_model()
@@ -106,10 +108,10 @@ class cnn_model:
 		self.model.add(MaxPooling2D(pool_size=pool_size))
 		self.model.add(Dropout(drop_prob_1))
 
-		self.model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
+		#self.model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
 		#model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
-		self.model.add(MaxPooling2D(pool_size=pool_size))
-		self.model.add(Dropout(drop_prob_1))
+		#self.model.add(MaxPooling2D(pool_size=pool_size))
+		#self.model.add(Dropout(drop_prob_1))
 
 		self.model.add(Flatten())
 		self.model.add(Dense(hidden_size, activation='relu'))
@@ -143,14 +145,27 @@ class cnn_model:
 		if self.model is None: self._init_model(classes, image_shape)
 
 		data_set = self.format_data(data_set)
-		data_labels = to_categorical(data_labels)
+		data_labels = to_categorical([self.classes.index(label) for label in data_labels], num_classes=self.n_classes)
 
 		(training_set, test_set, training_labels, test_labels) = train_test_split(data_set,
 			data_labels, test_size=0.2, random_state=42)
 
+		#"""
+		datagen = ImageDataGenerator(rotation_range=20)
+
+		# compute quantities required for featurewise normalization
+		# (std, mean, and principal components if ZCA whitening is applied)
+		datagen.fit(training_set)
+		# fits the model on batches with real-time data augmentation:
+		history = self.model.fit_generator(datagen.flow(training_set, training_labels, batch_size=batch_size), 
+						steps_per_epoch=len(training_set)//batch_size, epochs=num_epochs)
+		#datagen.fit(test_set)
+		#score = self.model.evaluate_generator(datagen.flow(test_set, test_labels, batch_size=batch_size))
+		score = self.model.evaluate(test_set, test_labels)
+		"""
 		history = self.model.fit(training_set, training_labels, batch_size=batch_size, epochs=num_epochs, verbose=1)
 		score = self.model.evaluate(test_set, test_labels)
-
+		#"""
 		print(' Test Loss:', score[0])
 		print(" Test Accuracy: {:.2f}%".format(score[1]*100))
 
@@ -160,12 +175,33 @@ class cnn_model:
 	def input_prediction_data(self, data_set):
 
 		data_set = self.format_data(data_set)
-		score = self.model.predict(data_set)
 
+		score = self.model.predict(data_set)
 		scores = 100 * np.sum(score, axis=0) / np.sum(score)
 
 		print("\n Prediction Results:")
 		for i, score in enumerate(scores): print(" Class {}: {:.2f}%".format(self.classes[i], score))
+
+
+def print_cnn_samples(fig_dir, fig_name, n, title, images, n_col, n_row, image_shape):
+
+	print('\n Creating CNN Gallery {}/{}_cnn.png'.format(fig_dir, fig_name))
+
+	plt.figure(n, figsize=(2. * n_col, 2.26 * n_row))
+	plt.suptitle(title, size=16)
+
+	for i, comp in enumerate(images):
+		plt.subplot(n_row, n_col, i + 1)
+		vmax = max(comp.max(), -comp.min())
+		plt.imshow(comp.reshape(image_shape), cmap=plt.cm.gray,
+			   interpolation='nearest',
+			   vmin=-vmax, vmax=vmax)
+		plt.xticks(())
+		plt.yticks(())
+
+	plt.subplots_adjust(0.01, 0.05, 0.99, 0.93, 0.04, 0.)
+	plt.savefig('{}{}_cnn.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.close('all')
 
 
 def print_nmf_results(fig_dir, fig_name, n, title, images, n_col, n_row, image_shape):
@@ -185,11 +221,41 @@ def print_nmf_results(fig_dir, fig_name, n, title, images, n_col, n_row, image_s
 		plt.yticks(())
 
 	plt.subplots_adjust(0.01, 0.05, 0.99, 0.93, 0.04, 0.)
-	plt.savefig('{}/{}_nmf.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.savefig('{}{}_nmf.png'.format(fig_dir, fig_name), bbox_inches='tight')
 	plt.close('all')
 
 
-def convolutional_neural_network_analysis(model_name, model_dir, predict_set, data_set=None, data_labels=None, ow_model=False):
+def print_cnn_training_results(history):
+
+	# Display results
+	fig = plt.figure(figsize=(8, 5)) 
+	axes = np.zeros((2, 4), dtype=np.object)
+
+	axes[0, 0] = fig.add_subplot(2, 4, 1)
+
+	for i in range(1, 4):
+	    axes[0, i] = fig.add_subplot(2, 4, 1+i, sharex=axes[0,0], sharey=axes[0,0])
+	for i in range(0, 4):
+	    axes[1, i] = fig.add_subplot(2, 4, 5+i)
+
+	ax_img, ax_hist, ax_cdf = plot_img_and_hist(img, axes[:, 0])
+	ax_img.set_title('Low contrast image')
+	y_min, y_max = ax_hist.get_ylim()
+	ax_hist.set_ylabel('Number of pixels')
+	ax_hist.set_yticks(np.linspace(0, y_max, 5))
+	ax_img, ax_hist, ax_cdf = plot_img_and_hist(img_rescale, axes[:, 1])
+	ax_img.set_title('Contrast stretching')
+	ax_img, ax_hist, ax_cdf = plot_img_and_hist(img_eq, axes[:, 2])
+	ax_img.set_title('Histogram equalization')
+	ax_img, ax_hist, ax_cdf = plot_img_and_hist(img_adapteq, axes[:, 3])
+	ax_img.set_title('Adaptive equalization')
+	ax_cdf.set_ylabel('Fraction of total intensity')
+	ax_cdf.set_yticks(np.linspace(0, 1, 5))
+	# prevent overlap of y-axis labels
+	fig.tight_layout()
+	plt.show()
+
+def convolutional_neural_network_analysis(model_name, model_dir, classes=None, predict_set=None, data_set=None, data_labels=None, ow_model=False):
 	"""
 	fourier_transform_analysis(image_shg, area, n_sample)
 
@@ -200,13 +266,16 @@ def convolutional_neural_network_analysis(model_name, model_dir, predict_set, da
 
 	"""
 
-	model = cnn_model(model_path=model_dir + model_name)
+	model = cnn_model(model_path=model_dir + model_name, classes=classes)
 
 	if ow_model: model.delete_model()
 
 	if data_set is not None: model.input_training_data(data_set, data_labels)
 
-	model.input_prediction_data(predict_set)
+	if predict_set is not None:
+		if len(predict_set) > 1:
+			for data_set in predict_set: model.input_prediction_data(data_set)
+		else: model.input_prediction_data(predict_set[0])
 
 	return 
 
@@ -237,14 +306,11 @@ def nmf_analysis(data_set, n_components):
 
 	print("\n Performing NMF Analysis")
 
-	n_sample = data_set.shape[0]
-	n_frame = data_set.shape[1]
-	area = data_set.shape[2]
 	rng = np.random.RandomState(0)
 
 	model = NMF(n_components=n_components, init='random', random_state=0)
 
-	data_set = data_set.reshape(data_set.shape[0], area**2)
+	data_set = data_set.reshape(data_set.shape[0], data_set.shape[1] * data_set.shape[2])
 
 	model.fit(data_set)
 
@@ -255,22 +321,17 @@ def nmf_analysis(data_set, n_components):
 
 def learning(current_dir):
 
-	sim_dir = current_dir + '/sim/'
-	gif_dir = current_dir + '/gif/'
-	fig_dir = current_dir + '/fig/'
 	data_dir = current_dir + '/data/'
+	fig_dir = current_dir + '/fig/'
 	model_dir = current_dir + '/model/'
 
-	ow_shg = ('-ow_shg' in sys.argv)
 	ow_mod = ('-ow_mod' in sys.argv)
-	mk_gif = ('-mk_gif' in sys.argv)
-	mk_nmf = ('-mk_nmf' in sys.argv)
+	nmf = ('-nmf' in sys.argv)
 
 	print("\n " + " " * 5 + "----Beginning Machine Learning Analysis----\n")
 	print("\n Algorithms used:\n Non-Negative Matrix Factorisation from scikit_learn library\n Convoluted Neural Network from keras library\n")
-	if not os.path.exists(gif_dir): os.mkdir(gif_dir)
-	if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 	if not os.path.exists(data_dir): os.mkdir(data_dir)
+	if not os.path.exists(fig_dir): os.mkdir(fig_dir)
 	if not os.path.exists(model_dir): os.mkdir(model_dir)
 
 	train_file_names = []
@@ -280,10 +341,9 @@ def learning(current_dir):
 	predict_file_names = []
 	predict = []
 
-	['train', 'predict']
-	n_components = 9
+	n_images = 9
 
-	if ('-name' in sys.argv): model_name = sys.argv[sys.argv.index('-name') + 1]
+	if ('-model' in sys.argv): model_name = sys.argv[sys.argv.index('-model') + 1]
 	else: model_name = 'colecm_cnn_model'
 
 	if ('-train' in sys.argv):
@@ -294,40 +354,57 @@ def learning(current_dir):
 		for arg in sys.argv[sys.argv.index('-predict')+1:]: 
 			if not re.match('-', arg): predict_file_names.append(arg)
 			else: break
+	if ('-classes' in sys.argv): 
+		classes = []
+		for arg in sys.argv[sys.argv.index('-classes')+1:]: 
+			if not re.match('-', arg): classes.append(arg)
+			else: break
+	else: classes = np.arange(len(train_file_names))
 
 	for i, file_name in enumerate(train_file_names): 
 
 		data_set = ut.load_npy(data_dir + file_name)
-		train.append(data_set)	
-		train_ref.append(np.ones(data_set.shape[0]) * i)
+		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', data_set[np.random.randint(data_set.shape[0], size=n_images)], 
+					np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
 		
-		if mk_nmf:
+		if nmf:
 			"Perform Non-Negative Matrix Factorisation"
-			nmf_components = nmf_analysis(data_set, n_components)
-			print_nmf_results(fig_dir, file_name, 12, 'NMF Main Components', nmf_components[:n_components], 
-					np.sqrt(n_components), np.sqrt(n_components), (data_set.shape[1], data_set.shape[2]))
+			n_components = data_set.shape[1] // 5
+			data_set = nmf_analysis(data_set, n_components).reshape((n_components,) + data_set.shape[1:])
+			print_nmf_results(fig_dir, file_name, 12, 'NMF Main Components', data_set[:n_images], 
+					np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
 
+		train.append(data_set)	
+		train_ref += [classes[i]] * data_set.shape[0]
 
 	for file_name in predict_file_names: 
 
 		data_set = ut.load_npy(data_dir + file_name)
-		predict.append(data_set)	
+		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', data_set[np.random.randint(data_set.shape[0], size=n_images)], 
+					np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
 
-		if mk_nmf:
+		if nmf:
 			"Perform Non-Negative Matrix Factorisation"
-			nmf_components = nmf_analysis(data_set, n_components)
-			print_nmf_results(fig_dir, file_name, 12, 'NMF Main Components', nmf_components[:n_components], 
-					np.sqrt(n_components), np.sqrt(n_components), (data_set.shape[1], data_set.shape[2]))
+			n_components = data_set.shape[1] // 5
+			data_set = nmf_analysis(data_set, n_components).reshape((n_components,) + data_set.shape[1:])
+			print_nmf_results(fig_dir, file_name, 12, 'NMF Main Components', data_set[:n_images], 
+					np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
 
+
+
+		predict.append(data_set)
 
 	try:
-		train_data_set = np.concatenate((train))
-		train_data_labels = np.concatenate((train_ref))
+		if len(train) > 1: train_data_set = np.concatenate((train))
+		else: train_data_set = np.array(train[0])
+		train_data_labels = train_ref
 	except: 
 		train_data_set = None
 		train_data_labels = None
 
-	predict_data_set = np.concatenate((predict))
+	try: predict_data_set = predict
+	except: predict_data_set = None
 
 	"Perform convolutional neural network analysis"
-	convolutional_neural_network_analysis(model_name, model_dir, predict_data_set, data_set=train_data_set, data_labels=train_data_labels, ow_model=ow_mod)
+	convolutional_neural_network_analysis(model_name, model_dir, classes=classes, predict_set=predict_data_set, 
+									data_set=train_data_set, data_labels=train_data_labels, ow_model=ow_mod)

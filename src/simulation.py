@@ -220,7 +220,7 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, param, inc=0.1, thresh=5E-2)
 	return pos, vel
 
 
-def equilibrate_density(pos, vel, cell_dim, param, inc=0.05, thresh=2E-3):
+def equilibrate_density(pos, vel, cell_dim, param, inc=0.5, thresh=2E-3):
 	"""
 	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
 
@@ -285,6 +285,7 @@ def equilibrate_density(pos, vel, cell_dim, param, inc=0.05, thresh=2E-3):
 	P_array = [pressure]
 	kBT_array = [kBT]
 	den = param['n_bead'] / np.prod(cell_dim)
+	param['P_0'] = np.max([pressure, 0])
 
 	step = 1
 	optimising = abs(den - param['density']) > thresh
@@ -332,7 +333,8 @@ def equilibrate_density(pos, vel, cell_dim, param, inc=0.05, thresh=2E-3):
 			kBT_array = [kBT]
 
 			print(" {:12d} | {:>12.4f} | {:>12.4f} | {:>12.4f} | {:>12.4f}".format(step, param['P_0'], av_P, av_kBT, den))
-			if np.sign(den - param['density']) != np.sign(av_P - param['P_0']): param['P_0'] -= (den - param['density']) * inc
+			if np.sign(den - param['density']) != np.sign(av_P - param['P_0']): 
+				param['P_0'] -= (den - param['density']) / param['density'] * inc
 
 		step += 1
 

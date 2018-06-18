@@ -549,8 +549,6 @@ def fibre_vector_analysis(traj, cell_dim, param):
 	#tot_mag = np.zeros((n_image, n_bond))
 	tot_theta = np.zeros((n_image, n_bond))
 
-	print(traj.shape)
-
 	for image, pos in enumerate(traj):
 
 		distances = ut.get_distances(pos.T, cell_dim)
@@ -816,7 +814,7 @@ def analysis(current_dir, input_file_name=False):
 	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name, verbosity=False)
 	fig_name = file_names['gif_file_name'].split('/')[-1]
 
-	keys = ['l_conv', 'res', 'sharp', 'skip']
+	keys = ['l_conv', 'res', 'sharp', 'skip', 'l_sample', 'min_sample']
 	print("\n Analysis Parameters found:")
 	for key in keys: print(" {:<15s} : {}".format(key, param[key]))	
 
@@ -872,15 +870,13 @@ def analysis(current_dir, input_file_name=False):
 
 	"Select Data Set"
 
-	l_sample = 100
-	min_sample = 25
-	area_sample = int(2 * (np.min((l_sample,) + image_shg.shape[1:]) // 2))
+	area_sample = int(2 * (np.min((param['l_sample'],) + image_shg.shape[1:]) // 2))
 
 	"Perform Nematic Tensor Analysis"
 	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
 
 	"Sample average orientational anisotopy"
-	q, n_sample = nematic_tensor_analysis(n_tensor, area_sample, min_sample)
+	q, n_sample = nematic_tensor_analysis(n_tensor, area_sample, param['min_sample'])
 
 	print_anis_results(fig_dir, fig_name, q)
 
