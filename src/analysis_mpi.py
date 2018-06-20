@@ -18,7 +18,7 @@ import sys, os
 from mpi4py import MPI
 
 import utilities as ut
-from analysis import print_thermo_results, print_vector_results, print_anis_results, print_fourier_results, print_nmf_results, form_nematic_tensor, nmf_analysis, make_gif
+from analysis import print_thermo_results, print_vector_results, print_anis_results, print_fourier_results, form_nematic_tensor, make_gif
 import setup
 
 SQRT2 = np.sqrt(2)
