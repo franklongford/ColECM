@@ -13,6 +13,8 @@ import scipy as sp
 
 from sklearn.decomposition import NMF
 from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.image import grid_to_graph
+from sklearn.cluster import AgglomerativeClustering
 
 from keras.models import Model, Sequential, load_model # basic class for specifying and training a neural network
 from keras.layers import Input, Conv2D, MaxPooling2D, Dense, Dropout, Activation, Flatten
@@ -23,7 +25,7 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as plt3d
 import matplotlib.animation as animation
 
-import sys, os, re
+import sys, os, re, time
 
 import utilities as ut
 from analysis import select_samples
@@ -255,6 +257,7 @@ def print_cnn_training_results(history):
 	fig.tight_layout()
 	plt.show()
 
+
 def convolutional_neural_network_analysis(model_name, model_dir, classes=None, predict_set=None, data_set=None, data_labels=None, ow_model=False):
 	"""
 	fourier_transform_analysis(image_shg, area, n_sample)
@@ -311,13 +314,80 @@ def nmf_analysis(data_set, n_components):
 	model = NMF(n_components=n_components, init='random', random_state=0)
 
 	data_set = data_set.reshape(data_set.shape[0], data_set.shape[1] * data_set.shape[2])
+	W = model.fit_transform(data_set)
+	H = model.components_
 
-	model.fit(data_set)
+	"""
+	for data in data_set:
+		W = model.fit_transform(data.reshape(1, data.shape[0] * data.shape[1]))
+		H = model.components_
 
-	nmf_components = model.components_
+		print(H.shape)
 
-	return nmf_components
+		plt.figure(100, figsize=(2. * 2, 2.26 * 2))
+		plt.suptitle("TEST", size=16)
+		vmax = max(data.max(), -data.min())
+		plt.imshow(data, cmap=plt.cm.gray,
+				   interpolation='nearest',
+				   vmin=-vmax, vmax=vmax)
 
+
+		plt.figure(101, figsize=(2. * 2, 2.26 * 2))
+		plt.suptitle("NMF", size=16)
+
+		for i, comp in enumerate(H[:4]):
+			plt.subplot(2, 2, i + 1)
+			vmax = max(comp.max(), -comp.min())
+			plt.imshow(comp.reshape(data.shape), cmap=plt.cm.gray,
+				   interpolation='nearest',
+				   vmin=-vmax, vmax=vmax)
+			plt.xticks(())
+			plt.yticks(())
+
+		plt.subplots_adjust(0.01, 0.05, 0.99, 0.93, 0.04, 0.)
+		plt.show()
+	sys.exit()
+	"""
+	return H
+
+
+def hierarchical_clustering(image_set):
+
+	image = image_set.reshape((image_set.shape[0], image_set.shape[1] * image_set.shape[2]))
+
+	image = sp.misc.imresize(image, 0.10) / 255.
+
+	print(image.shape)
+
+	X = np.reshape(image, (-1, 1))
+
+	connectivity = grid_to_graph(*image.shape)
+
+	# #############################################################################
+	# Compute clustering
+	print("Compute structured hierarchical clustering...")
+	st = time.time()
+	n_clusters = 10  # number of regions
+	ward = AgglomerativeClustering(n_clusters=n_clusters, linkage='ward',
+	                           connectivity=connectivity)
+	ward.fit(X)
+	label = np.reshape(ward.labels_, image.shape)
+	print("Elapsed time: ", time.time() - st)
+	print("Number of pixels: ", label.size)
+	print("Number of clusters: ", np.unique(label).size)
+
+	# #############################################################################
+	# Plot the results on an image
+	plt.figure(figsize=(5, 5))
+	plt.imshow(image, cmap=plt.cm.gray)
+	for l in range(n_clusters):
+		plt.contour(label == l, contours=1,
+	            colors=[plt.cm.spectral(l / float(n_clusters)), ])
+	plt.xticks(())
+	plt.yticks(())
+	plt.show()
+
+	sys.exit()
 
 def learning(current_dir):
 
@@ -341,7 +411,7 @@ def learning(current_dir):
 	predict_file_names = []
 	predict = []
 
-	n_images = 9
+	n_images = 4
 
 	if ('-model' in sys.argv): model_name = sys.argv[sys.argv.index('-model') + 1]
 	else: model_name = 'colecm_cnn_model'
@@ -369,7 +439,7 @@ def learning(current_dir):
 		
 		if nmf:
 			"Perform Non-Negative Matrix Factorisation"
-			n_components = data_set.shape[1] // 5
+			n_components = 4
 			data_set = nmf_analysis(data_set, n_components).reshape((n_components,) + data_set.shape[1:])
 			print_nmf_results(fig_dir, file_name, 12, 'NMF Main Components', data_set[:n_images], 
 					np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
@@ -385,12 +455,10 @@ def learning(current_dir):
 
 		if nmf:
 			"Perform Non-Negative Matrix Factorisation"
-			n_components = data_set.shape[1] // 5
+			n_components = 4
 			data_set = nmf_analysis(data_set, n_components).reshape((n_components,) + data_set.shape[1:])
 			print_nmf_results(fig_dir, file_name, 12, 'NMF Main Components', data_set[:n_images], 
 					np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
-
-
 
 		predict.append(data_set)
 
