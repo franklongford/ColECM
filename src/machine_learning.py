@@ -352,11 +352,9 @@ def nmf_analysis_2(data_set, data_labels, n_components):
 
 	print(data_set.shape)
 
-	model = NMF(n_components=n_components, init='random', random_state=0)
 	n_sample = data_set.shape[0]
 	n_clusters = 2
 
-	H = np.zeros((n_sample, n_components, data_set.shape[1] * data_set.shape[2]))
 	samples = np.random.choice(data_set.shape[0], n_sample)
 	#samples = np.arange(n_sample)
 	labels_true = np.array(data_labels)[samples]
@@ -383,13 +381,11 @@ def nmf_analysis_2(data_set, data_labels, n_components):
 	print(" Silhouette Coefficient: %0.3f \n"
 		% metrics.silhouette_score(sample_set, labels))
 
-	for i, data in enumerate(sample_set):
-		W = model.fit_transform(data.reshape(1, data.shape[0]))
-		H[i] += model.components_
+	model = NMF(n_components=n_components, init='random', random_state=0)
+	W = model.fit_transform(sample_set)
+	H = model.components_
 
-	similarity = np.zeros((n_components, n_sample, n_sample))
 	H = np.moveaxis(H, 0, 1)
-
 
 	for n in range(n_components): H[n] /= np.max(H[n])
 	tot_H = np.concatenate(H, axis=1)
