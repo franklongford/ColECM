@@ -319,10 +319,10 @@ def nmf_analysis(data_set, n_components):
 	W = model.fit_transform(data_set)
 	H = model.components_
 
-	return H
+	return np.dot(W, H)
 
 
-def nmf_analysis_2(data_set, data_labels, n_components):
+def hierarchical_clustering(data_set, data_labels, n_components):
 	"""
 	nmf_analysis(data_set, n_sample)
 
@@ -346,20 +346,17 @@ def nmf_analysis_2(data_set, data_labels, n_components):
 
 	"""
 
-	print("\n Performing NMF Analysis")
+	print("\n Performing Clustering Analysis")
 
 	rng = np.random.RandomState(0)
-
-	print(data_set.shape)
 
 	n_sample = data_set.shape[0]
 	n_clusters = 2
 
-	samples = np.random.choice(data_set.shape[0], n_sample)
-	#samples = np.arange(n_sample)
+	#samples = np.random.choice(data_set.shape[0], n_sample)
+	samples = np.arange(n_sample)
 	labels_true = np.array(data_labels)[samples]
 	sample_set = data_set[samples].reshape(n_sample, data_set.shape[1] * data_set.shape[2])
-
 
 	db = Birch(n_clusters=n_clusters).fit(sample_set/ np.max(sample_set))
 	labels = db.labels_
@@ -368,7 +365,6 @@ def nmf_analysis_2(data_set, data_labels, n_components):
 
 	correct = np.max([np.mean(np.where(labels == labels_true, 1, 0)), np.mean(np.where(labels == (labels_true + 1) % n_clusters, 1, 0))])
 
-	print('\n Original Image')
 	print(' Estimated number of clusters: %d' % n_clusters_)
 	print(" Correct Prediction: {} %".format(100 * correct))
 	print(" Homogeneity: %0.3f" % metrics.homogeneity_score(labels_true, labels))
@@ -381,76 +377,8 @@ def nmf_analysis_2(data_set, data_labels, n_components):
 	print(" Silhouette Coefficient: %0.3f \n"
 		% metrics.silhouette_score(sample_set, labels))
 
-	model = NMF(n_components=n_components, init='random', random_state=0)
-	W = model.fit_transform(sample_set)
-	H = model.components_
+	return sample_set, labels
 
-	H = np.moveaxis(H, 0, 1)
-
-	for n in range(n_components): H[n] /= np.max(H[n])
-	tot_H = np.concatenate(H, axis=1)
-
-	db = Birch(n_clusters=n_clusters).fit(tot_H)
-	labels = db.labels_
-	# Number of clusters in labels, ignoring noise if present.
-	n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
-
-	correct = np.max([np.mean(np.where(labels == labels_true, 1, 0)), np.mean(np.where(labels == (labels_true + 1) % n_clusters, 1, 0))])
-
-	print('\n NMF Image decomposition using {} components'.format(n_components))
-	print(' Estimated number of clusters: %d' % n_clusters_)
-	print(" Correct Prediction: {} %".format(100 * correct))
-	print(" Homogeneity: %0.3f" % metrics.homogeneity_score(labels_true, labels))
-	print(" Completeness: %0.3f" % metrics.completeness_score(labels_true, labels))
-	print(" V-measure: %0.3f" % metrics.v_measure_score(labels_true, labels))
-	print(" Adjusted Rand Index: %0.3f"
-	      % metrics.adjusted_rand_score(labels_true, labels))
-	print(" Adjusted Mutual Information: %0.3f"
-	      % metrics.adjusted_mutual_info_score(labels_true, labels))
-	print(" Silhouette Coefficient: %0.3f \n"
-		% metrics.silhouette_score(tot_H, labels))
-
-	return H
-
-
-
-def hierarchical_clustering(image_set):
-
-	image = image_set.reshape((image_set.shape[0], image_set.shape[1] * image_set.shape[2]))
-
-	image = sp.misc.imresize(image, 0.10) / 255.
-
-	print(image.shape)
-
-	X = np.reshape(image, (-1, 1))
-
-	connectivity = grid_to_graph(*image.shape)
-
-	# #############################################################################
-	# Compute clustering
-	print("Compute structured hierarchical clustering...")
-	st = time.time()
-	n_clusters = 10  # number of regions
-	ward = AgglomerativeClustering(n_clusters=n_clusters, linkage='ward',
-	                           connectivity=connectivity)
-	ward.fit(X)
-	label = np.reshape(ward.labels_, image.shape)
-	print("Elapsed time: ", time.time() - st)
-	print("Number of pixels: ", label.size)
-	print("Number of clusters: ", np.unique(label).size)
-
-	# #############################################################################
-	# Plot the results on an image
-	plt.figure(figsize=(5, 5))
-	plt.imshow(image, cmap=plt.cm.gray)
-	for l in range(n_clusters):
-		plt.contour(label == l, contours=1,
-	            colors=[plt.cm.spectral(l / float(n_clusters)), ])
-	plt.xticks(())
-	plt.yticks(())
-	plt.show()
-
-	sys.exit()
 
 def learning(current_dir):
 
@@ -474,7 +402,7 @@ def learning(current_dir):
 	predict_file_names = []
 	predict = []
 
-	n_images = 4
+	n_images = 9
 
 	if ('-model' in sys.argv): model_name = sys.argv[sys.argv.index('-model') + 1]
 	else: model_name = 'colecm_cnn_model'
@@ -494,37 +422,43 @@ def learning(current_dir):
 			else: break
 	else: classes = np.arange(len(train_file_names))
 
-	if nmf: H = []
-
 	for i, file_name in enumerate(train_file_names): 
-
 		data_set = ut.load_npy(data_dir + file_name)
-		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', data_set[np.random.randint(data_set.shape[0], size=n_images)], 
-					np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
-		"""
-		if nmf:
-			"Perform Non-Negative Matrix Factorisation"
-			n_components = 4
-			H.append(nmf_analysis(data_set, n_components).reshape((n_components,) + data_set.shape[1:]))
-			print_nmf_results(fig_dir, file_name, 12, 'NMF Main Components', H[-1][:n_images], 
-					np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
-		"""
-		
 		train.append(data_set)	
 		train_ref += [classes[i]] * data_set.shape[0]
 
-	"""
-	if nmf:
-		H = np.moveaxis(np.concatenate(H), 0, 1).reshape(n_components, len(train_file_names), data_set.shape[1]*data_set.shape[2])
-	"""	
-
 	for file_name in predict_file_names: 
-
 		data_set = ut.load_npy(data_dir + file_name)
-		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', data_set[np.random.randint(data_set.shape[0], size=n_images)], 
-					np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
-
 		predict.append(data_set)
+
+	image_size = np.min([np.min(data_set.shape[1:]) for data_set in train + predict])
+
+	for i, file_name in enumerate(train_file_names): 
+		train[i] = train[i][:, :image_size, :image_size] 
+		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', train[i][: n_images], 
+					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
+		#"""
+		if nmf:
+			"Perform Non-Negative Matrix Factorisation"
+			n_components = 4
+			train[i] = nmf_analysis(train[i], n_components).reshape(train[i].shape)
+			print_nmf_results(fig_dir, file_name, 12, 'NMF filtered Images', train[i][: n_images], 
+					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
+		#"""
+
+
+	for i, file_name in enumerate(predict_file_names): 
+		predict[i] = predict[i][:, :image_size, :image_size] 
+		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', predict[i][np.random.randint(predict[i].shape[0], size=n_images)], 
+					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
+
+		if nmf:
+			"Perform Non-Negative Matrix Factorisation"
+			n_components = 4
+			predict[i] = nmf_analysis(predict[i], n_components).reshape(predict[i].shape)
+			print_nmf_results(fig_dir, file_name, 12, 'NMF filtered Images', predict[i][: n_images], 
+					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
+
 
 	try:
 		if len(train) > 1: train_data_set = np.concatenate((train))
@@ -537,12 +471,9 @@ def learning(current_dir):
 	try: predict_data_set = predict
 	except: predict_data_set = None
 
-	if nmf:
-		"Perform Non-Negative Matrix Factorisation"
-		n_components = 3
-		nmf_analysis_2(train_data_set, train_data_labels, n_components)
-		#print_nmf_results(fig_dir, file_name, 12, 'NMF Main Components', H[-1][:n_images], 
-		#		np.sqrt(n_images), np.sqrt(n_images), (data_set.shape[1], data_set.shape[2]))
+	"Perform Non-Negative Matrix Factorisation"
+	n_components = 4
+	train_data_set, train_data_labels = hierarchical_clustering(train_data_set, train_data_labels, n_components)
 
 	#"Perform convolutional neural network analysis"
 	#convolutional_neural_network_analysis(model_name, model_dir, classes=classes, predict_set=predict_data_set, 

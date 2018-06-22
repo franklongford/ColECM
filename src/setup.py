@@ -47,7 +47,7 @@ def get_param_defaults():
 			'density' : 0.3,
 			'l_conv' : 1,
 			'res' : 7.5,
-			'sharp' : 1.5,
+			'sharp' : 1,
 			'skip' : 1,
 			'l_sample' : 100,
 			'min_sample' : 25,
@@ -191,6 +191,8 @@ def check_analysis_param(input_list, param=False):
 	if ('-res' in input_list): param['res'] = float(input_list[input_list.index('-res') + 1])
 	if ('-sharp' in input_list): param['sharp'] = float(input_list[input_list.index('-sharp') + 1])
 	if ('-skip' in input_list): param['skip'] = int(input_list[input_list.index('-skip') + 1])
+	if ('-lsample' in input_list): param['l_sample'] = int(input_list[input_list.index('-lsample') + 1])
+	if ('-min_sample' in input_list): param['min_sample'] = int(input_list[input_list.index('-min_sample') + 1])
 
 	return param
 

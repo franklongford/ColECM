@@ -18,7 +18,7 @@ import sys, os
 from mpi4py import MPI
 
 import utilities as ut
-from analysis import print_thermo_results, print_vector_results, print_anis_results, print_fourier_results, form_nematic_tensor, make_gif
+from analysis import print_thermo_results, print_vector_results, print_anis_results, print_fourier_results, form_nematic_tensor, make_gif, select_samples
 import setup
 
 SQRT2 = np.sqrt(2)
@@ -48,9 +48,8 @@ def fibre_vector_analysis_mpi(traj, cell_dim, param, comm, size, rank):
 	"""
 	
 	n_image = traj.shape[0]
-	n_bond = int(np.sum(np.triu(param['bond_matrix'])))
-	bond_index_half = np.argwhere(np.triu(param['bond_matrix']))
-	indices_half = ut.create_index(bond_index_half)
+	bond_indices = np.nonzero(np.triu(param['bond_matrix']))
+	n_bond = bond_indices[0].shape[0]
 	bond_list = np.zeros((param['n_dim'], n_bond))
 
 	tot_mag = np.zeros((n_image, param['n_fibril']))
@@ -63,7 +62,7 @@ def fibre_vector_analysis_mpi(traj, cell_dim, param, comm, size, rank):
 		pos = traj[image]
 
 		distances = ut.get_distances(pos.T, cell_dim)
-		for i in range(param['n_dim']): bond_list[i] = distances[i][indices_half]
+		for i in range(param['n_dim']): bond_list[i] = distances[i][bond_indices]
 
 		bead_vectors = bond_list.T
 		mag_vectors = np.sqrt(np.sum(bead_vectors**2, axis=1))
@@ -423,7 +422,7 @@ def nematic_tensor_analysis_mpi(n_vector, area, min_sample, comm, size, rank, th
 	return tot_q / sample, sample
 
 
-def fourier_transform_analysis_mpi(image_shg, area, n_sample, comm, size, rank):
+def fourier_transform_analysis_mpi(image_shg, comm, size, rank):
 	"""
 	fourier_transform_analysis(image_shg, area, n_sample)
 
@@ -452,15 +451,9 @@ def fourier_transform_analysis_mpi(image_shg, area, n_sample, comm, size, rank):
 
 	"""
 
-	n_frame = image_shg.shape[0]
-	n_y = image_shg.shape[1]
-	n_x = image_shg.shape[2]
+	n_sample = image_shg.shape[0]
 
-	pad = area // 2
-
-	cut_image = image_shg[0, : area, : area]
-
-	image_fft = np.fft.fft2(cut_image)
+	image_fft = np.fft.fft2(image_shg[0])
 	image_fft[0][0] = 0
 	image_fft = np.fft.fftshift(image_fft)
 	average_fft = np.zeros(image_fft.shape, dtype=complex)
@@ -472,20 +465,9 @@ def fourier_transform_analysis_mpi(image_shg, area, n_sample, comm, size, rank):
 	n_bins = fourier_spec.size
 
 	for n in range(rank, n_sample, size):
-
-		try: start_x = np.random.randint(pad, n_x - pad)
-		except: start_x = pad
-		try: start_y = np.random.randint(pad, n_y - pad) 
-		except: start_y = pad
-
-		cut_image = image_shg[:, start_y-pad: start_y+pad, 
-					 start_x-pad: start_x+pad]
-
-		for frame in range(n_frame):
-
-			image_fft = np.fft.fft2(cut_image[frame])
-			image_fft[0][0] = 0
-			average_fft += np.fft.fftshift(image_fft) / (n_frame * n_sample)	
+		image_fft = np.fft.fft2(image_shg[n])
+		image_fft[0][0] = 0
+		average_fft += np.fft.fftshift(image_fft) / n_sample
 
 	average_fft = comm.allreduce(average_fft, op=MPI.SUM)
 
@@ -500,10 +482,12 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 
 
 	sim_dir = current_dir + '/sim/'
-	gif_dir = current_dir + '/gif'
-	fig_dir = current_dir + '/fig'
+	gif_dir = current_dir + '/gif/'
+	fig_dir = current_dir + '/fig/'
+	data_dir = current_dir + '/data/'
 
 	ow_shg = ('-ow_shg' in sys.argv)
+	ow_data = ('-ow_data' in sys.argv)
 	mk_gif = ('-mk_gif' in sys.argv)
 
 	if rank == 0:
@@ -587,21 +571,31 @@ def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
 		dx_shg = comm.bcast(dx_shg, root=0)
 		dy_shg = comm.bcast(dy_shg, root=0)
 
-	
 	fig_name += '_{}_{}'.format(param['res'], param['sharp'])
 
 	"Perform Nematic Tensor Analysis"
 
-	area_sample = int(2 * (np.min((param['l_sample'],) + image_shg.shape[1:]) // 2))
+	area_sample = int(2 * (np.min((int(param['l_sample'] * conv),) + image_shg.shape[1:]) // 2))
 
 	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
 	"Sample average orientational anisotopy"
 	q, n_sample = nematic_tensor_analysis_mpi(n_tensor, area_sample, param['min_sample'], comm, size, rank)
 
-	if rank == 0: print_anis_results(fig_dir, fig_name, q)
+	if rank == 0: 
+		print_anis_results(fig_dir, fig_name, q)
 
+		data_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_data'
+		if not ow_data and os.path.exists(data_file_name): data_set = ut.load_npy(data_dir + data_file_name)
+		else:
+			data_set = select_samples(image_shg, area_sample, n_sample)
+			print("\n Saving {} x {} pixel image data set samples {}".format(area_sample, area_sample, data_file_name))
+			ut.save_npy(data_dir + data_file_name, data_set)
+	else: data_set = None
+
+	data_set = comm.bcast(data_set, root=0)
+	
 	"Perform Fourier Analysis"
-	angles, fourier_spec = fourier_transform_analysis_mpi(image_shg, area_sample, n_sample, comm, size, rank)
+	angles, fourier_spec = fourier_transform_analysis_mpi(data_set, comm, size, rank)
 
 	#angles = angles[len(angles)//2:]
 	#fourier_spec = 2 * fourier_spec[len(fourier_spec)//2:]

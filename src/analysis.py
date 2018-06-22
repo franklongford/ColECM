@@ -141,7 +141,7 @@ def print_fourier_results(fig_dir, fig_name, angles, fourier_spec):
 	plt.xlabel(r'Angle (deg)')
 	plt.ylabel(r'Amplitude')
 	plt.xlim(-180, 180)
-	plt.ylim(0, 0.25)
+	#plt.ylim(0, 0.25)
 	plt.legend()
 	plt.savefig('{}{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
 
@@ -538,7 +538,6 @@ def fibre_vector_analysis(traj, cell_dim, param):
 	"""
 	
 	n_image = traj.shape[0]
-
 	bond_indices = np.nonzero(np.triu(param['bond_matrix']))
 	n_bond = bond_indices[0].shape[0]
 	bond_list = np.zeros((param['n_dim'], n_bond))
@@ -714,7 +713,7 @@ def nematic_tensor_analysis(n_vector, area, min_sample, thresh = 0.05):
 	return tot_q / sample, sample
 	
 
-def fourier_transform_analysis(image_shg, area, n_sample):
+def fourier_transform_analysis(image_shg):
 	"""
 	fourier_transform_analysis(image_shg, area, n_sample)
 
@@ -743,15 +742,9 @@ def fourier_transform_analysis(image_shg, area, n_sample):
 
 	"""
 
-	n_frame = image_shg.shape[0]
-	n_y = image_shg.shape[1]
-	n_x = image_shg.shape[2]
+	n_sample = image_shg.shape[0]
 
-	pad = area // 2
-
-	cut_image = image_shg[0, : area, : area]
-
-	image_fft = np.fft.fft2(cut_image)
+	image_fft = np.fft.fft2(image_shg[0])
 	image_fft[0][0] = 0
 	image_fft = np.fft.fftshift(image_fft)
 	average_fft = np.zeros(image_fft.shape, dtype=complex)
@@ -763,20 +756,9 @@ def fourier_transform_analysis(image_shg, area, n_sample):
 	n_bins = fourier_spec.size
 
 	for n in range(n_sample):
-
-		try: start_x = np.random.randint(pad, n_x - pad)
-		except: start_x = pad
-		try: start_y = np.random.randint(pad, n_y - pad) 
-		except: start_y = pad
-
-		cut_image = image_shg[:, start_y-pad: start_y+pad, 
-					 start_x-pad: start_x+pad]
-
-		for frame in range(n_frame):
-
-			image_fft = np.fft.fft2(cut_image[frame])
-			image_fft[0][0] = 0
-			average_fft += np.fft.fftshift(image_fft) / (n_frame * n_sample)	
+		image_fft = np.fft.fft2(image_shg[n])
+		image_fft[0][0] = 0
+		average_fft += np.fft.fftshift(image_fft) / n_sample	
 
 	for i in range(n_bins):
 		indices = np.where(fft_angle == angles[i])
@@ -869,8 +851,7 @@ def analysis(current_dir, input_file_name=False):
 	fig_name += '_{}_{}'.format(param['res'], param['sharp'])
 
 	"Select Data Set"
-
-	area_sample = int(2 * (np.min((param['l_sample'],) + image_shg.shape[1:]) // 2))
+	area_sample = int(2 * (np.min((int(param['l_sample'] * conv),) + image_shg.shape[1:]) // 2))
 
 	"Perform Nematic Tensor Analysis"
 	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
@@ -888,11 +869,11 @@ def analysis(current_dir, input_file_name=False):
 	if not ow_data and os.path.exists(data_file_name): data_set = ut.load_npy(data_dir + data_file_name)
 	else:
 		data_set = select_samples(image_shg, area_sample, n_sample)
-		print("\n Saving image data set samples {}".format(data_file_name))
+		print("\n Saving {} x {} pixel image data set samples {}".format(area_sample, area_sample, data_file_name))
 		ut.save_npy(data_dir + data_file_name, data_set)
 
 	"Perform Fourier Analysis"
-	angles, fourier_spec = fourier_transform_analysis(image_shg, area_sample, n_sample)
+	angles, fourier_spec = fourier_transform_analysis(data_set)
 	#angles = angles[len(angles)//2:]
 	#fourier_spec = 2 * fourier_spec[len(fourier_spec)//2:]
 	print_fourier_results(fig_dir, fig_name, angles, fourier_spec)
