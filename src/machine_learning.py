@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as plt3d
 import matplotlib.animation as animation
 
-import sys, os, re, time
+import sys, os, re, time,itertools
 
 import utilities as ut
 from analysis import select_samples
@@ -51,7 +51,7 @@ class cnn_model:
 
 	def _init_model(self, classes, image_shape):
 
-		self.classes = list(classes)
+		self.classes = list(np.unique(classes))
 		self.n_classes = len(self.classes)
 		self.class_range = np.arange(self.n_classes)
 		self.image_shape = image_shape
@@ -103,12 +103,12 @@ class cnn_model:
 		self.model = Sequential()
 
 		self.model.add(Conv2D(conv_depth_1, kernel_size, padding='same', activation='relu', input_shape=self.image_shape))
-		#model.add(Conv2D(conv_depth_1, kernel_size, activation='relu'))
+		#self.model.add(Conv2D(conv_depth_1, kernel_size, activation='relu'))
 		self.model.add(MaxPooling2D(pool_size=pool_size))
 		self.model.add(Dropout(drop_prob_1))
 
 		self.model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
-		#model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
+		#self.model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
 		self.model.add(MaxPooling2D(pool_size=pool_size))
 		self.model.add(Dropout(drop_prob_1))
 
@@ -129,9 +129,7 @@ class cnn_model:
 
 		n_sample = data_set.shape[0]
 		try: data_set = data_set.reshape((n_sample,) + self.image_shape)
-		except: 
-			data_set = select_samples(data_set, self.image_shape[0], 1)
-			data_set = data_set.reshape((n_sample,) + self.image_shape)
+		except: data_set = data_set[:, :self.image_shape[0], :self.image_shape[1]]
 
 		data_set /= np.max(data_set)
 
@@ -141,7 +139,7 @@ class cnn_model:
 	def input_training_data(self, data_set, data_labels):
 
 		batch_size = 32 # in each iteration, we consider 32 training examples at once
-		num_epochs = 5 # we iterate 200 times over the entire training set
+		num_epochs = 10 # we iterate 200 times over the entire training set
 
 		classes = np.unique(data_labels)
 		image_shape = data_set.shape[1:] + (1,)
@@ -154,7 +152,7 @@ class cnn_model:
 		(training_set, test_set, training_labels, test_labels) = train_test_split(data_set,
 			data_labels, test_size=0.2, random_state=42)
 
-		#"""
+		"""
 		datagen = ImageDataGenerator(rotation_range=20)
 
 		# compute quantities required for featurewise normalization
@@ -189,7 +187,7 @@ class cnn_model:
 
 def print_cnn_samples(fig_dir, fig_name, n, title, images, n_col, n_row, image_shape):
 
-	print('\n Creating CNN Gallery {}/{}_cnn.png'.format(fig_dir, fig_name))
+	print('\n Creating CNN Gallery {}{}_cnn.png'.format(fig_dir, fig_name))
 
 	plt.figure(n, figsize=(2. * n_col, 2.26 * n_row))
 	plt.suptitle(title, size=16)
@@ -210,7 +208,7 @@ def print_cnn_samples(fig_dir, fig_name, n, title, images, n_col, n_row, image_s
 
 def print_nmf_results(fig_dir, fig_name, n, title, images, n_col, n_row, image_shape):
 
-	print('\n Creating NMF Gallery {}/{}_nmf.png'.format(fig_dir, fig_name))
+	print('\n Creating NMF Gallery {}{}_nmf.png'.format(fig_dir, fig_name))
 
 	plt.figure(n, figsize=(2. * n_col, 2.26 * n_row))
 	plt.suptitle(title, size=16)
@@ -322,7 +320,7 @@ def nmf_analysis(data_set, n_components):
 	return np.dot(W, H)
 
 
-def hierarchical_clustering(data_set, data_labels, n_components):
+def hierarchical_clustering(data_set, data_labels, n_clusters, classes):
 	"""
 	nmf_analysis(data_set, n_sample)
 
@@ -351,11 +349,10 @@ def hierarchical_clustering(data_set, data_labels, n_components):
 	rng = np.random.RandomState(0)
 
 	n_sample = data_set.shape[0]
-	n_clusters = 2
 
-	#samples = np.random.choice(data_set.shape[0], n_sample)
-	samples = np.arange(n_sample)
-	labels_true = np.array(data_labels)[samples]
+	samples = np.random.choice(data_set.shape[0], n_sample)
+	#samples = np.arange(n_sample)
+	labels_true = np.array([classes.index(label) for label in data_labels])[samples]
 	sample_set = data_set[samples].reshape(n_sample, data_set.shape[1] * data_set.shape[2])
 
 	db = Birch(n_clusters=n_clusters).fit(sample_set/ np.max(sample_set))
@@ -363,7 +360,20 @@ def hierarchical_clustering(data_set, data_labels, n_components):
 	# Number of clusters in labels, ignoring noise if present.
 	n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
 
-	correct = np.max([np.mean(np.where(labels == labels_true, 1, 0)), np.mean(np.where(labels == (labels_true + 1) % n_clusters, 1, 0))])
+	scores = []
+
+	labels = np.array(labels)
+	new_labels = []
+
+	for item in itertools.permutations(np.arange(n_clusters)):
+		new_labels.append(np.copy(labels))
+		for i, n in enumerate(item):
+			indices = np.argwhere(labels == n) 
+			new_labels[-1][indices] = i
+		scores.append(np.mean(np.where(new_labels[-1] == labels_true, 1, 0)))
+
+	correct = np.max(scores)
+	labels = new_labels[np.argmax(scores)]
 
 	print(' Estimated number of clusters: %d' % n_clusters_)
 	print(" Correct Prediction: {} %".format(100 * correct))
@@ -377,8 +387,27 @@ def hierarchical_clustering(data_set, data_labels, n_components):
 	print(" Silhouette Coefficient: %0.3f \n"
 		% metrics.silhouette_score(sample_set, labels))
 
-	return sample_set, labels
+	return sample_set.reshape(n_sample, data_set.shape[1], data_set.shape[2]), [classes[i] for i in labels]
 
+
+def get_data_set(file_names, fig_dir, data_list, image_size, n_images, nmf=False):
+
+
+	for i, file_name in enumerate(file_names):
+		data_list[i] = select_samples(data_list[i], image_size, 1)
+		samples = np.random.choice(data_list[i].shape[0], n_images)
+		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', data_list[i][samples], 
+					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
+		#"""
+		if nmf:
+			"Perform Non-Negative Matrix Factorisation"
+			n_components = 2
+			data_list[i] = nmf_analysis(data_list[i], n_components).reshape(data_list[i].shape)
+			print_nmf_results(fig_dir, file_name, 12, 'NMF filtered Images', data_list[i][samples], 
+					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
+		#"""
+
+	return data_list
 
 def learning(current_dir):
 
@@ -386,8 +415,9 @@ def learning(current_dir):
 	fig_dir = current_dir + '/fig/'
 	model_dir = current_dir + '/model/'
 
-	ow_mod = ('-ow_mod' in sys.argv)
+	ow_mod = ('-ow_model' in sys.argv)
 	nmf = ('-nmf' in sys.argv)
+	cluster = ('-cluster' in sys.argv)
 
 	print("\n " + " " * 5 + "----Beginning Machine Learning Analysis----\n")
 	print("\n Algorithms used:\n Non-Negative Matrix Factorisation from scikit_learn library\n Convoluted Neural Network from keras library\n")
@@ -402,7 +432,7 @@ def learning(current_dir):
 	predict_file_names = []
 	predict = []
 
-	n_images = 9
+	n_images = 16
 
 	if ('-model' in sys.argv): model_name = sys.argv[sys.argv.index('-model') + 1]
 	else: model_name = 'colecm_cnn_model'
@@ -422,43 +452,27 @@ def learning(current_dir):
 			else: break
 	else: classes = np.arange(len(train_file_names))
 
-	for i, file_name in enumerate(train_file_names): 
+	for i, file_name in enumerate(train_file_names):
 		data_set = ut.load_npy(data_dir + file_name)
+		print(" Data set {} imported, sample size: {}".format(file_name, data_set.shape[0]))
 		train.append(data_set)	
 		train_ref += [classes[i]] * data_set.shape[0]
 
+	print(" Training data set loaded, contains {} samples\n".format(np.sum([data_set.shape[0] for data_set in train])))
+
 	for file_name in predict_file_names: 
 		data_set = ut.load_npy(data_dir + file_name)
+		print(" Data set {} imported, sample size: {}".format(file_name, data_set.shape[0]))
 		predict.append(data_set)
 
+	print(" Prediction data set loaded, contains {} samples\n".format(np.sum([data_set.shape[0] for data_set in predict])))
+
 	image_size = np.min([np.min(data_set.shape[1:]) for data_set in train + predict])
+	#image_size = 150
+	print("\n Sample image size = {} x {} pixels\n".format(image_size, image_size))
 
-	for i, file_name in enumerate(train_file_names): 
-		train[i] = train[i][:, :image_size, :image_size] 
-		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', train[i][: n_images], 
-					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
-		#"""
-		if nmf:
-			"Perform Non-Negative Matrix Factorisation"
-			n_components = 4
-			train[i] = nmf_analysis(train[i], n_components).reshape(train[i].shape)
-			print_nmf_results(fig_dir, file_name, 12, 'NMF filtered Images', train[i][: n_images], 
-					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
-		#"""
-
-
-	for i, file_name in enumerate(predict_file_names): 
-		predict[i] = predict[i][:, :image_size, :image_size] 
-		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', predict[i][np.random.randint(predict[i].shape[0], size=n_images)], 
-					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
-
-		if nmf:
-			"Perform Non-Negative Matrix Factorisation"
-			n_components = 4
-			predict[i] = nmf_analysis(predict[i], n_components).reshape(predict[i].shape)
-			print_nmf_results(fig_dir, file_name, 12, 'NMF filtered Images', predict[i][: n_images], 
-					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
-
+	train = get_data_set(train_file_names, fig_dir, train, image_size, n_images, nmf)
+	predict = get_data_set(predict_file_names, fig_dir, predict, image_size, n_images, nmf)
 
 	try:
 		if len(train) > 1: train_data_set = np.concatenate((train))
@@ -471,10 +485,12 @@ def learning(current_dir):
 	try: predict_data_set = predict
 	except: predict_data_set = None
 
-	"Perform Non-Negative Matrix Factorisation"
-	n_components = 4
-	train_data_set, train_data_labels = hierarchical_clustering(train_data_set, train_data_labels, n_components)
+	classes = list(np.unique(classes))
 
-	#"Perform convolutional neural network analysis"
-	#convolutional_neural_network_analysis(model_name, model_dir, classes=classes, predict_set=predict_data_set, 
-	#								data_set=train_data_set, data_labels=train_data_labels, ow_model=ow_mod)
+	"Perform Non-Negative Matrix Factorisation"
+	n_clusters = len(classes)
+	if cluster: hierarchical_clustering(train_data_set, train_data_labels, n_clusters, classes)
+
+	"Perform convolutional neural network analysis"
+	convolutional_neural_network_analysis(model_name, model_dir, classes=classes, predict_set=predict_data_set, 
+									data_set=train_data_set, data_labels=train_data_labels, ow_model=ow_mod)
