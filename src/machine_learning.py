@@ -42,7 +42,7 @@ class cnn_model:
 		self.model_path = model_path
 
 		try: self.load_model()
-		except:
+		except IOError:
 			try: self._init_model(classes, image_shape)
 			except: 
 				self.model = None
@@ -71,6 +71,7 @@ class cnn_model:
 	def load_model(self):
 
 		self.model = load_model(self.model_path)
+
 		param = pickle.load(open(self.model_path + '.pkl', 'rb'))
 
 		self.model_path = param['model_path']
@@ -96,6 +97,8 @@ class cnn_model:
 		pool_size = (2, 2) # we will use 2x2 pooling throughout
 		conv_depth_1 = 32 # we will initially have 32 kernels per conv. layer...
 		conv_depth_2 = 64 # ...switching to 64 after the first pooling layer
+		conv_depth_3 = 128
+		conv_depth_4 = 256 
 		drop_prob_1 = 0.25 # dropout after pooling with probability 0.25
 		drop_prob_2 = 0.5 # dropout in the FC layer with probability 0.5
 		hidden_size = 512 # the FC layer will have 512 neurons
@@ -103,19 +106,19 @@ class cnn_model:
 		self.model = Sequential()
 
 		self.model.add(Conv2D(conv_depth_1, kernel_size, padding='same', activation='relu', input_shape=self.image_shape))
-		#self.model.add(Conv2D(conv_depth_1, kernel_size, activation='relu'))
+		self.model.add(Conv2D(conv_depth_1, kernel_size, activation='relu'))
 		self.model.add(MaxPooling2D(pool_size=pool_size))
-		self.model.add(Dropout(drop_prob_1))
+		self.model.add(Dropout(drop_prob_2))
 
 		self.model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
-		#self.model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
+		self.model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
 		self.model.add(MaxPooling2D(pool_size=pool_size))
 		self.model.add(Dropout(drop_prob_1))
 
-		#self.model.add(Conv2D(conv_depth_2, kernel_size, padding='same', activation='relu'))
-		#model.add(Conv2D(conv_depth_2, kernel_size, activation='relu'))
-		#self.model.add(MaxPooling2D(pool_size=pool_size))
-		#self.model.add(Dropout(drop_prob_1))
+		self.model.add(Conv2D(conv_depth_3, kernel_size, padding='same', activation='relu'))
+		self.model.add(Conv2D(conv_depth_3, kernel_size, activation='relu'))
+		self.model.add(MaxPooling2D(pool_size=pool_size))
+		self.model.add(Dropout(drop_prob_1))
 
 		self.model.add(Flatten())
 		self.model.add(Dense(hidden_size, activation='relu'))
@@ -128,6 +131,7 @@ class cnn_model:
 	def format_data(self, data_set):
 
 		n_sample = data_set.shape[0]
+
 		try: data_set = data_set.reshape((n_sample,) + self.image_shape)
 		except: data_set = data_set[:, :self.image_shape[0], :self.image_shape[1]]
 
@@ -139,7 +143,7 @@ class cnn_model:
 	def input_training_data(self, data_set, data_labels):
 
 		batch_size = 32 # in each iteration, we consider 32 training examples at once
-		num_epochs = 10 # we iterate 200 times over the entire training set
+		num_epochs = 5 # we iterate 200 times over the entire training set
 
 		classes = np.unique(data_labels)
 		image_shape = data_set.shape[1:] + (1,)
@@ -147,10 +151,10 @@ class cnn_model:
 		if self.model is None: self._init_model(classes, image_shape)
 
 		data_set = self.format_data(data_set)
-		data_labels = to_categorical([self.classes.index(label) for label in data_labels], num_classes=self.n_classes)
+		one_hot_labels = to_categorical([self.classes.index(label) for label in data_labels], num_classes=self.n_classes)
 
 		(training_set, test_set, training_labels, test_labels) = train_test_split(data_set,
-			data_labels, test_size=0.2, random_state=42)
+			one_hot_labels, test_size=0.2, random_state=42)
 
 		"""
 		datagen = ImageDataGenerator(rotation_range=20)
@@ -394,20 +398,21 @@ def get_data_set(file_names, fig_dir, data_list, image_size, n_images, nmf=False
 
 
 	for i, file_name in enumerate(file_names):
-		data_list[i] = select_samples(data_list[i], image_size, 1)
+		data_list[i], _ = select_samples(data_list[i], image_size, 1)
 		samples = np.random.choice(data_list[i].shape[0], n_images)
-		print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', data_list[i][samples], 
-					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
+		#print_cnn_samples(fig_dir, file_name, 12, 'CNN Sample Selection', data_list[i][samples], 
+		#			np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
 		#"""
 		if nmf:
 			"Perform Non-Negative Matrix Factorisation"
 			n_components = 2
 			data_list[i] = nmf_analysis(data_list[i], n_components).reshape(data_list[i].shape)
-			print_nmf_results(fig_dir, file_name, 12, 'NMF filtered Images', data_list[i][samples], 
-					np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
+		#	print_nmf_results(fig_dir, file_name, 12, 'NMF filtered Images', data_list[i][samples], 
+		#			np.sqrt(n_images), np.sqrt(n_images), (image_size, image_size))
 		#"""
 
 	return data_list
+
 
 def learning(current_dir):
 
@@ -451,17 +456,24 @@ def learning(current_dir):
 			if not re.match('-', arg): classes.append(arg)
 			else: break
 	else: classes = np.arange(len(train_file_names))
+	anis = ('-anis' in sys.argv)
+
+	print(anis)
+	
 
 	for i, file_name in enumerate(train_file_names):
-		data_set = ut.load_npy(data_dir + file_name)
+		data_set = ut.load_npy(data_dir + file_name + '_data')
 		print(" Data set {} imported, sample size: {}".format(file_name, data_set.shape[0]))
-		train.append(data_set)	
-		train_ref += [classes[i]] * data_set.shape[0]
+		train.append(data_set)
+		if anis:	
+			anis_data = ut.load_npy(data_dir + file_name + '_anis')
+			train_ref += [anis_data]
+		else: train_ref += [classes[i] * data_set.shape[0]]
 
 	print(" Training data set loaded, contains {} samples\n".format(np.sum([data_set.shape[0] for data_set in train])))
 
 	for file_name in predict_file_names: 
-		data_set = ut.load_npy(data_dir + file_name)
+		data_set = ut.load_npy(data_dir + file_name + '_data')
 		print(" Data set {} imported, sample size: {}".format(file_name, data_set.shape[0]))
 		predict.append(data_set)
 
@@ -477,7 +489,14 @@ def learning(current_dir):
 	try:
 		if len(train) > 1: train_data_set = np.concatenate((train))
 		else: train_data_set = np.array(train[0])
-		train_data_labels = train_ref
+		if anis: 
+			train_data_labels = np.concatenate((train_ref))
+			hist, bin_edges = np.histogram(train_data_labels, bins=5, density=True)
+			train_data_labels = np.digitize(train_data_labels, bin_edges[:-1])
+			classes = list(np.unique(train_data_labels))
+		else: 
+			train_data_labels = train_ref
+			classes = list(np.unique(classes))
 	except: 
 		train_data_set = None
 		train_data_labels = None
@@ -485,12 +504,10 @@ def learning(current_dir):
 	try: predict_data_set = predict
 	except: predict_data_set = None
 
-	classes = list(np.unique(classes))
-
 	"Perform Non-Negative Matrix Factorisation"
 	n_clusters = len(classes)
 	if cluster: hierarchical_clustering(train_data_set, train_data_labels, n_clusters, classes)
 
 	"Perform convolutional neural network analysis"
-	convolutional_neural_network_analysis(model_name, model_dir, classes=classes, predict_set=predict_data_set, 
-									data_set=train_data_set, data_labels=train_data_labels, ow_model=ow_mod)
+	#convolutional_neural_network_analysis(model_name, model_dir, classes=classes, predict_set=predict_data_set, 
+	#								data_set=train_data_set, data_labels=train_data_labels, ow_model=ow_mod)

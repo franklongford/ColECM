@@ -1,7 +1,8 @@
 PYTHON=python
 PIP=pip
 
-BIN=~/.conda/envs/python_3/bin/ "Enter binary folder here"
+#BIN=~/.conda/envs/python_3/bin/ "Enter binary folder here"
+BIN=~/miniconda3/envs/python_3/bin/ "Enter binary folder here"
 
 NAME=ColECM
 NAME_MPI=ColECM_mpi
@@ -31,7 +32,7 @@ install_mpi:
 	@echo
 	@echo "Installing ColECM"
 	@echo
-	@$(PIP) install -r requirements.txt
+	@$(PIP) install -r requirements_mpi.txt
 	@$(PYTHON) make.py install_mpi $(NAME_MPI) $(BIN) || (echo "Installation failed"; exit 1)
 
 test:

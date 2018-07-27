@@ -625,6 +625,8 @@ def select_samples(full_set, area, n_sample):
 
 	pad = area // 2
 
+	indices = np.zeros((n_sample, 2), dtype=int)
+
 	for n in range(n_sample):
 
 		try: start_x = np.random.randint(pad, n_x - pad)
@@ -632,13 +634,16 @@ def select_samples(full_set, area, n_sample):
 		try: start_y = np.random.randint(pad, n_y - pad) 
 		except: start_y = pad
 
+		indices[n][0] = start_x
+		indices[n][1] = start_y
+
 		data_set[n] = full_set[:, start_y-pad: start_y+pad, 
 					  start_x-pad: start_x+pad]
 
-	return data_set.reshape(n_sample * n_frame, area, area)
+	return data_set.reshape(n_sample * n_frame, area, area), indices
 
 
-def nematic_tensor_analysis(n_vector, area, min_sample, thresh = 0.05):
+def nematic_tensor_analysis(n_vector, n_sample):
 	"""
 	nematic_tensor_analysis(n_vector, area, n_frame, n_sample)
 
@@ -664,6 +669,17 @@ def nematic_tensor_analysis(n_vector, area, min_sample, thresh = 0.05):
 
 	av_eigvec:  array_like (float); shape=(n_frame, n_sample, 2, 2)
 		Eigenvectors of average nematic tensors for n_sample areas
+
+	"""
+
+	tot_q = np.zeros(n_sample)
+
+	for n in range(n_sample):
+		av_n = np.reshape(np.mean(n_vector[n], axis=(1, 2)), (2, 2))
+		eig_val, eig_vec = np.linalg.eigh(av_n)
+		tot_q[n] += (eig_val.T[1] - eig_val.T[0])
+
+	return tot_q
 
 	"""
 
@@ -711,7 +727,7 @@ def nematic_tensor_analysis(n_vector, area, min_sample, thresh = 0.05):
 		sample += 1
 
 	return tot_q / sample, sample
-	
+	"""
 
 def fourier_transform_analysis(image_shg):
 	"""
@@ -806,7 +822,6 @@ def analysis(current_dir, input_file_name=False):
 	tot_energy *= param['l_fibril'] / param['n_bead']
 	print_thermo_results(fig_dir, fig_name, tot_energy, tot_temp, tot_press)
 
-
 	print("\n Loading trajectory file {}{}.npy".format(sim_dir, file_names['traj_file_name']))
 	tot_pos = ut.load_npy(sim_dir + file_names['traj_file_name'])
 
@@ -853,24 +868,41 @@ def analysis(current_dir, input_file_name=False):
 	"Select Data Set"
 	area_sample = int(2 * (np.min((int(param['l_sample'] * conv),) + image_shg.shape[1:]) // 2))
 
+	data_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_data'
+	if not ow_data and os.path.exists(data_file_name): 
+		data_set = ut.load_npy(data_dir + data_file_name)
+		dx_shg, dy_shg = ut.load_npy(data_dir + data_file_name + '_dxdy')
+	else:
+		data_set, indices = select_samples(image_shg, area_sample, param['min_sample'])
+		print("\n Saving {} x {} pixel image data set samples {}".format(area_sample, area_sample, data_file_name))
+		ut.save_npy(data_dir + data_file_name, data_set)
+
+		pad = area_sample // 2
+		dx_shg_set = np.zeros((param['min_sample'], n_frame, area_sample, area_sample))
+		dy_shg_set = np.zeros((param['min_sample'], n_frame, area_sample, area_sample))
+
+		for n in range(param['min_sample']):
+			dx_shg_set[n] = dx_shg[:, indices[n][1]-pad: indices[n][1]+pad, 
+						  	indices[n][0]-pad: indices[n][0]+pad]
+			dy_shg_set[n] = dy_shg[:, indices[n][1]-pad: indices[n][1]+pad, 
+						  		indices[n][0]-pad: indices[n][0]+pad]
+
+		dx_shg_set = dx_shg_set.reshape(data_set.shape)
+		dy_shg_set = dy_shg_set.reshape(data_set.shape)
+
+		ut.save_npy(data_dir + data_file_name + '_dxdy', np.array((dx_shg_set, dy_shg_set)))
+
 	"Perform Nematic Tensor Analysis"
-	n_tensor = form_nematic_tensor(dx_shg, dy_shg)
+	n_tensor = form_nematic_tensor(dx_shg_set, dy_shg_set)
 
 	"Sample average orientational anisotopy"
-	q, n_sample = nematic_tensor_analysis(n_tensor, area_sample, param['min_sample'])
+	q  = nematic_tensor_analysis(n_tensor, data_set.shape[0])
 
 	print_anis_results(fig_dir, fig_name, q)
 
 	anis_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_anis'
 	print(" Saving anisotropy file {}".format(anis_file_name))
-	ut.save_npy(sim_dir + anis_file_name, q)
-
-	data_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_data'
-	if not ow_data and os.path.exists(data_file_name): data_set = ut.load_npy(data_dir + data_file_name)
-	else:
-		data_set = select_samples(image_shg, area_sample, n_sample)
-		print("\n Saving {} x {} pixel image data set samples {}".format(area_sample, area_sample, data_file_name))
-		ut.save_npy(data_dir + data_file_name, data_set)
+	ut.save_npy(data_dir + anis_file_name, q)
 
 	"Perform Fourier Analysis"
 	angles, fourier_spec = fourier_transform_analysis(data_set)
