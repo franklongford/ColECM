@@ -14,14 +14,13 @@ System must have working versions of Python and pip for python >= 3.0. Installat
 
 Users are encouranged to use a ``conda`` environment in order to manage thier installation (either via ``anaconda`` or ``miniconda``).
 
-enter the ``ColECM`` directory
+1) enter the ``ColECM`` directory
 
-type ``make``
+2) type ``make``
 
 For parallel version:
 
-type ``make install_mpi``
-
+3) type ``make install_mpi``
 
 NB - due to implementation, SERIAL version will ALWAYS BE FASTER than MPI running on 1 NODE
 
