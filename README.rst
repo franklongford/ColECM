@@ -10,13 +10,17 @@ Simulation code designed to reproduce second harmonic generation (SHG) images of
 Installation:
 -------------
 
-run ``make``
+System must have working versions of Python and pip for python >= 3.0. Installation will check for common executables (``python, python3``) - please edit ``PYTHON`` and ``PIP`` macros on Makefile if local installations are named differently. Parallel version also requires Open MPI compilers.
 
-Note: system must have working versions of Python and pip for python >= 3.0. Installation will check for common executables (``python, python3``) - please edit ``PYTHON`` and ``PIP`` macros on Makefile if local installations are named differently.
+Users are encouranged to use a ``conda`` environment in order to manage thier installation (either via ``anaconda`` or ``miniconda``).
+
+enter the ``ColECM`` directory
+
+type ``make``
 
 For parallel version:
 
-run ``make install_mpi``
+type ``make install_mpi``
 
 
 NB - due to implementation, SERIAL version will ALWAYS BE FASTER than MPI running on 1 NODE
