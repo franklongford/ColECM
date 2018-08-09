@@ -508,8 +508,8 @@ def create_pos_array(param):
 	while bead < param['l_fibril']:
 		try:
 
-			param['bond_matrix'] = bond_matrix[[slice(0, bead+1) for _ in bond_matrix.shape]]
-			param['vdw_matrix'] = vdw_matrix[[slice(0, bead+1) for _ in vdw_matrix.shape]]
+			param['bond_matrix'] = bond_matrix[0:bead+1, 0:bead+1]
+			param['vdw_matrix'] = vdw_matrix[0:bead+1, 0:bead+1]
 
 			init_pos[bead] = grow_fibril(bead, init_pos[ : bead+1], param)
 			bead += 1

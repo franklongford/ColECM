@@ -15,8 +15,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../s
 import utilities as ut
 import simulation as sim
 import setup
-import sim_tools_2D as sim_2D
-import sim_tools_3D as sim_3D
+
+from sim_tools_2D import cos_sin_theta as cos_sin_theta_2D
+from sim_tools_2D import calc_energy_forces as calc_energy_forces_2D
+from sim_tools_3D import cos_sin_theta as cos_sin_theta_3D
+from sim_tools_3D import calc_energy_forces as calc_energy_forces_3D
 
 
 THRESH = 1E-7
@@ -154,7 +157,7 @@ def test_cos_sin_theta():
 	"Find |rij| values for each vector"
 	r_vector = np.sqrt(np.sum(vector**2, axis=1))
 
-	cos_the, sin_the, _ = sim_2D.cos_sin_theta(vector, r_vector)
+	cos_the, sin_the, _ = cos_sin_theta_2D(vector, r_vector)
 	check_sin_the = np.array([-0.39291528])
 
 	assert abs(np.sum(cos_the - 0.91957468)) <= THRESH
@@ -169,7 +172,7 @@ def test_cos_sin_theta():
 	"Find |rij| values for each vector"
 	r_vector = np.sqrt(np.sum(vector**2, axis=1))
 
-	cos_the, sin_the, _ = sim_3D.cos_sin_theta(vector, r_vector)
+	cos_the, sin_the, _ = cos_sin_theta_3D(vector, r_vector)
 	check_sin_the = np.array([[-0.48198494, -0.09796533, -0.36466797]])
 
 	assert abs(np.sum(cos_the - 0.79063936)) <= THRESH
@@ -191,7 +194,7 @@ def test_pot_energy_frc():
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
 	param['angle_array'] = np.ones(angle_indices.shape[0]) * param['angle_k0']
 
-	frc, pot_energy, virial_tensor = sim_2D.calc_energy_forces(pos_2D, cell_dim_2D, bond_indices, angle_indices, angle_bond_indices, param)
+	frc, pot_energy, virial_tensor = calc_energy_forces_2D(pos_2D, cell_dim_2D, bond_indices, angle_indices, angle_bond_indices, param)
 
 	check_frc = np.array([[ 12277.59052347,  -6225.74404829],
  			      [ 41.48708925,  -1095.43380772],
@@ -204,7 +207,7 @@ def test_pot_energy_frc():
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(bond_matrix)
 
-	frc, pot_energy, virial_tensor = sim_3D.calc_energy_forces(pos_3D, cell_dim_3D, bond_indices, angle_indices, angle_bond_indices, param)
+	frc, pot_energy, virial_tensor = calc_energy_forces_3D(pos_3D, cell_dim_3D, bond_indices, angle_indices, angle_bond_indices, param)
 
 	check_frc = np.array([[  23.97941507,  770.44703468, -238.8615784 ],
  			      [  27.2045763,  -777.5797729,   172.30544761],

@@ -75,6 +75,7 @@ def print_thermo_results(fig_dir, fig_name, tot_energy, tot_temp, tot_press):
 	plt.xlabel(r'Pressure')
 	plt.legend()
 	plt.savefig(fig_dir + fig_name + '_press_hist.png', bbox_inches='tight')
+	plt.close('all')
 
 
 def print_vector_results(fig_dir, fig_name, param, tot_mag, tot_theta):
@@ -102,6 +103,7 @@ def print_vector_results(fig_dir, fig_name, param, tot_mag, tot_theta):
 	plt.xlim(-180, 180)
 	plt.legend()
 	plt.savefig('{}{}_vec_ang_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.close('all')
 
 
 def print_anis_results(fig_dir, fig_name, q):
@@ -126,13 +128,15 @@ def print_anis_results(fig_dir, fig_name, q):
 	plt.xlim(0, 1)
 	plt.legend()
 	plt.savefig('{}{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.close('all')
 
 
-def print_fourier_results(fig_dir, fig_name, angles, fourier_spec):
+def print_fourier_results(fig_dir, fig_name, angles, fourier_spec, sdi):
 
 	print('\n Modal Fourier Amplitude  = {:>6.4f}'.format(angles[np.argmax(fourier_spec)]))
 	print(' Fourier Amplitudes Range   = {:>6.4f}'.format(np.max(fourier_spec)-np.min(fourier_spec)))
 	print(' Fourier Amplitudes Std Dev = {:>6.4f}'.format(np.std(fourier_spec)))
+	print(' Fourier Mean SDI = {:>6.4f}'.format(np.mean(sdi)))
 
 	print(' Creating Fouier Angle Spectrum figure {}{}_fourier.png'.format(fig_dir, fig_name))
 	plt.figure(11)
@@ -144,6 +148,16 @@ def print_fourier_results(fig_dir, fig_name, angles, fourier_spec):
 	#plt.ylim(0, 0.25)
 	plt.legend()
 	plt.savefig('{}{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	plt.figure(12)
+	plt.title('Fourier SDI')
+	plt.plot(sdi, label=fig_name)
+	plt.xlabel(r'step')
+	plt.ylabel(r'SDI')
+	plt.legend()
+	plt.savefig('{}{}_sdi.png'.format(fig_dir, fig_name), bbox_inches='tight')
+
+	plt.close('all')
 
 
 def create_image(pos, std, n_xyz, r):
@@ -643,16 +657,16 @@ def select_samples(full_set, area, n_sample):
 	return data_set.reshape(n_sample * n_frame, area, area), indices
 
 
-def nematic_tensor_analysis(n_vector, n_sample):
+def nematic_tensor_analysis(nem_vector):
 	"""
-	nematic_tensor_analysis(n_vector, area, n_frame, n_sample)
+	nematic_tensor_analysis(nem_vector)
 
 	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
 
 	Parameters
 	----------
 
-	n_vector:  array_like (float); shape(n_frame, n_y, n_x, 4)
+	nem_vector:  array_like (float); shape(n_frame, n_y, n_x, 4)
 		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)
 
 	area:  int
@@ -672,62 +686,88 @@ def nematic_tensor_analysis(n_vector, n_sample):
 
 	"""
 
+	n_sample = nem_vector.shape[0]
 	tot_q = np.zeros(n_sample)
 
 	for n in range(n_sample):
-		av_n = np.reshape(np.mean(n_vector[n], axis=(1, 2)), (2, 2))
+		av_n = np.reshape(np.mean(nem_vector[n], axis=(1, 2)), (2, 2))
 		eig_val, eig_vec = np.linalg.eigh(av_n)
 		tot_q[n] += (eig_val.T[1] - eig_val.T[0])
 
 	return tot_q
 
+
+def smart_nematic_tensor_analysis(nem_vector, precision=1E-1):
+	"""
+	nematic_tensor_analysis(nem_vector)
+
+	Calculates eigenvalues and eigenvectors of average nematic tensor over area^2 pixels for n_samples
+
+	Parameters
+	----------
+
+	nem_vector:  array_like (float); shape(n_frame, n_y, n_x, 4)
+		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)
+
+	area:  int
+		Unit length of sample area
+
+	n_sample:  int
+		Number of randomly selected areas to sample
+
+	Returns
+	-------
+
+	av_eigval:  array_like (float); shape=(n_frame, n_sample, 2)
+		Eigenvalues of average nematic tensors for n_sample areas
+
+	av_eigvec:  array_like (float); shape=(n_frame, n_sample, 2, 2)
+		Eigenvectors of average nematic tensors for n_sample areas
+
 	"""
 
-	n_frame = n_vector.shape[0]
-	n_y = n_vector.shape[2]
-	n_x = n_vector.shape[3]
+	n_sample = nem_vector.shape[0]
+	tot_q = np.zeros(n_sample)
+	map_shape = nem_vector.shape[2:]
 
-	tot_q = np.zeros(n_frame)
-	av_q = []
+	def rec_search(nem_vector, q):
 
-	pad = int(area / 2 - 1)
+		image_shape = q.shape
+		if image_shape[0] <= 2: return q
 
-	analysing = True
-	sample = 1
+		for i in range(2):
+			for j in range(2):
+				vec_section = nem_vector[:,
+									i * image_shape[0] // 2 : (i+1) * image_shape[0] // 2,
+									j * image_shape[1] // 2 : (j+1) * image_shape[1] // 2 ]
+				q_section = q[i * image_shape[0] // 2 : (i+1) * image_shape[0] // 2,
+							j * image_shape[1] // 2 : (j+1) * image_shape[1] // 2]
 
-	while analysing:
+				av_n = np.reshape(np.mean(vec_section, axis=(1, 2)), (2, 2))
+				eig_val, eig_vec = np.linalg.eigh(av_n)
+				new_q = (eig_val.T[1] - eig_val.T[0])
+				old_q = np.mean(q_section)
 
-		av_eigval = np.zeros((n_frame, 2))
-		av_eigvec = np.zeros((n_frame, 2, 2))
+				if abs(new_q - old_q) >= precision: q_section = rec_search(vec_section, q_section)
+				else: q_section = np.ones(vec_section.shape[1:]) * new_q
 
-		try: start_x = np.random.randint(pad, n_x - pad)
-		except: start_x = pad
-		try: start_y = np.random.randint(pad, n_y - pad) 
-		except: start_y = pad
+				q[i * image_shape[0] // 2 : (i+1) * image_shape[0] // 2,
+				  j * image_shape[1] // 2 : (j+1) * image_shape[1] // 2] = q_section
 
-		cut_n_vector = n_vector[:, :, start_y-pad: start_y+pad, 
-					      start_x-pad: start_x+pad]
+		return q
 
-		av_n = np.reshape(np.mean(cut_n_vector, axis=(2, 3)), (n_frame, 2, 2))
+	for n in range(n_sample):
+		vector_map = nem_vector[n]
+		q0 = np.zeros(map_shape)
+		av_n = np.reshape(np.mean(vector_map, axis=(1, 2)), (2, 2))
+		eig_val, eig_vec = np.linalg.eigh(av_n)
+		q0 += (eig_val.T[1] - eig_val.T[0])
+		q1 = rec_search(vector_map, q0)
 
-		for frame in range(n_frame):
-	
-			eig_val, eig_vec = np.linalg.eigh(av_n[frame])
+		tot_q[n] = np.mean(np.unique(q1))
 
-			av_eigval[frame] = eig_val
-			av_eigvec[frame] = eig_vec
+	return tot_q
 
-		tot_q += (av_eigval.T[1] - av_eigval.T[0])
-		av_q.append(np.mean(tot_q) / sample)
-
-		if sample > min_sample:
-			q_mov_av = ut.cum_mov_average(av_q)
-			analysing = (q_mov_av[-1] - q_mov_av[-2]) > thresh
-
-		sample += 1
-
-	return tot_q / sample, sample
-	"""
 
 def fourier_transform_analysis(image_shg):
 	"""
@@ -764,6 +804,7 @@ def fourier_transform_analysis(image_shg):
 	image_fft[0][0] = 0
 	image_fft = np.fft.fftshift(image_fft)
 	average_fft = np.zeros(image_fft.shape, dtype=complex)
+	sdi = np.zeros(n_sample)
 
 	fft_angle = np.angle(image_fft, deg=True)
 	angles = np.unique(fft_angle)
@@ -775,12 +816,13 @@ def fourier_transform_analysis(image_shg):
 		image_fft = np.fft.fft2(image_shg[n])
 		image_fft[0][0] = 0
 		average_fft += np.fft.fftshift(image_fft) / n_sample	
+		sdi[n] = np.mean(np.abs(image_fft)) / (np.max(np.abs(image_fft)))
 
 	for i in range(n_bins):
 		indices = np.where(fft_angle == angles[i])
 		fourier_spec[i] += np.sum(np.abs(average_fft[indices])) / 360
 
-	return angles, fourier_spec
+	return angles, fourier_spec, sdi
 
 
 def animate(n):
@@ -869,12 +911,15 @@ def analysis(current_dir, input_file_name=False):
 	area_sample = int(2 * (np.min((int(param['l_sample'] * conv),) + image_shg.shape[1:]) // 2))
 
 	data_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_data'
-	if not ow_data and os.path.exists(data_file_name): 
+
+	if not ow_data and os.path.exists(data_dir + data_file_name + '.npy'):
+		print("\n Loading {} x {} pixel image data set samples {}".format(area_sample, area_sample, data_file_name))
 		data_set = ut.load_npy(data_dir + data_file_name)
-		dx_shg, dy_shg = ut.load_npy(data_dir + data_file_name + '_dxdy')
+		dx_shg_set, dy_shg_set = ut.load_npy(data_dir + data_file_name + '_dxdy')
 	else:
 		data_set, indices = select_samples(image_shg, area_sample, param['min_sample'])
 		print("\n Saving {} x {} pixel image data set samples {}".format(area_sample, area_sample, data_file_name))
+
 		ut.save_npy(data_dir + data_file_name, data_set)
 
 		pad = area_sample // 2
@@ -896,7 +941,7 @@ def analysis(current_dir, input_file_name=False):
 	n_tensor = form_nematic_tensor(dx_shg_set, dy_shg_set)
 
 	"Sample average orientational anisotopy"
-	q  = nematic_tensor_analysis(n_tensor, data_set.shape[0])
+	q  = nematic_tensor_analysis(n_tensor)
 
 	print_anis_results(fig_dir, fig_name, q)
 
@@ -904,11 +949,16 @@ def analysis(current_dir, input_file_name=False):
 	print(" Saving anisotropy file {}".format(anis_file_name))
 	ut.save_npy(data_dir + anis_file_name, q)
 
+	"Smart search average orietational anisotropy"
+	q = smart_nematic_tensor_analysis(n_tensor)
+
+	print_anis_results(fig_dir, fig_name + '_smart', q)
+
 	"Perform Fourier Analysis"
-	angles, fourier_spec = fourier_transform_analysis(data_set)
+	angles, fourier_spec, sdi = fourier_transform_analysis(data_set)
 	#angles = angles[len(angles)//2:]
 	#fourier_spec = 2 * fourier_spec[len(fourier_spec)//2:]
-	print_fourier_results(fig_dir, fig_name, angles, fourier_spec)
+	print_fourier_results(fig_dir, fig_name, angles, fourier_spec, sdi)
 
 	"Make Gif of SHG Images"
 	if ow_shg or mk_gif:

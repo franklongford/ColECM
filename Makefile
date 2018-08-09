@@ -2,8 +2,8 @@ PYTHON=python
 PIP=pip
 
 #BIN=~/.conda/envs/python_3/bin/ "Enter binary folder here"
-BIN=~/miniconda3/envs/python_3/bin/ "Enter binary folder here"
-
+#BIN=$(PATH%%:*)
+BIN=$(firstword $(subst :, " ", $(PATH)))
 NAME=ColECM
 NAME_MPI=ColECM_mpi
 
@@ -11,8 +11,9 @@ NAME_MPI=ColECM_mpi
 init: check install test
 
 
-check:
-	@echo $(PYTHON)
+check:	
+	@echo "Checking default binary folder path:"
+	@echo ${BIN}
 	@echo
 	@echo "Checking default python version:"
 	@$(PYTHON) --version || (echo "No python distribution detected"; exit 1)
@@ -55,5 +56,5 @@ clean:
 	@rm -f -r src/__pycache__
 	@rm -f src/*.pyc
 	@rm -f -r .cache/
-	@rm -f -r .DS_Store/
+	@rm -f  .DS_Store
 	@rm -f -r .pytest_cache/

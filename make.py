@@ -4,7 +4,8 @@ task = sys.argv[1]
 program_name = sys.argv[2]
 speed_test_name = "speed_test"
 bin_dir = sys.argv[3]
-python_command = 'python'
+if '--python' in sys.argv: python_command = sys.argv[sys.argv.index('--python') + 1]
+else: python_command = 'python'
 python_version = sys.version_info
 ColECM_dir = os.getcwd()
 

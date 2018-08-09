@@ -1,0 +1,10 @@
+[
+  "tests/test_ColECM.py::test_unit_vector",
+  "tests/test_ColECM.py::test_remove",
+  "tests/test_ColECM.py::test_param_file",
+  "tests/test_ColECM.py::test_load_save",
+  "tests/test_ColECM.py::test_get_dxyz",
+  "tests/test_ColECM.py::test_cos_sin_theta",
+  "tests/test_ColECM.py::test_pot_energy_frc",
+  "tests/test_ColECM.py::test_grow_fibril"
+]

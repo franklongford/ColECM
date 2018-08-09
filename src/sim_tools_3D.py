@@ -10,7 +10,6 @@ Last Modified: 12/04/2018
 
 import numpy as np
 import sys, os, pickle
-from mpi4py import MPI
 
 import utilities as ut
 
