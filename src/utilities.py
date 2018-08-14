@@ -381,7 +381,7 @@ def move_array_centre(array, centre):
 	Move top left corner of ND array to centre index
 	"""
 
-	n_dim = centre.shape[0]
+	n_dim = np.array(centre).shape[0]
 
 	for i, ax in enumerate(range(n_dim)): array = np.roll(array, centre[i], axis=ax)
 
@@ -696,3 +696,136 @@ def bond_check(bond_matrix, fib_end, r2, rc, bond_rb, vdw_sigma):
 
 	else: return bond_matrix, False
 
+def gaussian_filter(histogram, std, r, n_xyz):
+
+	"Get indicies and intensity of non-zero histogram grid points"
+	indices = np.argwhere(histogram)
+	intensity = histogram[np.where(histogram)]
+
+	"Generate blank image"
+	image = np.zeros(n_xyz[:2])
+
+	for i, index in enumerate(indices):
+
+		"""
+		"Performs filtered mapping"
+		if n_dim == 2:
+			r_cut_shift = move_array_centre(r_cut, index[::-1])
+			filter_shift = move_array_centre(filter_, index[::-1])
+		elif n_dim == 3:
+			r_cut_shift = move_array_centre(r_cut[index[0]], index[1:])
+			filter_shift = move_array_centre(filter_[index[0]], index[1:])
+
+		pixels = np.where(r_cut_shift)
+		image[pixels] += gaussian(r_cut_shift[pixels].flatten(), 0, std) * intensity[i]
+		"""		
+		"Performs the full mapping"
+		if n_dim == 2: r_shift = move_array_centre(r, index[::-1])
+		elif n_dim == 3: r_shift = move_array_centre(r[index[0]], index[1:])
+		image += np.reshape(gaussian(r_shift.flatten(), 0, std), n_xyz[:2]) * intensity[i]
+
+	image = image.T
+
+	return image
+
+
+def dx_dy_shg(histogram, std, n_xyz, dxdydz, r, non_zero):
+	"""
+	dx_dy_shg(histogram, std, n_xyz, dxdydz, r, non_zero)
+
+	Create Gaussian convoluted image from a set of bead positions
+
+	Parameter
+	---------
+
+	histogram:  array_like (int); shape=(n_x, n_y)
+		Discretised distribution of pos_x and pos_y
+
+	std:  float
+		Standard deviation of Gaussian distribution
+
+	n_xyz:  tuple (int); shape(n_dim)
+		Number of pixels in each image dimension
+
+	dxdydz:  array_like (float); shape=(n_x, n_y, n_z)
+		Matrix of distances along x y and z axis in pixels with cutoff radius applied
+
+	r_cut:  array_like (float); shape=(n_x, n_y)
+		Matrix of radial distances between pixels with cutoff radius applied
+
+	non_zero:  array_like (float); shape=(n_x, n_y)
+		Filter representing indicies to use in convolution
+
+	Returns
+	-------
+
+	dx_grid:  array_like (float); shape=(n_y, n_x)
+		Matrix of derivative of image intensity with respect to x axis for each pixel
+
+	dy_grid:  array_like (float); shape=(n_y, n_x)
+		Matrix of derivative of image intensity with respect to y axis for each pixel
+
+	"""
+
+	"Get indicies and intensity of non-zero histogram grid points"
+	indices = np.argwhere(histogram)
+	intensity = histogram[np.where(histogram)]
+	n_dim = len(n_xyz)
+
+	if n_dim == 3: 
+		r = ut.reorder_array(r)
+		#r_cut = reorder_array(r_cut)
+		non_zero = ut.reorder_array(non_zero)
+		dxdydz = np.moveaxis(dxdydz, (0, 3, 1, 2), (0, 1, 2, 3))
+
+	n_dim = len(n_xyz)
+	"Generate blank image"
+	dx_grid = np.zeros(n_xyz[:2])
+	dy_grid = np.zeros(n_xyz[:2])
+
+	for i, index in enumerate(indices):
+	
+		"""
+		if n_dim == 2:
+			r_cut_shift = move_array_centre(r_cut, index)
+			non_zero_shift = move_array_centre(non_zero, index)
+			dx_shift = move_array_centre(dxdydz[0], index)
+			dy_shift = move_array_centre(dxdydz[1], index)
+
+		elif n_dim == 3:
+
+			r_cut_shift = move_array_centre(r_cut[-index[0]], index[1:])
+			non_zero_shift = move_array_centre(non_zero[-index[0]], index[1:])
+			dx_shift = move_array_centre(dxdydz[0][-index[0]], index[1:])
+			dy_shift = move_array_centre(dxdydz[1][-index[0]], index[1:])
+			
+		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
+		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
+
+		"""
+		if n_dim == 2:
+			r_shift = ut.move_array_centre(r, index)
+			non_zero_shift = ut.move_array_centre(non_zero, index)
+			dx_shift = ut.move_array_centre(dxdydz[0], index)
+			dy_shift = ut.move_array_centre(dxdydz[1], index)
+
+		elif n_dim == 3:
+
+			r_shift = ut.move_array_centre(r[-index[0]], index[1:])
+			non_zero_shift = ut.move_array_centre(non_zero[-index[0]], index[1:])
+			dx_shift = ut.move_array_centre(dxdydz[0][-index[0]], index[1:])
+			dy_shift = ut.move_array_centre(dxdydz[1][-index[0]], index[1:])
+			
+		dx_grid[np.where(non_zero_shift)] += (ut.dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
+		dy_grid[np.where(non_zero_shift)] += (ut.dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
+							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
+
+		#"""
+
+	dx_grid = dx_grid.T
+	dy_grid = dy_grid.T
+
+	return dx_grid, dy_grid

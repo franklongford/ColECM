@@ -11,6 +11,7 @@ Last Modified: 19/04/2018
 import numpy as np
 import scipy as sp
 from scipy import signal
+from scipy.ndimage import filters
 
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as plt3d
@@ -106,29 +107,48 @@ def print_vector_results(fig_dir, fig_name, param, tot_mag, tot_theta):
 	plt.close('all')
 
 
-def print_anis_results(fig_dir, fig_name, q):
+def print_anis_results(fig_dir, fig_name, tot_q, tot_angle):
 
-	print('\n Mean anistoropy = {:>6.4f}'.format(np.mean(q)))
+	nframe = tot_q.shape[0]
+	nxy = tot_q.shape[1]
+	print('\n Mean anistoropy = {:>6.4f}'.format(np.mean(tot_q)))
 
-	print(' Creating Anisotropy time series figure {}{}_anis_time.png'.format(fig_dir, fig_name))
-	plt.figure(9)
-	plt.title('Anisotropy Time Series')
-	plt.plot(q, label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'Anisotropy')
-	plt.ylim(0, 1)
-	plt.legend()
-	plt.savefig('{}{}_anis_time.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.figure()
+	plt.imshow(tot_q[0], cmap='binary_r', interpolation='nearest', origin='lower', vmin=0, vmax=1)
+	plt.colorbar()
+	plt.savefig('{}{}_anisomap.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.close()
 
-	print(' Creating Anisotropy histogram figure {}{}_anis_hist.png'.format(fig_dir, fig_name))
-	plt.figure(10)
+	plt.figure()
+	plt.imshow(tot_angle[0], cmap='nipy_spectral', interpolation='nearest', origin='lower', vmin=-45, vmax=45)
+	plt.colorbar()
+	plt.savefig('{}{}_anglemap.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.close()
+
+	q_hist = np.zeros(100)
+	angle_hist = np.zeros(100)
+
+	for frame in range(nframe):
+		q_hist += np.histogram(tot_q[frame].flatten(), bins=100, density=True, range=[0, 1])[0] / nframe
+		angle_hist += np.histogram(tot_angle[frame].flatten(), bins=100, density=True, range=[-45, 45])[0] / nframe
+
+	plt.figure()
 	plt.title('Anisotropy Histogram')
-	plt.hist(q, bins='auto', density=True, label=fig_name)
+	plt.plot(np.linspace(0, 1, 100), q_hist, label=fig_name)
 	plt.xlabel(r'Anisotropy')
 	plt.xlim(0, 1)
 	plt.legend()
-	plt.savefig('{}{}_anis_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
-	plt.close('all')
+	plt.savefig('{}{}_tot_aniso_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.close()
+
+	plt.figure()
+	plt.title('Angular Histogram')
+	plt.plot(np.linspace(-45, 45, 100), angle_hist, label=fig_name)
+	plt.xlabel(r'Angle')
+	plt.xlim(-45, 45)
+	plt.legend()
+	plt.savefig('{}{}_tot_angle_hist.png'.format(fig_dir, fig_name), bbox_inches='tight')
+	plt.close()
 
 
 def print_fourier_results(fig_dir, fig_name, angles, fourier_spec, sdi):
@@ -136,7 +156,7 @@ def print_fourier_results(fig_dir, fig_name, angles, fourier_spec, sdi):
 	print('\n Modal Fourier Amplitude  = {:>6.4f}'.format(angles[np.argmax(fourier_spec)]))
 	print(' Fourier Amplitudes Range   = {:>6.4f}'.format(np.max(fourier_spec)-np.min(fourier_spec)))
 	print(' Fourier Amplitudes Std Dev = {:>6.4f}'.format(np.std(fourier_spec)))
-	print(' Fourier Mean SDI = {:>6.4f}'.format(np.mean(sdi)))
+	print(' Fourier SDI = {:>6.4f}'.format(sdi))
 
 	print(' Creating Fouier Angle Spectrum figure {}{}_fourier.png'.format(fig_dir, fig_name))
 	plt.figure(11)
@@ -145,24 +165,15 @@ def print_fourier_results(fig_dir, fig_name, angles, fourier_spec, sdi):
 	plt.xlabel(r'Angle (deg)')
 	plt.ylabel(r'Amplitude')
 	plt.xlim(-180, 180)
-	#plt.ylim(0, 0.25)
+	plt.ylim(0, 0.05)
 	plt.legend()
 	plt.savefig('{}{}_fourier.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
-	plt.figure(12)
-	plt.title('Fourier SDI')
-	plt.plot(sdi, label=fig_name)
-	plt.xlabel(r'step')
-	plt.ylabel(r'SDI')
-	plt.legend()
-	plt.savefig('{}{}_sdi.png'.format(fig_dir, fig_name), bbox_inches='tight')
-
 	plt.close('all')
 
 
-def create_image(pos, std, n_xyz, r):
+def create_image(pos, sigma, n_xyz):
 	"""
-	create_image(pos_x, pos_y, sigma, n_xyz, r)
+	create_image(pos, sigma)
 
 	Create Gaussian convoluted image from a set of bead positions
 
@@ -172,14 +183,11 @@ def create_image(pos, std, n_xyz, r):
 	pos:  array_like (float), shape=(n_bead)
 		Bead positions along n_dim dimension
 
-	std:  float
+	sigma:  float
 		Standard deviation of Gaussian distribution
 
 	n_xyz:  tuple (int); shape(n_dim)
 		Number of pixels in each image dimension
-
-	r:  array_like (float); shape=(n_x, n_y)
-		Matrix of radial distances between pixels
 
 	Returns
 	-------
@@ -197,144 +205,25 @@ def create_image(pos, std, n_xyz, r):
 	"Discretise data"
 	histogram, edges = np.histogramdd(pos.T, bins=n_xyz)
 
-	if n_dim == 2: 
-		histogram = histogram.T
-	elif n_dim == 3: 
-		histogram = ut.reorder_array(histogram)
-		r = ut.reorder_array(r)
+	if n_dim == 2: histogram = histogram.T
+	elif n_dim == 3: histogram = ut.reorder_array(histogram)
 
-	"Get indicies and intensity of non-zero histogram grid points"
-	indices = np.argwhere(histogram)
-	intensity = histogram[np.where(histogram)]
+	from skimage import filters
+	import time
 
-	"Generate blank image"
-	image = np.zeros(n_xyz[:2])
+	image_shg = filters.gaussian(histogram, sigma=sigma, mode='wrap')
+	image_shg /= np.max(image_shg)
 
-	for i, index in enumerate(indices):
-
-		"""
-		"Performs filtered mapping"
-		if n_dim == 2:
-			r_cut_shift = move_array_centre(r_cut, index[::-1])
-			filter_shift = move_array_centre(filter_, index[::-1])
-		elif n_dim == 3:
-			r_cut_shift = move_array_centre(r_cut[index[0]], index[1:])
-			filter_shift = move_array_centre(filter_[index[0]], index[1:])
-
-		pixels = np.where(r_cut_shift)
-		image[pixels] += gaussian(r_cut_shift[pixels].flatten(), 0, std) * intensity[i]
-		"""		
-		"Performs the full mapping"
-		if n_dim == 2: r_shift = ut.move_array_centre(r, index[::-1])
-		elif n_dim == 3: r_shift = ut.move_array_centre(r[index[0]], index[1:])
-		image += np.reshape(ut.gaussian(r_shift.flatten(), 0, std), n_xyz[:2]) * intensity[i]
-
-	image = image.T
-
-	return histogram, image
+	return histogram, image_shg
 
 
-def fibril_align(histogram, std, n_xyz, dxdydz, r, non_zero):
-	"""
-	create_image(pos_x, pos_y, sigma, n_x, n_y, r, non_zero)
+def derivatives(image):
 
-	Create Gaussian convoluted image from a set of bead positions
+	derivative = np.zeros((2,) + image.shape)
+	derivative[0] += np.gradient(image, axis=0)  #(ut.move_array_centre(image, np.array((1, 0))) - image)
+	derivative[1] += np.gradient(image, axis=1)  #(ut.move_array_centre(image, np.array((0, 1))) - image)
 
-	Parameter
-	---------
-
-	histogram:  array_like (int); shape=(n_x, n_y)
-		Discretised distribution of pos_x and pos_y
-
-	std:  float
-		Standard deviation of Gaussian distribution
-
-	n_xyz:  tuple (int); shape(n_dim)
-		Number of pixels in each image dimension
-
-	dxdydz:  array_like (float); shape=(n_x, n_y, n_z)
-		Matrix of distances along x y and z axis in pixels with cutoff radius applied
-
-	r_cut:  array_like (float); shape=(n_x, n_y)
-		Matrix of radial distances between pixels with cutoff radius applied
-
-	non_zero:  array_like (float); shape=(n_x, n_y)
-		Filter representing indicies to use in convolution
-
-	Returns
-	-------
-
-	dx_grid:  array_like (float); shape=(n_y, n_x)
-		Matrix of derivative of image intensity with respect to x axis for each pixel
-
-	dy_grid:  array_like (float); shape=(n_y, n_x)
-		Matrix of derivative of image intensity with respect to y axis for each pixel
-
-	"""
-
-	"Get indicies and intensity of non-zero histogram grid points"
-	indices = np.argwhere(histogram)
-	intensity = histogram[np.where(histogram)]
-	n_dim = len(n_xyz)
-
-	if n_dim == 3: 
-		r = ut.reorder_array(r)
-		#r_cut = reorder_array(r_cut)
-		non_zero = ut.reorder_array(non_zero)
-		dxdydz = np.moveaxis(dxdydz, (0, 3, 1, 2), (0, 1, 2, 3))
-
-	n_dim = len(n_xyz)
-	"Generate blank image"
-	dx_grid = np.zeros(n_xyz[:2])
-	dy_grid = np.zeros(n_xyz[:2])
-
-	for i, index in enumerate(indices):
-	
-		"""
-		if n_dim == 2:
-			r_cut_shift = move_array_centre(r_cut, index)
-			non_zero_shift = move_array_centre(non_zero, index)
-			dx_shift = move_array_centre(dxdydz[0], index)
-			dy_shift = move_array_centre(dxdydz[1], index)
-
-		elif n_dim == 3:
-
-			r_cut_shift = move_array_centre(r_cut[-index[0]], index[1:])
-			non_zero_shift = move_array_centre(non_zero[-index[0]], index[1:])
-			dx_shift = move_array_centre(dxdydz[0][-index[0]], index[1:])
-			dy_shift = move_array_centre(dxdydz[1][-index[0]], index[1:])
-			
-		dx_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
-							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
-		dy_grid[np.where(non_zero_shift)] += (dx_gaussian(r_cut_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
-							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_cut_shift[np.where(non_zero_shift)].flatten())
-
-		"""
-		if n_dim == 2:
-			r_shift = ut.move_array_centre(r, index)
-			non_zero_shift = ut.move_array_centre(non_zero, index)
-			dx_shift = ut.move_array_centre(dxdydz[0], index)
-			dy_shift = ut.move_array_centre(dxdydz[1], index)
-
-		elif n_dim == 3:
-
-			r_shift = ut.move_array_centre(r[-index[0]], index[1:])
-			non_zero_shift = ut.move_array_centre(non_zero[-index[0]], index[1:])
-			dx_shift = ut.move_array_centre(dxdydz[0][-index[0]], index[1:])
-			dy_shift = ut.move_array_centre(dxdydz[1][-index[0]], index[1:])
-			
-		dx_grid[np.where(non_zero_shift)] += (ut.dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
-							intensity[i] * dx_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
-		dy_grid[np.where(non_zero_shift)] += (ut.dx_gaussian(r_shift[np.where(non_zero_shift)].flatten(), 0, std) * 
-							intensity[i] * dy_shift[np.where(non_zero_shift)].flatten() / r_shift[np.where(non_zero_shift)].flatten())
-
-		#"""
-
-
-	dx_grid = dx_grid.T
-	dy_grid = dy_grid.T
-
-	return dx_grid, dy_grid
+	return derivative
 
 
 def shg_images(traj, sigma, n_xyz, cut):
@@ -372,39 +261,12 @@ def shg_images(traj, sigma, n_xyz, cut):
 	dx_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
 	dy_shg = np.zeros((n_image,) +  n_xyz[:2][::-1])
 
-	"Calculate distances between grid points"
-	if n_dim == 2: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1]]
-	elif n_dim == 3: dxdydz = np.mgrid[0:n_xyz[0], 0:n_xyz[1], 0:n_xyz[2]]
-
-	"Enforce periodic boundaries"
-	for i in range(n_dim): dxdydz[i] -= n_xyz[i] * np.array(2 * dxdydz[i] / n_xyz[i], dtype=int)
-
-	"Calculate radial distances"
-	r2 = np.sum(dxdydz**2, axis=0)
-
-	"Find indicies within cutoff radius"
-	cutoff = np.where(r2 <= cut**2)
-	"""
-	"Form a filter for cutoff radius"
-	filter_ = np.zeros(n_xyz)
-	filter_[cutoff] += 1
-	"""
-	"Get all non-zero radii"
-	non_zero = np.zeros(n_xyz)
-	non_zero[cutoff] += 1
-	non_zero[0][0] = 0
-
-	"Form a matrix of radial distances corresponding to filter"
-	r = np.sqrt(r2)
-	#r_cut = np.zeros(n_xyz)
-	#r_cut[cutoff] += np.sqrt(r2[cutoff])
-
 	for image in range(n_image):
 		sys.stdout.write(" Processing image {} out of {}\r".format(image, n_image))
 		sys.stdout.flush()
 		
-		hist, image_shg[image] = create_image(traj[image], sigma, n_xyz, r)
-		dx_shg[image], dy_shg[image] = fibril_align(hist, sigma, n_xyz, dxdydz, r, non_zero)
+		hist, image_shg[image] = create_image(traj[image], sigma, n_xyz)
+		dx_shg[image], dy_shg[image] = derivatives(image_shg[image])
 
 	return image_shg, dx_shg, dy_shg
 
@@ -448,7 +310,7 @@ def make_png(file_name, fig_dir, image, bonds, res, sharp, cell_dim, itype='MD')
 		if n_dim == 2:
 			fig, ax = plt.subplots(figsize=(cell_dim[0]/4, cell_dim[1]/4))
 			plt.scatter(image[0], image[1])
-			for bond in bonds:plt.plot(image[0][bond], image[1][bond], linestyle='dashed')
+			#for bond in bonds:plt.plot(image[0][bond], image[1][bond], linestyle='dashed')
 			plt.xlim(0, cell_dim[0])
 			plt.ylim(0, cell_dim[1])
 		elif n_dim == 3:
@@ -585,7 +447,7 @@ def fibre_vector_analysis(traj, cell_dim, param):
 	return tot_theta, tot_mag
 
 
-def form_nematic_tensor(dx_shg, dy_shg):
+def form_nematic_tensor(dx_shg, dy_shg, sigma=None, size=None):
 	"""
 	form_nematic_tensor(dx_shg, dy_shg)
 
@@ -603,38 +465,69 @@ def form_nematic_tensor(dx_shg, dy_shg):
 	Returns
 	-------
 
-	n_vector:  array_like (float); shape(nframe, 4, n_y, n_x)
+	n_vector:  array_like (float); shape(nframe, n_y, n_x, 2, 2)
 		Flattened 2x2 nematic vector for each pixel in dx_shg, dy_shg (n_xx, n_xy, n_yx, n_yy)	
 
 	"""
 
-	r_xy = np.zeros(dx_shg.shape)
-	tx = np.zeros(dx_shg.shape)
-	ty = np.zeros(dx_shg.shape)
-
+	nframe = dx_shg.shape[0]
 	r_xy_2 = (dx_shg**2 + dy_shg**2)
-	indicies = np.where(r_xy_2 > 0)
-	r_xy[indicies] += np.sqrt(r_xy_2[indicies].flatten())
 
-	ty[indicies] -= dx_shg[indicies] / r_xy[indicies]
-	tx[indicies] += dy_shg[indicies] / r_xy[indicies]
+	nxx = np.nan_to_num(dy_shg**2 / r_xy_2)
+	nyy = np.nan_to_num(dx_shg**2 / r_xy_2)
+	nxy = np.nan_to_num(-dx_shg * dy_shg / r_xy_2)
 
-	nxx = tx**2
-	nyy = ty**2
-	nxy = tx*ty
+	if sigma != None:
+		for frame in range(nframe):
+			nxx[frame] = filters.gaussian_filter(nxx[frame], sigma=sigma)
+			nyy[frame] = filters.gaussian_filter(nyy[frame], sigma=sigma)
+			nxy[frame] = filters.gaussian_filter(nxy[frame], sigma=sigma)
+	elif size != None:
+		for frame in range(nframe):
+			nxx[frame] = filters.uniform_filter(nxx[frame], size=size)
+			nyy[frame] = filters.uniform_filter(nyy[frame], size=size)
+			nxy[frame] = filters.uniform_filter(nxy[frame], size=size)
 
-	n_vector = np.array((nxx, nxy, nxy, nyy))
-	n_vector = np.moveaxis(n_vector, (1, 0, 2, 3), (0, 1, 2, 3))
+	n_vector = np.stack((nxx, nxy, nxy, nyy), -1).reshape(nxx.shape + (2,2))
 
 	return n_vector
 
 
 def select_samples(full_set, area, n_sample):
+	"""
+	select_samples(full_set, area, n_sample)
 
+	Selects n_sample random sections of image stack full_set
+
+	Parameters
+	----------
+
+	full_set:  array_like (float); shape(n_frame, n_y, n_x)
+		Full set of n_frame images
+
+	area:  int
+		Unit length of sample area
+
+	n_sample:  int
+		Number of randomly selected areas to sample
+
+	Returns
+	-------
+
+	data_set:  array_like (float); shape=(n_sample, 2, n_y, n_x)
+		Sampled areas
+
+	indices:  array_like (float); shape=(n_sample, 2)
+		Starting points for random selection of full_set
+
+	"""
 	
+	if full_set.ndim == 2: full_set = full_set.reshape((1,) + full_set.shape)
+
 	n_frame = full_set.shape[0]
 	n_y = full_set.shape[1]
 	n_x = full_set.shape[2]
+
 	data_set = np.zeros((n_sample, n_frame, area, area))
 
 	pad = area // 2
@@ -686,15 +579,12 @@ def nematic_tensor_analysis(nem_vector):
 
 	"""
 
-	n_sample = nem_vector.shape[0]
-	tot_q = np.zeros(n_sample)
+	eig_val, eig_vec = np.linalg.eig(nem_vector)
+	size = eig_val.shape[:-1] + (1,)
+	tot_q = eig_val.max(axis=-1) - eig_val.min(axis=-1)
+	tot_angle = np.arcsin(eig_vec[:, :, :, 0, 1]) / np.pi * 180
 
-	for n in range(n_sample):
-		av_n = np.reshape(np.mean(nem_vector[n], axis=(1, 2)), (2, 2))
-		eig_val, eig_vec = np.linalg.eigh(av_n)
-		tot_q[n] += (eig_val.T[1] - eig_val.T[0])
-
-	return tot_q
+	return tot_q, tot_angle
 
 
 def smart_nematic_tensor_analysis(nem_vector, precision=1E-1):
@@ -804,9 +694,9 @@ def fourier_transform_analysis(image_shg):
 	image_fft[0][0] = 0
 	image_fft = np.fft.fftshift(image_fft)
 	average_fft = np.zeros(image_fft.shape, dtype=complex)
-	sdi = np.zeros(n_sample)
 
 	fft_angle = np.angle(image_fft, deg=True)
+	fft_freqs = np.fft.fftfreq(image_fft.size)
 	angles = np.unique(fft_angle)
 	fourier_spec = np.zeros(angles.shape)
 	
@@ -816,11 +706,14 @@ def fourier_transform_analysis(image_shg):
 		image_fft = np.fft.fft2(image_shg[n])
 		image_fft[0][0] = 0
 		average_fft += np.fft.fftshift(image_fft) / n_sample	
-		sdi[n] = np.mean(np.abs(image_fft)) / (np.max(np.abs(image_fft)))
 
 	for i in range(n_bins):
 		indices = np.where(fft_angle == angles[i])
 		fourier_spec[i] += np.sum(np.abs(average_fft[indices])) / 360
+
+	#A = np.sqrt(average_fft * fft_angle.size * fft_freqs**2 * (np.cos(fft_angle)**2 + np.sin(fft_angle)**2))
+
+	sdi = np.mean(fourier_spec) / np.max(fourier_spec)
 
 	return angles, fourier_spec, sdi
 
@@ -926,6 +819,8 @@ def analysis(current_dir, input_file_name=False):
 		dx_shg_set = np.zeros((param['min_sample'], n_frame, area_sample, area_sample))
 		dy_shg_set = np.zeros((param['min_sample'], n_frame, area_sample, area_sample))
 
+		print(dx_shg.shape)
+
 		for n in range(param['min_sample']):
 			dx_shg_set[n] = dx_shg[:, indices[n][1]-pad: indices[n][1]+pad, 
 						  	indices[n][0]-pad: indices[n][0]+pad]
@@ -937,14 +832,17 @@ def analysis(current_dir, input_file_name=False):
 
 		ut.save_npy(data_dir + data_file_name + '_dxdy', np.array((dx_shg_set, dy_shg_set)))
 
+
 	"Perform Nematic Tensor Analysis"
-	n_tensor = form_nematic_tensor(dx_shg_set, dy_shg_set)
+	n_tensor = form_nematic_tensor(dx_shg_set, dy_shg_set, size=5)
+	tot_q, tot_angle = nematic_tensor_analysis(n_tensor)
 
-	"Sample average orientational anisotopy"
-	q  = nematic_tensor_analysis(n_tensor)
+	q_filtered = np.where(data_set >= 0.2, tot_q, -1)
+	angle_filtered = np.where(data_set >= 0.2, tot_angle, -360)
+	
+	print_anis_results(fig_dir, fig_name, q_filtered, angle_filtered)
 
-	print_anis_results(fig_dir, fig_name, q)
-
+	"""
 	anis_file_name = ut.check_file_name(file_names['output_file_name'], 'out', 'npy') + '_anis'
 	print(" Saving anisotropy file {}".format(anis_file_name))
 	ut.save_npy(data_dir + anis_file_name, q)
@@ -953,6 +851,7 @@ def analysis(current_dir, input_file_name=False):
 	q = smart_nematic_tensor_analysis(n_tensor)
 
 	print_anis_results(fig_dir, fig_name + '_smart', q)
+	"""
 
 	"Perform Fourier Analysis"
 	angles, fourier_spec, sdi = fourier_transform_analysis(data_set)
@@ -965,6 +864,6 @@ def analysis(current_dir, input_file_name=False):
 		print('\n Making Simulation SHG Gif {}/{}.gif'.format(fig_dir, fig_name))
 		make_gif(fig_name + '_SHG', fig_dir, gif_dir, n_image, image_shg, param, cell_dim * param['l_conv'], 'SHG')
 
-	#print(' Making Simulation MD Gif {}/{}.gif'.format(fig_dir, fig_name))
-	#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * param['l_conv'], param, cell_dim * param['l_conv'], 'MD')
+		#print(' Making Simulation MD Gif {}/{}.gif'.format(fig_dir, fig_name))
+		#make_gif(fig_name + '_MD', fig_dir, gif_dir, n_image, image_md * param['l_conv'], param, cell_dim * param['l_conv'], 'MD')
 

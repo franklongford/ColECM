@@ -87,7 +87,7 @@ Main program and analysis can be run via the following commands:
 
 A speed test can be found in the binary folder to estimate the optimum number of processors to use for a MPI run. The number of processors available will be automatically detected, but can be changed in the ``speed_test`` executable
 
-3) ``~/ColECM/bin/speed_test [flags]``
+4) ``~/ColECM/bin/speed_test [flags]``
 
 	Simulation editor
 	Flags are optional and can be entered in the command line or selected later during the analysis process.

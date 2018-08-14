@@ -4,6 +4,7 @@ matplotlib
 imageio
 pytest
 scikit-learn
+scikit-image
 keras
 Theano
 tensorflow
