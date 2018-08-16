@@ -24,14 +24,14 @@ check:
 
 install:
 	@echo
-	@echo "Installing ColECM"
+	@echo "Installing ${NAME}"
 	@echo
 	@$(PIP) install -r requirements.txt
 	@$(PYTHON) make.py install $(NAME) $(BIN) || (echo "Installation failed"; exit 1)
 
 install_mpi:
 	@echo
-	@echo "Installing ColECM"
+	@echo "Installing ${NAME_MPI}"
 	@echo
 	@$(PIP) install -r requirements_mpi.txt
 	@$(PYTHON) make.py install_mpi $(NAME_MPI) $(BIN) || (echo "Installation failed"; exit 1)
