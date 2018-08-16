@@ -19,9 +19,7 @@ modules = []
 if ('simulation' in sys.argv): modules.append('simulation') 
 if ('analysis' in sys.argv): modules.append('analysis')
 if ('editor' in sys.argv): modules.append('editor')
-if ('learning' in sys.argv): modules.append('learning')
 if ('speed' in sys.argv): modules.append('speed')
-if ('experimental' in sys.argv): modules.append('experimental')
 
 ut.logo()
 
@@ -39,19 +37,6 @@ if ('analysis' in modules):
 if ('editor' in modules):
 	from editor import editor
 	editor(current_dir, input_file_name)
-if ('learning' in modules):
-	from machine_learning import learning
-	learning(current_dir)
 if ('speed' in modules):
 	from simulation import speed_test
 	speed_test(current_dir, input_file_name)
-if ('experimental' in modules):
-	from experimental_image import experimental_image
-	if ('-all' in sys.argv):
-		input_files = os.listdir(current_dir)
-		for input_file_name in input_files:
-			if input_file_name.endswith('.tif'): 
-				experimental_image(current_dir, input_file_name)
-	elif ('-name' in sys.argv):
-		input_file_name = sys.argv[sys.argv.index('-name') + 1]
-		experimental_image(current_dir, input_file_name)
