@@ -1,6 +1,6 @@
 """
-ColECM: Collagen ExtraCellular Matrix Simulation
-SIMULATION ROUTINE 
+ColECM MPI: Collagen ExtraCellular Matrix Simulation
+PARALLEL (MPI) SIMULATION ROUTINE 
 
 Created by: Frank Longford
 Created on: 13/04/2018
@@ -177,8 +177,8 @@ def equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param, comm, size=1, ran
 
 	if rank == 0: print("\n" + " " * 15 + "----Equilibrating Temperature----\n")
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces_mpi
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D_mpi as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D_mpi as calc_energy_forces
 
 	dt = param['dt'] / 2
 	sqrt_dt = np.sqrt(dt)
@@ -221,7 +221,7 @@ def equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param, comm, size=1, ran
 
 		#"""
 		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
-				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, dt, sqrt_dt, cell_dim, calc_energy_forces_mpi, comm, size, rank)
+				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, dt, sqrt_dt, cell_dim, calc_energy_forces, comm, size, rank)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
 		#"""		
@@ -260,7 +260,7 @@ def equilibrate_temperature_mpi(sim_dir, pos, cell_dim, param, comm, size=1, ran
 
 def equilibrate_density_mpi(pos, vel, cell_dim, param, comm, size=1, rank=0, inc=0.05, thresh=2E-3):
 	"""
-	equilibrate_density(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
+	equilibrate_density_mpi(pos, vel, cell_dim, bond_matrix, vdw_matrix, param, thresh=2E-3)
 
 	Equilibrate density of system
 
@@ -306,8 +306,8 @@ def equilibrate_density_mpi(pos, vel, cell_dim, param, comm, size=1, rank=0, inc
 
 	if rank == 0: print("\n" + " " * 15 + "----Equilibrating Density----\n")
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces_mpi
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D_mpi as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D_mpi as calc_energy_forces
 
 	sqrt_dt = np.sqrt(param['dt'])
 	n_dof = param['n_dim'] * param['n_bead']
@@ -342,7 +342,7 @@ def equilibrate_density_mpi(pos, vel, cell_dim, param, comm, size=1, rank=0, inc
 	while optimising:
 
 		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
-				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param['dt'], sqrt_dt, cell_dim, calc_energy_forces_mpi, comm, size, rank, NPT=True)
+				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param['dt'], sqrt_dt, cell_dim, calc_energy_forces, comm, size, rank, NPT=True)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
 
@@ -391,7 +391,7 @@ def equilibrate_density_mpi(pos, vel, cell_dim, param, comm, size=1, rank=0, inc
 	return pos, vel, cell_dim
 
 
-def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):	
+def simulation_mpi(current_dir, comm, input_file_name=False, size=1, rank=0):	
 
 	sim_dir = current_dir + '/sim/'
 
@@ -407,8 +407,8 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 	param = comm.bcast(param, root=0)
 
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces_mpi
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D_mpi as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D_mpi as calc_energy_forces
 
 	n_frames = int(param['n_step'] / param['save_step'])
 	dig = len(str(param['n_step']))
@@ -471,7 +471,7 @@ def simulation(current_dir, comm, input_file_name=False, size=1, rank=0):
 	for step in range(1, param['n_step']):
 
 		sim_state = velocity_verlet_alg_mpi(pos, vel, frc, virial_tensor, param, pos_indices, bond_indices, frc_indices, angle_indices, 
-				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, calc_energy_forces_mpi, comm, size, rank)
+				angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param['dt']/2, sqrt_dt, cell_dim, calc_energy_forces, comm, size, rank)
 
 		(pos, vel, frc, cell_dim, pot_energy, virial_tensor) = sim_state
 
@@ -616,9 +616,6 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 	file_names = comm.bcast(file_names, root=0)
 	param = comm.bcast(param, root=0)
 
-	if param['n_dim'] == 2: import sim_tools_2D as sim
-	elif param['n_dim'] == 3: import sim_tools_3D as sim
-
 	n_frames = int(param['n_step'] / param['save_step'])
 	dig = len(str(param['n_step']))
 	sqrt_dt = np.sqrt(param['dt'])
@@ -637,8 +634,8 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 		tot_press = np.zeros(param['n_step'])
 		tot_vol = np.zeros(param['n_step'])
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces_mpi
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D_mpi as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D_mpi as calc_energy_forces
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists_mpi(param['bond_matrix'], comm, size, rank)
 	
@@ -656,7 +653,7 @@ def speed_test(current_dir, comm, input_file_name=False, size=1, rank=0):
 	for i in range(n_trial):
 		start_time = time.time()
 
-		frc, pot_energy, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
+		frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
 							angle_indices, angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param)
 
 		stop_time_1 = time.time()

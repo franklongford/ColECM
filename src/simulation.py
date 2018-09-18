@@ -160,8 +160,8 @@ def equilibrate_temperature(sim_dir, pos, cell_dim, param, inc=0.1, thresh=5E-2)
 
 	print("\n" + " " * 15 + "----Equilibrating Temperature----\n")
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D as calc_energy_forces
 
 	dt = param['dt'] / 2
 	sqrt_dt = np.sqrt(dt)
@@ -268,8 +268,8 @@ def equilibrate_density(pos, vel, cell_dim, param, inc=0.5, thresh=2E-3):
 
 	print("\n" + " " * 15 + "----Equilibrating Density----\n")
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D as calc_energy_forces
 
 	dt = param['dt'] / 2
 	sqrt_dt = np.sqrt(dt)
@@ -359,8 +359,8 @@ def simulation(current_dir, input_file_name=False):
 
 	file_names, param = setup.read_shell_input(current_dir, sim_dir, input_file_name)
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D as calc_energy_forces
 		
 	n_frames = int(param['n_step'] / param['save_step'])
 	dig = len(str(param['n_step']))
@@ -559,8 +559,8 @@ def speed_test(current_dir,input_file_name=False):
 
 	n_dof = param['n_dim'] * param['n_bead'] 
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D as calc_energy_forces
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(param['bond_matrix'])
 	

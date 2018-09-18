@@ -39,14 +39,14 @@ if ('-input' in sys.argv): input_file_name = current_dir + '/' + sys.argv[sys.ar
 else: input_file_name = False
 
 if ('simulation' in modules):
-	from simulation_mpi import simulation
-	simulation(current_dir, comm, input_file_name, size, rank)
+	from simulation_mpi import simulation_mpi
+	simulation_mpi(current_dir, comm, input_file_name, size, rank)
 if ('analysis' in modules):
-	from analysis_mpi import analysis
-	analysis(current_dir, comm, input_file_name, size, rank)
+	from analysis_mpi import analysis_mpi
+	analysis_mpi(current_dir, comm, input_file_name, size, rank)
 if ('editor' in modules):
-	from editor_mpi import editor
-	editor(current_dir, comm, input_file_name, size, rank)
+	from editor_mpi import editor_mpi
+	editor_mpi(current_dir, comm, input_file_name, size, rank)
 if ('speed' in modules):
 	from simulation_mpi import speed_test
 	speed_test(current_dir, comm, input_file_name, size, rank)

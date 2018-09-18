@@ -364,12 +364,12 @@ def grow_cell(param, max_energy=200, max_attempt=200):
 	"""
 
 	if param['n_dim'] == 2: 
-		from sim_tools_2D import calc_energy_forces
+		from sim_tools import calc_energy_forces_2D as calc_energy_forces
 		pos = (np.mgrid[:n_cell,:n_cell].reshape(n_cell**2, 2) + 10) * param['vdw_sigma']
 		bond_matrix = np.zeros((n_cell**2, n_cell**2))
 		vdw_matrix = (np.ones((n_cell**2, n_cell**2)) - np.identity(n_cell**2)) * 10
 	elif param['n_dim'] == 3: 
-		from sim_tools_3D import calc_energy_forces
+		from sim_tools import calc_energy_forces_3D as calc_energy_forces
 		pos = (np.mgrid[:n_cell,:n_cell,:n_cell].reshape(n_cell**3, 3) + 10) * param['vdw_sigma']
 		bond_matrix = np.zeros((n_cell**3, n_cell**3))
 		vdw_matrix = (np.ones((n_cell**3, n_cell**3)) - np.identity(n_cell**3)) * 10
@@ -423,8 +423,8 @@ def grow_fibril(index, pos, param, max_energy=200, max_attempt=200):
 
 	"""
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D as calc_energy_forces
 
 	if index == 0:
 		pos[index] = np.random.random((param['n_dim'])) * param['vdw_sigma'] * 2
@@ -621,8 +621,8 @@ def calc_state(pos, cell_dim, param):
 
 	import time
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D as calc_energy_forces
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists(param['bond_matrix'])
 	frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, bond_indices, angle_indices, angle_bond_indices, param)
@@ -682,8 +682,8 @@ def calc_state_mpi(pos, cell_dim, param, comm, size=1, rank=0):
 
 	from mpi4py import MPI
 
-	if param['n_dim'] == 2: from sim_tools_2D import calc_energy_forces_mpi
-	elif param['n_dim'] == 3: from sim_tools_3D import calc_energy_forces_mpi
+	if param['n_dim'] == 2: from sim_tools import calc_energy_forces_2D_mpi as calc_energy_forces
+	elif param['n_dim'] == 3: from sim_tools import calc_energy_forces_3D_mpi as calc_energy_forces
 
 	bond_indices, angle_indices, angle_bond_indices = ut.update_bond_lists_mpi(param['bond_matrix'], comm, size, rank)
 
@@ -695,7 +695,7 @@ def calc_state_mpi(pos, cell_dim, param, comm, size=1, rank=0):
 
 	#verlet_list_rb = ut.check_cutoff(r2, param['bond_rb']**2)
 
-	frc, pot_energy, virial_tensor = calc_energy_forces_mpi(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
+	frc, pot_energy, virial_tensor = calc_energy_forces(pos, cell_dim, pos_indices, bond_indices, frc_indices, 
 							angle_indices, angle_bond_indices, angle_coeff, vdw_coeff, virial_indicies, param)
 
 	pot_energy = np.sum(comm.gather(pot_energy))

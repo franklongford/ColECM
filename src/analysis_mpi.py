@@ -131,7 +131,7 @@ def shg_images_mpi(traj, sigma, n_xyz, cut, comm, size, rank):
 	return image_shg
 
 
-def analysis(current_dir, comm, input_file_name=False, size=1, rank=0):
+def analysis_mpi(current_dir, comm, input_file_name=False, size=1, rank=0):
 
 
 	sim_dir = current_dir + '/sim/'

@@ -16,10 +16,10 @@ import utilities as ut
 import simulation as sim
 import setup
 
-from sim_tools_2D import cos_sin_theta as cos_sin_theta_2D
-from sim_tools_2D import calc_energy_forces as calc_energy_forces_2D
-from sim_tools_3D import cos_sin_theta as cos_sin_theta_3D
-from sim_tools_3D import calc_energy_forces as calc_energy_forces_3D
+from sim_tools import cos_sin_theta_2D
+from sim_tools import calc_energy_forces_2D
+from sim_tools import cos_sin_theta_3D
+from sim_tools import calc_energy_forces_3D
 
 
 THRESH = 1E-7

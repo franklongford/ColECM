@@ -16,7 +16,7 @@ import utilities as ut
 import setup
 
 
-def editor(current_dir, comm, input_file_name=False, size=1, rank=0):	
+def editor_mpi(current_dir, comm, input_file_name=False, size=1, rank=0):	
 
 	from editor import repeat_pos_array, check_edit_param
 
